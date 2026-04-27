@@ -94,10 +94,10 @@ jobs:
 
       - name: Check NEXT_PUBLIC_* (required for prebuilt next build)
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL }}
         run: |
           if [ -z "${NEXT_PUBLIC_API_URL}" ]; then
-            echo "::error::Add repository Variable NEXT_PUBLIC_API_URL (Settings → Actions → Variables), e.g. https://shiftops-api.fly.dev"
+            echo "::error::Add repository Secret OR Variable NEXT_PUBLIC_API_URL, e.g. https://shiftops-api.fly.dev"
             exit 1
           fi
 
@@ -106,8 +106,8 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
-          NEXT_PUBLIC_TG_BOT_USERNAME: ${{ vars.NEXT_PUBLIC_TG_BOT_USERNAME }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_TG_BOT_USERNAME: ${{ secrets.NEXT_PUBLIC_TG_BOT_USERNAME || vars.NEXT_PUBLIC_TG_BOT_USERNAME }}
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt artifact

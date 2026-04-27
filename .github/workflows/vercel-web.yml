@@ -4,9 +4,9 @@
 # (see docs/DEPLOY.md and DEPLOY_NEXT_STEPS.md).
 #
 # `vercel build` on GitHub runners does not reliably embed Vercel Dashboard
-# `NEXT_PUBLIC_*` values (unlike a build on Vercel). Pass the same values via
-# repository **Variables** (Settings → Secrets and variables → Actions → Variables)
-# so the Client bundle always gets the public API URL and bot name.
+# `NEXT_PUBLIC_*` values (unlike a build on Vercel). Duplicate the same strings
+# as a repository **Variable** or **Secret** named `NEXT_PUBLIC_API_URL` (and
+# optionally `NEXT_PUBLIC_TG_BOT_USERNAME`). Secrets are read first, then vars.
 #
 # If the same Vercel project is also connected to GitHub in the Vercel dashboard
 # (Git → Production Branch), you may get two builds per push — disable one path:
@@ -55,10 +55,10 @@ jobs:
 
       - name: Check NEXT_PUBLIC_* (required for prebuilt next build)
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL }}
         run: |
           if [ -z "${NEXT_PUBLIC_API_URL}" ]; then
-            echo "::error::Add repository Variable NEXT_PUBLIC_API_URL (Settings → Actions → Variables), same value as Vercel, e.g. https://shiftops-api.fly.dev"
+            echo "::error::Add repository Secret OR Variable NEXT_PUBLIC_API_URL (Actions → Secrets and variables), e.g. https://shiftops-api.fly.dev — same as Vercel Production."
             exit 1
           fi
 
@@ -67,8 +67,8 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
-          NEXT_PUBLIC_TG_BOT_USERNAME: ${{ vars.NEXT_PUBLIC_TG_BOT_USERNAME }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_TG_BOT_USERNAME: ${{ secrets.NEXT_PUBLIC_TG_BOT_USERNAME || vars.NEXT_PUBLIC_TG_BOT_USERNAME }}
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt to production
