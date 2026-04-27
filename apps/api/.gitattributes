@@ -1,0 +1,2 @@
+# Linux / Docker: CRLF in supervisord .conf breaks commands (uvicorn never listens on :8000).
+deploy/supervisord.conf text eol=lf

@@ -23,8 +23,7 @@ RUN pip install --upgrade pip \
     && pip install -e "."
 
 COPY . .
-RUN chmod +x /app/deploy/supervisord-failfast.sh
-
+# Edits on Windows can leave CRLF in .conf; supervisord treats \r as part of the line and breaks (uvicorn never binds).
 # Supervisor config baked in. We do NOT use it as the default CMD because
 # `docker-compose.yml` still wants `api` and `worker` as separate services
 # (cleaner for local development logs and hot-reload). Fly.io overrides the
@@ -32,6 +31,7 @@ RUN chmod +x /app/deploy/supervisord-failfast.sh
 # taskiq worker on a single small machine — that's how we fit a free-tier
 # budget without losing the worker.
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/shiftops.conf
+RUN sed -i 's/\r$//' /etc/supervisor/conf.d/shiftops.conf
 
 EXPOSE 8000
 

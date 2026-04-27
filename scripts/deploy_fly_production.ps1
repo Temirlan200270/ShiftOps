@@ -130,12 +130,13 @@ if ($exitCreate -eq 0) {
 
 # --- A2: secrets: flyctl reads NAME=VALUE from stdin; Go rejects "\ufeffAPP_ENV" if UTF-8 BOM is present. ---
 # Read bytes, drop EF BB BF, trim stray U+FEFF; write a temp file UTF-8 no BOM, feed stdin (same bytes Linux would use).
-Write-Host "[A2] fly secrets import (BOM-stripped .env, takes a moment) ..." -ForegroundColor Cyan
+# --stage: set secrets on the app without rolling Machines (avoids failed health rollouts before [A3] deploys a fixed image).
+Write-Host "[A2] fly secrets import --stage (BOM-stripped .env, no premature machine rollout) ..." -ForegroundColor Cyan
 $envFileBody = Read-TextFileUtf8NoBom -Path $EnvProd
 $tmpEnv = [System.IO.Path]::GetTempFileName()
 try {
     Write-TextFileUtf8NoBom -Path $tmpEnv -Text $envFileBody
-    $pImport = Start-Process -FilePath $Fly -ArgumentList @("secrets", "import", "-a", $AppName) `
+    $pImport = Start-Process -FilePath $Fly -ArgumentList @("secrets", "import", "-a", $AppName, "--stage") `
         -RedirectStandardInput $tmpEnv -NoNewWindow -Wait -PassThru
     $ex = if ($pImport.ExitCode -ne $null) { $pImport.ExitCode } else { 1 }
     if ($ex -ne 0) { throw "fly secrets import failed (exit $ex)" }
