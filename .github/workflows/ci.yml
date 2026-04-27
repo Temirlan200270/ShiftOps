@@ -77,7 +77,6 @@ jobs:
           GRANT USAGE ON SCHEMA public TO shiftops_app;
           GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO shiftops_app;
           GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO shiftops_app;
-          GRANT USAGE ON ALL TYPES IN SCHEMA public TO shiftops_app;
           SQL
       - name: Pytest
         env:

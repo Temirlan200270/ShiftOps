@@ -29,15 +29,23 @@ function Get-Flyctl {
     throw "flyctl not found. Install: iwr https://fly.io/install.ps1 -useb | iex"
 }
 
+function Read-TextFileUtf8NoBom {
+    param([string] $Path)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $offset = 0
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $offset = 3 }
+    [System.Text.Encoding]::UTF8.GetString($bytes, $offset, $bytes.Length - $offset)
+}
+
 function Import-DotEnv {
     param([string] $Path)
     if (-not (Test-Path -LiteralPath $Path)) { throw "Missing file: $Path" }
     Get-Content -LiteralPath $Path -Encoding utf8 | ForEach-Object {
-        $line = $_.Trim()
+        $line = $_.Trim().TrimStart([char]0xFEFF)
         if ($line -eq "" -or $line.StartsWith("#")) { return }
         $ix = $line.IndexOf("=")
         if ($ix -lt 1) { return }
-        $k = $line.Substring(0, $ix).Trim()
+        $k = $line.Substring(0, $ix).Trim().TrimStart([char]0xFEFF)
         $v = $line.Substring($ix + 1).Trim()
         if ($v.Length -ge 2 -and $v.StartsWith('"') -and $v.EndsWith('"')) {
             $v = $v.Substring(1, $v.Length - 2)
@@ -93,9 +101,10 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Created app $AppName"
 }
 
-# --- A2: secrets ---
+# --- A2: secrets (strip UTF-8 BOM so the first key is not "\ufeffAPP_ENV") ---
 Write-Host "[A2] fly secrets import (takes a moment) ..." -ForegroundColor Cyan
-Get-Content -LiteralPath $EnvProd -Raw | & $Fly secrets import --app $AppName
+$envFileBody = Read-TextFileUtf8NoBom -Path $EnvProd
+$envFileBody | & $Fly secrets import --app $AppName
 if ($LASTEXITCODE -ne 0) { throw "fly secrets import failed" }
 Write-Host "[A2] secrets import: OK" -ForegroundColor Green
 
