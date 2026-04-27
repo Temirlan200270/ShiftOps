@@ -18,10 +18,12 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY pyproject.toml ./
+# Production image: do not install dev tools (ruff, pytest) — less RAM and smaller layers.
 RUN pip install --upgrade pip \
-    && pip install -e ".[dev]"
+    && pip install -e "."
 
 COPY . .
+RUN chmod +x /app/deploy/supervisord-failfast.sh
 
 # Supervisor config baked in. We do NOT use it as the default CMD because
 # `docker-compose.yml` still wants `api` and `worker` as separate services
