@@ -102,7 +102,7 @@ fly secrets set --app shiftops-api \
    - `NEXT_PUBLIC_API_URL=https://shiftops-api.fly.dev`
    - `NEXT_PUBLIC_TG_BOT_USERNAME=ShiftOpsBot`
 3. **По умолчанию** CI подставляет `https://shiftops-api.fly.dev` и `ShiftOpsBot` (см. `.github/workflows/vercel-web.yml`). Чтобы сменить API или бота без правки репо, задай `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_TG_BOT_USERNAME` в **Actions → Variables** или **Secrets** (и то же в Vercel, чтобы везде совпадало).
-4. Добавить preview-URL Vercel в `API_CORS_ORIGINS` приложения Fly.
+4. В `API_CORS_ORIGINS` на Fly — прод и свои домены; превью `*.vercel.app` кроме того **разрешается в коде** (`allow_origin_regex` в `main.py`), иначе каждый новый превью-URL дал бы `OPTIONS … 400` (CORS).
 5. Сохранить `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` как
    GitHub Actions secrets (используются `.github/workflows/deploy.yml`).
 

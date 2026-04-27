@@ -94,9 +94,13 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
+    # `API_CORS_ORIGINS` = explicit (prod, custom domain, localhost). Branch /
+    # preview Vercel URLs change per deployment (`*-git-*-…vercel.app`); a regex
+    # covers them all so CORS preflight (OPTIONS) is not 400 for missing Origin.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
