@@ -1,16 +1,22 @@
 """Alembic environment.
 
-Uses **sync** ``psycopg`` (``database_url_sync`` / ``DATABASE_URL_SYNC``) only.
-The API uses **async** ``asyncpg`` (``DATABASE_URL``) — often the Supabase
-*transaction* pooler on :6543. Alembic DDL against that pooler can fail
-(``Tenant or user not found``, prepared statements). For production, set
-``DATABASE_URL_SYNC`` to the **session** pooler on :5432 or **direct** host
-``db.<project>.supabase.co`` (see ``docs/DEPLOY.md``).
+Uses **sync** ``psycopg`` (``DATABASE_URL_SYNC``, or ``ALEMBIC_DATABASE_URL`` if set).
+
+**Fly.io + free Supabase:** use **pooler** hosts only (Session :5432 for sync). Direct
+``db.<ref>.supabase.co`` is often **IPv6-only**; Fly machines may not reach it without Supabase
+IPv4 add-on — do not rely on Direct for ``fly ssh … alembic``.
+
+**``ALEMBIC_DATABASE_URL``** (optional): Direct URI for running Alembic **on a dev machine or CI**
+with IPv6. ``sslmode=require`` is appended if missing.
+
+**``Tenant or user not found``** on the pooler: reset the DB password in Supabase and paste fresh
+Session + Transaction URIs from the dashboard.
 """
 
 from __future__ import annotations
 
 from logging.config import fileConfig
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from alembic import context
 from sqlalchemy import create_engine, pool
@@ -29,8 +35,24 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _ensure_sslmode_require(dsn: str) -> str:
+    p = urlparse(dsn)
+    if p.scheme not in ("postgresql", "postgresql+psycopg", "postgres"):
+        return dsn
+    q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)]
+    lower = {k.lower() for k, _ in q}
+    if "sslmode" not in lower:
+        q.append(("sslmode", "require"))
+    return urlunparse(p._replace(query=urlencode(q)))
+
+
 def get_url() -> str:
-    return get_settings().database_url_sync
+    s = get_settings()
+    raw = (s.alembic_database_url or s.database_url_sync).strip()
+    if not raw:
+        msg = "Set DATABASE_URL_SYNC or ALEMBIC_DATABASE_URL (see shiftops_api.config.settings)."
+        raise RuntimeError(msg)
+    return _ensure_sslmode_require(raw)
 
 
 def run_migrations_offline() -> None:

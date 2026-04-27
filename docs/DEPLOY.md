@@ -30,15 +30,22 @@ free-tier Upstash (10к команд/день), Vercel hobby — всё $0. Пл
 3. Заменить префиксы схемы:
    - `postgres://` → `postgresql+asyncpg://` для `DATABASE_URL`.
    - `postgres://` → `postgresql+psycopg://` для `DATABASE_URL_SYNC`.
-4. Включить обязательное RLS на каждой таблице
+4. Если `alembic upgrade` падает с `FATAL: Tenant or user not found`, сначала **сбросить пароль БД** в Supabase и **заново
+   скопировать** URI *Session* и *Transaction* pooler из дашборда (без ручной сборки логина).
+5. Включить обязательное RLS на каждой таблице
    (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`). Миграции из репозитория
    делают это автоматически; проверь в Supabase Studio после первой
    миграции.
 
-> Почему пулер, а не прямой эндпоинт 5432?
-> Прямое подключение в Supabase — IPv6-only. Машины Fly на free tier'е
-> не имеют IPv6-egress. Пулер двухстековый, поэтому работает «из
-> коробки».
+> Почему пулер, а не прямой `db.<ref>.supabase.co:5432`?
+> На бесплатном проекте Supabase **прямой** хост часто доступен **только по IPv6**. Машины Fly
+> на shared-cpu **без IPv6-egress** до такого хоста не достучатся (пока не купить **IPv4 add-on** у
+> Supabase). **Pooler** (`*.pooler.supabase.com`) двухстековый с IPv4 — поэтому и `DATABASE_URL`, и
+> `fly ssh … alembic` должны использовать **только pooler**, не Direct.
+>
+> Миграции **с ноутбука** с **рабочим IPv6** (или GitHub Actions) иногда делают с **Direct** URI; на Windows
+> без IPv6 к `db.<ref>.supabase.co` бывает `getaddrinfo failed` — тогда **тот же session pooler** (host
+> `*.pooler.supabase.com`, порт 5432), что и для Fly.
 
 #### 1.2 Upstash (Redis)
 

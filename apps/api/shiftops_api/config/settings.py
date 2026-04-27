@@ -37,7 +37,14 @@ class Settings(BaseSettings):
     )
     database_url_sync: str = Field(
         default="postgresql+psycopg://shiftops:shiftops@postgres:5432/shiftops",
-        description="Sync URL for Alembic/psycopg. Supabase: use session pooler :5432 or direct db host (DEPLOY.md).",
+        description="Sync URL for Alembic/psycopg. Supabase: session pooler :5432 (DEPLOY.md).",
+    )
+    # If the session pooler returns FATAL: Tenant or user not found, set this to the
+    # *Direct connection* URI from Supabase (Project Settings -> Database) with
+    # postgresql+psycopg:// — often works when pooler user sync is broken.
+    alembic_database_url: str | None = Field(
+        default=None,
+        description="Optional Alembic-only DSN. Env: ALEMBIC_DATABASE_URL. Overrides database_url_sync.",
     )
     # Connection pool sizing is environment-dependent:
     #   - Local Postgres: defaults are fine.
