@@ -14,6 +14,18 @@ import structlog
 from shiftops_api.config import get_settings
 
 
+def _add_logger_name_compat(
+    logger: object, _method_name: str, event_dict: dict
+) -> dict:
+    """stdlib.add_logger_name assumes logging.Logger; PrintLogger has no .name (Fly/prod)."""
+    name = getattr(logger, "name", None)
+    if isinstance(name, str) and name:
+        event_dict["logger"] = name
+    else:
+        event_dict["logger"] = "shiftops"
+    return event_dict
+
+
 def configure_logging() -> None:
     settings = get_settings()
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
@@ -22,7 +34,7 @@ def configure_logging() -> None:
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
+        _add_logger_name_compat,
         timestamper,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,

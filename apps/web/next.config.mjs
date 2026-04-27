@@ -4,6 +4,8 @@ const withNextIntl = createNextIntlPlugin('./i18n.ts');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Required for Docker COPY of `.next/standalone` (see apps/web/Dockerfile).
+  output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
   experimental: {
