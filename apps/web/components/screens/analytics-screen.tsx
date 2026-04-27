@@ -42,6 +42,13 @@ interface AnalyticsScreenProps {
 const RANGES = [7, 30, 90] as const;
 type Range = (typeof RANGES)[number];
 
+/**
+ * Postgres / API `day_of_week` matches `EXTRACT(DOW)`: 0=Sun .. 6=Sat.
+ * We still render the grid Mon→Sun (ISO / business week) for readability;
+ * this array maps each **row index** to the API `day_of_week` key.
+ */
+const HEATMAP_ROW_DOW = [1, 2, 3, 4, 5, 6, 0] as const;
+
 function scoreColor(score: number | null): string {
   if (score === null) return "text-muted-foreground";
   if (score >= 90) return "text-success";
@@ -119,11 +126,13 @@ function HeatmapGrid({
             </div>
           ))}
 
-          {dayLabels.map((label, day) => (
-            <React.Fragment key={`row-${day}`}>
+          {dayLabels.map((label, rowIdx) => {
+            const dayOfWeek = HEATMAP_ROW_DOW[rowIdx] ?? 0;
+            return (
+            <React.Fragment key={`row-${dayOfWeek}`}>
               <div className="text-[10px] text-muted-foreground self-center">{label}</div>
               {Array.from({ length: 24 }, (_, hour) => {
-                const cell = indexed.get(`${day}:${hour}`);
+                const cell = indexed.get(`${dayOfWeek}:${hour}`);
                 const score = cell?.averageScore ?? null;
                 const tooltip =
                   cell === undefined
@@ -131,7 +140,7 @@ function HeatmapGrid({
                     : `${label} ${hour}:00 — ${formatScore(score)}`;
                 return (
                   <div
-                    key={`c-${day}-${hour}`}
+                    key={`c-${dayOfWeek}-${hour}`}
                     title={tooltip}
                     style={heatmapCellStyle(score)}
                     className="h-5 rounded-[3px] border border-border/40"
@@ -139,7 +148,8 @@ function HeatmapGrid({
                 );
               })}
             </React.Fragment>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -198,9 +208,18 @@ export function AnalyticsScreen({ onBack }: AnalyticsScreenProps): React.JSX.Ele
   }, [load, range]);
 
   const dayLabels = React.useMemo(() => {
-    const raw = tA.raw("heatmap.days") as unknown;
-    if (Array.isArray(raw)) return raw as string[];
-    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const raw = tA.raw("heatmap.days") as
+      | Record<string, string>
+      | string[]
+      | undefined;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      return HEATMAP_ROW_DOW.map((dow) => raw[String(dow)] ?? "");
+    }
+    if (Array.isArray(raw) && raw.length === 7) {
+      // Legacy Sun-first array: reorder to match HEATMAP_ROW_DOW
+      return HEATMAP_ROW_DOW.map((dow) => raw[dow] ?? "");
+    }
+    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   }, [tA]);
 
   const kpis = data?.kpis;
