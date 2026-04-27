@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -46,7 +46,7 @@ async def _seed_minimal_org(session: AsyncSession) -> dict[str, uuid.UUID]:
     template_id = uuid.uuid4()
     template_task_id = uuid.uuid4()
     shift_id = uuid.uuid4()
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     await session.execute(text("SET LOCAL row_security = off"))
     await session.execute(

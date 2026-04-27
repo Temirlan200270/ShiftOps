@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from jose import JWTError, jwt
 
 from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import UserRole
-
 
 _ALGORITHM = "HS256"
 _ISSUER = "shiftops"
@@ -103,8 +102,8 @@ class JwtService:
                 org=uuid.UUID(claims["org"]),
                 role=UserRole(claims["role"]),
                 tg=int(claims["tg"]) if claims.get("tg") is not None else None,
-                iat=datetime.fromtimestamp(int(claims["iat"]), tz=timezone.utc),
-                exp=datetime.fromtimestamp(int(claims["exp"]), tz=timezone.utc),
+                iat=datetime.fromtimestamp(int(claims["iat"]), tz=UTC),
+                exp=datetime.fromtimestamp(int(claims["exp"]), tz=UTC),
                 token_type=claims.get("typ", "access"),
             )
         except (KeyError, ValueError) as exc:
@@ -120,7 +119,7 @@ class JwtService:
         ttl: int,
         token_type: str,
     ) -> str:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         claims: dict[str, str | int] = {
             "iss": _ISSUER,
             "sub": str(user_id),

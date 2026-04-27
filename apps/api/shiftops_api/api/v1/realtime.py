@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -138,7 +138,7 @@ async def realtime_ws(
         data={
             "organization_id": str(payload.org),
             "role": payload.role.value,
-            "server_time": datetime.now(tz=timezone.utc).isoformat(),
+            "server_time": datetime.now(tz=UTC).isoformat(),
         },
     )
     await websocket.send_text(hello.to_json())
@@ -151,7 +151,7 @@ async def realtime_ws(
         while not stop.is_set():
             try:
                 await asyncio.wait_for(stop.wait(), timeout=_HEARTBEAT_SECONDS)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             if stop.is_set():
                 return
@@ -159,7 +159,7 @@ async def realtime_ws(
                 return
             ping = RealtimeEvent(
                 type="ping",
-                data={"at": datetime.now(tz=timezone.utc).isoformat()},
+                data={"at": datetime.now(tz=UTC).isoformat()},
             )
             try:
                 await websocket.send_text(ping.to_json())

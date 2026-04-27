@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -41,7 +41,6 @@ from shiftops_api.infra.db.models import (
     Template,
     TemplateTask,
 )
-
 
 # Hard cap on page size — the screen is a phone list, more rows than this
 # = scroll fatigue + larger payloads. UI never asks for more.
@@ -173,7 +172,7 @@ class ListHistoryUseCase:
             )
 
         next_cursor = (
-            items[-1].scheduled_start.astimezone(timezone.utc).isoformat()
+            items[-1].scheduled_start.astimezone(UTC).isoformat()
             if (has_more and items)
             else None
         )
@@ -181,7 +180,7 @@ class ListHistoryUseCase:
 
     async def _tally_tasks(
         self, shift_ids: list[uuid.UUID]
-    ) -> dict[uuid.UUID, "_TaskTally"]:
+    ) -> dict[uuid.UUID, _TaskTally]:
         if not shift_ids:
             return {}
         # One round-trip; group counts by status & criticality so we can

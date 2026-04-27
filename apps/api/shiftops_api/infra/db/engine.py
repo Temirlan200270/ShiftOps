@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import (
 
 from shiftops_api.config import get_settings
 
-
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 

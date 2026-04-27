@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -164,7 +164,7 @@ class SaveTemplateUseCase:
                 "name": template.name,
                 "role_target": template.role_target,
                 "task_count": len(payload.tasks),
-                "at": datetime.now(tz=timezone.utc).isoformat(),
+                "at": datetime.now(tz=UTC).isoformat(),
             },
         )
 

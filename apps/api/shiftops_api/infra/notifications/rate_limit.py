@@ -20,7 +20,6 @@ import redis.asyncio as redis_async
 
 from shiftops_api.config import get_settings
 
-
 _LUA_TAKE = """
 local key = KEYS[1]
 local capacity = tonumber(ARGV[1])

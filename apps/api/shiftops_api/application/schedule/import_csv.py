@@ -49,7 +49,7 @@ import csv
 import io
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -248,7 +248,7 @@ class ImportScheduleCsvUseCase:
             try:
                 tzinfo = ZoneInfo(row.location_tz or "UTC")
             except ZoneInfoNotFoundError:
-                tzinfo = timezone.utc
+                tzinfo = UTC
 
             start_local = datetime.combine(row.date, row.time_start, tzinfo=tzinfo)
             end_date = (
@@ -256,8 +256,8 @@ class ImportScheduleCsvUseCase:
             )
             end_local = datetime.combine(end_date, row.time_end, tzinfo=tzinfo)
 
-            row.scheduled_start = start_local.astimezone(timezone.utc)
-            row.scheduled_end = end_local.astimezone(timezone.utc)
+            row.scheduled_start = start_local.astimezone(UTC)
+            row.scheduled_end = end_local.astimezone(UTC)
 
             if row.scheduled_start >= row.scheduled_end:
                 errors.append(
@@ -269,7 +269,7 @@ class ImportScheduleCsvUseCase:
                 )
                 continue
 
-            if row.scheduled_start < datetime.now(tz=timezone.utc) - timedelta(hours=1):
+            if row.scheduled_start < datetime.now(tz=UTC) - timedelta(hours=1):
                 errors.append(
                     ImportRowError(
                         line_no=row.line_no,
@@ -389,7 +389,7 @@ class ImportScheduleCsvUseCase:
         ).all()
         return {name.lower(): row_id for row_id, name in rows}
 
-    async def _index_operators(self, org_id: uuid.UUID) -> "_OperatorIndex":
+    async def _index_operators(self, org_id: uuid.UUID) -> _OperatorIndex:
         # Telegram username currently lives on the telegram_accounts row;
         # the User model itself has no @handle column. We index by both
         # the tg_user_id (numeric) and the username so the CSV admin can
@@ -543,11 +543,11 @@ def _to_row_result(row: _ParsedRow, *, shift_id: uuid.UUID | None = None) -> Imp
 
 
 __all__ = [
+    "MAX_ROWS",
     "ImportReport",
     "ImportRowError",
     "ImportRowResult",
     "ImportScheduleCsvUseCase",
-    "MAX_ROWS",
 ]
 
 

@@ -26,7 +26,6 @@ from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
 from shiftops_api.infra.db.engine import get_session
 
-
 _bearer = HTTPBearer(auto_error=False)
 
 

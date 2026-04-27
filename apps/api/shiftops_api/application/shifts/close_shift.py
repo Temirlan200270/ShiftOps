@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -140,7 +140,7 @@ class CloseShiftUseCase:
 
         photo_unique = await self._count_unique_photos(shift_id)
 
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         score_result = compute_score(
             ShiftScoreInputs(
                 total_tasks=total,

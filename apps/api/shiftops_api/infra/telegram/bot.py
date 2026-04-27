@@ -36,7 +36,6 @@ from shiftops_api.domain.result import Failure
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import TelegramAccount, User
 
-
 _log = logging.getLogger(__name__)
 _router = Router(name="shiftops.bot")
 

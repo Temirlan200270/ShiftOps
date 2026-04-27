@@ -12,7 +12,6 @@ from taskiq_redis import ListQueueBroker, RedisAsyncResultBackend
 
 from shiftops_api.config import get_settings
 
-
 _settings = get_settings()
 
 broker = ListQueueBroker(url=_settings.redis_url).with_result_backend(

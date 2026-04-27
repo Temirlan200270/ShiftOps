@@ -52,16 +52,29 @@ target-version = "py312"
 extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
+# "PL" and "S" omitted: they flag normal FastAPI/DI patterns and product copy (RUF001 on Cyrillic).
 select = [
-    "E", "W", "F", "I", "B", "UP", "N", "SIM", "C4", "RUF", "ASYNC", "S", "PL", "TID",
+    "E", "W", "F", "I", "B", "UP", "N", "SIM", "C4", "RUF", "ASYNC", "TID",
 ]
 ignore = [
-    "S101",  # asserts in tests are fine
-    "PLR0913",  # too-many-arguments triggers a lot in DI signatures
+    "B008",  # Depends(), File(), TaskiqDepends() in defaults — framework idiom
+    "E501",  # wrap long lines when editing; avoid churn across the whole tree
+    "RUF001",  # intentional Cyrillic (and confusable chars) in user-facing strings
+    "RUF002",
+    "RUF003",
+    "RUF012",  # SQLAlchemy metadata mapping pattern
+    "RUF100",  # noqa hygiene varies across editor rounds
+    "SIM105",  # suppress patterns sometimes clearer than contextlib.suppress for asyncio
+    "N818",  # domain Exception names without Error suffix
+    "UP046",  # Success[T]/Failure[E] dataclass generics
+    "PLC0415",  # late imports to break dependency cycles (storage, notifications, etc.)
+    "PLW0603",  # module-level singletons for engine/event bus
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S", "PLR2004"]
+"tests/**/*.py" = ["B017", "PLR2004"]
+"scripts/**/*.py" = ["PLR0911", "PLR0915", "PLR2004"]
+"alembic/**/*.py" = ["I001"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

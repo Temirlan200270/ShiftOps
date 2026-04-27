@@ -93,7 +93,7 @@ class ListActiveShiftsUseCase:
 
     async def _progress(
         self, shift_ids: list[uuid.UUID]
-    ) -> dict[uuid.UUID, "_ProgressCounts"]:
+    ) -> dict[uuid.UUID, _ProgressCounts]:
         if not shift_ids:
             return {}
         from shiftops_api.infra.db.models import TemplateTask

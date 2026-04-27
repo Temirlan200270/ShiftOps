@@ -44,7 +44,6 @@ import redis.asyncio as redis_async
 
 from shiftops_api.config import get_settings
 
-
 _log = logging.getLogger(__name__)
 _CHANNEL_PREFIX = "shiftops:rt:org:"
 
@@ -69,7 +68,7 @@ class RealtimeEvent:
         return json.dumps({"type": self.type, "data": self.data}, default=str)
 
     @classmethod
-    def from_json(cls, payload: str) -> "RealtimeEvent":
+    def from_json(cls, payload: str) -> RealtimeEvent:
         body = json.loads(payload)
         return cls(type=str(body.get("type", "")), data=dict(body.get("data") or {}))
 

@@ -31,7 +31,6 @@ from shiftops_api.infra.queue import broker
 
 from .rate_limit import TelegramChatRateLimiter
 
-
 _log = logging.getLogger(__name__)
 _TG_API = "https://api.telegram.org"
 

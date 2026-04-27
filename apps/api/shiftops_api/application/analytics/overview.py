@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -127,7 +127,7 @@ class AnalyticsOverviewUseCase:
             return Failure(DomainError("forbidden"))
 
         days = max(1, min(days, MAX_DAYS))
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         range_from = now - timedelta(days=days)
         range_to = now
 
@@ -392,12 +392,12 @@ class AnalyticsOverviewUseCase:
 
 
 __all__ = [
-    "AnalyticsOverviewUseCase",
     "DEFAULT_DAYS",
+    "MAX_DAYS",
+    "AnalyticsOverviewUseCase",
     "HeatmapCell",
     "KpiBlock",
     "LocationRow",
-    "MAX_DAYS",
     "OverviewDTO",
     "ViolatorRow",
 ]

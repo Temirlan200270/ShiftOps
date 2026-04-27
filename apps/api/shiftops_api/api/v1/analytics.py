@@ -18,9 +18,9 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.analytics.overview import (
-    AnalyticsOverviewUseCase,
     DEFAULT_DAYS,
     MAX_DAYS,
+    AnalyticsOverviewUseCase,
 )
 from shiftops_api.application.auth.deps import CurrentUser, require_role
 from shiftops_api.domain.enums import UserRole

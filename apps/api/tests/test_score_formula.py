@@ -7,7 +7,7 @@ PR — the test names match the bullet points in the doc 1:1.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -29,7 +29,7 @@ def _inputs(
     photo_unique: int = 8,
     delay: timedelta = timedelta(0),
 ) -> ShiftScoreInputs:
-    scheduled_end = datetime(2026, 4, 27, 12, 0, tzinfo=timezone.utc)
+    scheduled_end = datetime(2026, 4, 27, 12, 0, tzinfo=UTC)
     return ShiftScoreInputs(
         total_tasks=total,
         done_or_waived=done,

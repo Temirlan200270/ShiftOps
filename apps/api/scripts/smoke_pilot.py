@@ -39,7 +39,6 @@ from shiftops_api.config import get_settings
 from shiftops_api.infra.db.engine import get_engine, get_sessionmaker
 from shiftops_api.infra.telegram.init_data import InitDataValidator
 
-
 SYNTHETIC_TG_USER_ID = 9_999_001
 SEED_OPERATOR_USER_ID = "33333333-3333-3333-3333-333333333333"
 

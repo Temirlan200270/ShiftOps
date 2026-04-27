@@ -28,7 +28,6 @@ from shiftops_api.config import get_settings
 
 from .interface import AttachmentRef, StorageProvider, UploadFailed
 
-
 _log = logging.getLogger(__name__)
 _TG_API = "https://api.telegram.org"
 

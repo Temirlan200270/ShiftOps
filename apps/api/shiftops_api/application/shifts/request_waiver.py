@@ -14,7 +14,6 @@ from shiftops_api.domain.enums import ShiftStatus, TaskStatus, UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Shift, TaskInstance, TemplateTask
 
-
 _ALLOWED_REASONS = {"broken", "no_staff", "no_stock", "other"}
 
 

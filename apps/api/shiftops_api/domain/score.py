@@ -23,10 +23,10 @@ Add a new version like this:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Callable
 
 SCORE_FORMULA_VERSION = 1
 

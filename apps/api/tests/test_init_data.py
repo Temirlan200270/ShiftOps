@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import pytest
@@ -12,7 +12,6 @@ from shiftops_api.infra.telegram.init_data import (
     InitDataValidator,
     InvalidInitData,
 )
-
 
 BOT_TOKEN = "1234567890:TEST_TOKEN_FOR_HMAC_VALIDATION_xx"
 
@@ -28,7 +27,7 @@ def _user_payload() -> str:
 
 
 def test_validate_accepts_fresh_signed_payload() -> None:
-    auth_date = int(datetime.now(tz=timezone.utc).timestamp())
+    auth_date = int(datetime.now(tz=UTC).timestamp())
     init_data = _signed_init_data(
         {
             "auth_date": str(auth_date),
@@ -43,7 +42,7 @@ def test_validate_accepts_fresh_signed_payload() -> None:
 
 
 def test_validate_rejects_tampered_hash() -> None:
-    auth_date = int(datetime.now(tz=timezone.utc).timestamp())
+    auth_date = int(datetime.now(tz=UTC).timestamp())
     init_data = _signed_init_data({"auth_date": str(auth_date), "user": _user_payload()})
     tampered = init_data.replace("Ivan", "Mallory")
 
@@ -52,7 +51,7 @@ def test_validate_rejects_tampered_hash() -> None:
 
 
 def test_validate_rejects_wrong_token() -> None:
-    auth_date = int(datetime.now(tz=timezone.utc).timestamp())
+    auth_date = int(datetime.now(tz=UTC).timestamp())
     init_data = _signed_init_data({"auth_date": str(auth_date), "user": _user_payload()})
 
     other_token = "9999999999:DIFFERENT_TOKEN_FOR_HMAC_VALIDATION"
@@ -61,7 +60,7 @@ def test_validate_rejects_wrong_token() -> None:
 
 
 def test_validate_rejects_replay_after_24h() -> None:
-    old = datetime.now(tz=timezone.utc) - timedelta(hours=25)
+    old = datetime.now(tz=UTC) - timedelta(hours=25)
     init_data = _signed_init_data(
         {"auth_date": str(int(old.timestamp())), "user": _user_payload()}
     )
@@ -71,7 +70,7 @@ def test_validate_rejects_replay_after_24h() -> None:
 
 
 def test_validate_rejects_future_auth_date() -> None:
-    future = datetime.now(tz=timezone.utc) + timedelta(minutes=10)
+    future = datetime.now(tz=UTC) + timedelta(minutes=10)
     init_data = _signed_init_data(
         {"auth_date": str(int(future.timestamp())), "user": _user_payload()}
     )
@@ -81,7 +80,7 @@ def test_validate_rejects_future_auth_date() -> None:
 
 
 def test_validate_rejects_missing_user() -> None:
-    auth_date = int(datetime.now(tz=timezone.utc).timestamp())
+    auth_date = int(datetime.now(tz=UTC).timestamp())
     init_data = _signed_init_data({"auth_date": str(auth_date)})
 
     with pytest.raises(InvalidInitData):

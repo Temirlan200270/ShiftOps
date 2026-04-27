@@ -57,7 +57,6 @@ from shiftops_api.infra.notifications.tasks import (
 )
 from shiftops_api.infra.realtime import publish_event
 
-
 _log = logging.getLogger(__name__)
 
 

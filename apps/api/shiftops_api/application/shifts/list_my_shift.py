@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +67,7 @@ class ListMyShiftUseCase:
         *,
         user: CurrentUser,
     ) -> Result[CurrentShiftDTO, DomainError]:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         active_stmt = (
             select(Shift, Template)
             .join(Template, Template.id == Shift.template_id)

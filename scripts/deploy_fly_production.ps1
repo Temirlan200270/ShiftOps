@@ -1,6 +1,8 @@
 # ShiftOps: первичный (или повторный) деплой API на Fly.io + сопутствующие шаги.
 # Запуск (из корня репозитория, после `flyctl auth login`):
 #   .\scripts\deploy_fly_production.ps1
+# Если «ничего не происходит» или открывается блокнот — запускай явно:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy_fly_production.ps1
 #
 # Требуется: apps/api/.env.production (не в git) со всеми прод-секретами.
 #

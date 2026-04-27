@@ -13,10 +13,9 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
-
 
 _DEFAULT_MAX_AGE = timedelta(hours=24)
 
@@ -91,8 +90,8 @@ class InitDataValidator:
         auth_date_raw = data.get("auth_date")
         if not auth_date_raw or not auth_date_raw.isdigit():
             raise InvalidInitData("auth_date missing or invalid")
-        auth_date = datetime.fromtimestamp(int(auth_date_raw), tz=timezone.utc)
-        now_utc = now or datetime.now(tz=timezone.utc)
+        auth_date = datetime.fromtimestamp(int(auth_date_raw), tz=UTC)
+        now_utc = now or datetime.now(tz=UTC)
         if now_utc - auth_date > self._max_age:
             raise InvalidInitData("auth_date too old")
         if auth_date - now_utc > timedelta(minutes=5):

@@ -14,7 +14,7 @@ from __future__ import annotations
 import io
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +25,6 @@ from shiftops_api.domain.enums import (
     CaptureMethod,
     Criticality,
     ShiftStatus,
-    StorageKind,
     TaskStatus,
     UserRole,
 )
@@ -139,7 +138,7 @@ class CompleteTaskUseCase:
                 phash=phash_hex,
                 suspicious=suspicious,
                 capture_method=CaptureMethod.CAMERA.value,
-                captured_at_server=datetime.now(tz=timezone.utc),
+                captured_at_server=datetime.now(tz=UTC),
             )
             self._session.add(attachment)
 
@@ -149,7 +148,7 @@ class CompleteTaskUseCase:
             ).inc()
 
         task.status = TaskStatus.DONE.value
-        task.completed_at = datetime.now(tz=timezone.utc)
+        task.completed_at = datetime.now(tz=UTC)
         if comment:
             task.comment = comment
 

@@ -22,7 +22,7 @@ from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shiftops_api.infra.db.models import Attachment, Shift, TaskInstance, TemplateTask
+from shiftops_api.infra.db.models import Attachment, Shift, TaskInstance
 
 
 def compute_phash(image_bytes: bytes) -> str:

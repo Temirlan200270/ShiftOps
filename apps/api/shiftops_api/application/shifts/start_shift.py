@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,7 +50,7 @@ class StartShiftUseCase:
             return Failure(DomainError("shift_not_scheduled"))
 
         shift.status = ShiftStatus.ACTIVE.value
-        shift.actual_start = datetime.now(tz=timezone.utc)
+        shift.actual_start = datetime.now(tz=UTC)
 
         await write_audit(
             session=self._session,

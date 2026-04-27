@@ -11,7 +11,6 @@ from freezegun import freeze_time
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
 
-
 SECRET = "test-secret-must-be-long-enough-32ch"
 
 

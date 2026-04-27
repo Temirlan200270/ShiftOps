@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +31,6 @@ from shiftops_api.infra.db.models import (
     TemplateTask,
     User,
 )
-
 
 _ORG_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
 _LOC_ID = uuid.UUID("22222222-2222-2222-2222-222222222222")
@@ -52,7 +51,7 @@ async def _ensure_org(session: AsyncSession) -> None:
             name="ShiftOps Demo Bar",
             plan="trial",
             is_active=True,
-            trial_ends_at=datetime.now(tz=timezone.utc) + timedelta(days=30),
+            trial_ends_at=datetime.now(tz=UTC) + timedelta(days=30),
         )
     )
 
@@ -224,8 +223,8 @@ async def _ensure_templates(session: AsyncSession) -> None:
 
 async def _ensure_today_shift(session: AsyncSession) -> None:
     """Schedule a Morning Shift starting in ~5 minutes — handy for demos."""
-    today = datetime.now(tz=timezone.utc).date()
-    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=8)
+    today = datetime.now(tz=UTC).date()
+    start = datetime.combine(today, datetime.min.time(), tzinfo=UTC) + timedelta(hours=8)
     end = start + timedelta(hours=8)
 
     existing = (

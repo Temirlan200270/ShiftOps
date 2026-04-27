@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,7 +71,7 @@ class ApproveWaiverUseCase:
         new_status = TaskStatus.WAIVED if decision == "approve" else TaskStatus.WAIVER_REJECTED
         task.status = new_status.value
         task.waiver_decided_by = admin.id
-        task.waiver_decided_at = datetime.now(tz=timezone.utc)
+        task.waiver_decided_at = datetime.now(tz=UTC)
 
         await write_audit(
             session=self._session,
