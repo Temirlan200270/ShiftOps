@@ -89,7 +89,11 @@ Test-FlyAuth -Fly $Fly
 Write-Host "[auth] flyctl whoami: OK" -ForegroundColor Green
 
 # --- A1: create app (idempotent) ---
+# Native stderr from flyctl can trigger a terminating error with $ErrorActionPreference Stop; suppress for this call.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
 $createOut = & $Fly apps create $AppName --org $Org 2>&1
+$ErrorActionPreference = $prevEap
 $createText = if ($null -eq $createOut) { "" } else { $createOut | Out-String }
 if ($LASTEXITCODE -ne 0) {
     if ($createText -match "Already exists|has already been taken|duplicate|taken name") {
