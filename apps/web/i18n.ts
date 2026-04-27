@@ -1,4 +1,3 @@
-import type { AbstractIntlMessages } from "next-intl";
 import { getRequestConfig } from "next-intl/server";
 import { cookies, headers } from "next/headers";
 
@@ -42,9 +41,10 @@ function detectLocale(): SupportedLocale {
 
 export default getRequestConfig(async () => {
   const locale = detectLocale();
-  const messages = (await import(`./messages/${locale}.json`))
-    .default as AbstractIntlMessages;
-  return { messages, locale };
+  const mod = (await import(`./messages/${locale}.json`)) as {
+    default: typeof import("./messages/ru.json");
+  };
+  return { messages: mod.default, locale };
 });
 
 export { SUPPORTED_LOCALES };

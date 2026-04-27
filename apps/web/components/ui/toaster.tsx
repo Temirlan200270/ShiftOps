@@ -23,7 +23,7 @@ export function Toaster(): React.JSX.Element {
           key={t.id}
           variant={t.variant}
           duration={t.duration ?? 3000}
-          onOpenChange={(open) => {
+          onOpenChange={(open: boolean) => {
             if (!open) dismiss(t.id);
           }}
         >
