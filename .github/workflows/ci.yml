@@ -59,18 +59,30 @@ jobs:
         run: ruff check .
       - name: Alembic upgrade head
         run: alembic upgrade head
-      # POSTGRES_USER in the official image is a superuser. Superusers always
-      # bypass RLS (even with FORCE ROW LEVEL SECURITY). Demote so integration
-      # tests that rely on app.org_id + RLS match production (non-super app role).
+      # POSTGRES_USER is a superuser and (PG16+) cannot be demoted in-container.
+      # Superusers always bypass RLS. Run integration tests as a normal role.
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Demote CI DB user (required for RLS tests)
+      - name: Create app role and grants for RLS tests
         env:
           PGPASSWORD: shiftops
         run: |
-          psql -h localhost -U shiftops -d shiftops -v ON_ERROR_STOP=1 \
-            -c "ALTER USER shiftops WITH NOSUPERUSER;"
+          psql -h localhost -U shiftops -d shiftops -v ON_ERROR_STOP=1 <<'SQL'
+          DO $do$ BEGIN
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'shiftops_app') THEN
+              CREATE ROLE shiftops_app LOGIN PASSWORD 'shiftops' NOSUPERUSER NOBYPASSRLS;
+            END IF;
+          END $do$;
+          GRANT CONNECT ON DATABASE shiftops TO shiftops_app;
+          GRANT USAGE ON SCHEMA public TO shiftops_app;
+          GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO shiftops_app;
+          GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO shiftops_app;
+          GRANT USAGE ON ALL TYPES IN SCHEMA public TO shiftops_app;
+          SQL
       - name: Pytest
+        env:
+          DATABASE_URL: postgresql+asyncpg://shiftops_app:shiftops@localhost:5432/shiftops
+          DATABASE_URL_SYNC: postgresql+psycopg://shiftops_app:shiftops@localhost:5432/shiftops
         run: pytest -q
 
   web-lint-test:

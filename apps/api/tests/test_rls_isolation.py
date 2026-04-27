@@ -13,7 +13,7 @@ The test:
 This is the load-bearing test for ADR-006 — defence-in-depth tenant isolation.
 
 Requires a non-superuser DB role: PostgreSQL superusers bypass RLS entirely.
-CI demotes the test user after migrations (see .github/workflows/ci.yml).
+CI runs pytest as `shiftops_app` (created after migrations; see .github/workflows/ci.yml).
 """
 
 from __future__ import annotations
