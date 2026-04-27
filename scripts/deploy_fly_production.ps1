@@ -34,7 +34,18 @@ function Read-TextFileUtf8NoBom {
     $bytes = [System.IO.File]::ReadAllBytes($Path)
     $offset = 0
     if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $offset = 3 }
-    [System.Text.Encoding]::UTF8.GetString($bytes, $offset, $bytes.Length - $offset)
+    $s = [System.Text.Encoding]::UTF8.GetString($bytes, $offset, $bytes.Length - $offset)
+    # Belt-and-suspenders: some editors may leave a lone U+FEFF (Notepad/UTF-8 "with BOM" variants).
+    $s.TrimStart([char]0xFEFF)
+}
+
+function Write-TextFileUtf8NoBom {
+    param(
+        [string] $Path,
+        [string] $Text
+    )
+    $enc = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($Path, $Text, $enc)
 }
 
 function Import-DotEnv {
@@ -89,27 +100,48 @@ Test-FlyAuth -Fly $Fly
 Write-Host "[auth] flyctl whoami: OK" -ForegroundColor Green
 
 # --- A1: create app (idempotent) ---
-# Native stderr from flyctl can trigger a terminating error with $ErrorActionPreference Stop; suppress for this call.
-$prevEap = $ErrorActionPreference
-$ErrorActionPreference = "SilentlyContinue"
-$createOut = & $Fly apps create $AppName --org $Org 2>&1
-$ErrorActionPreference = $prevEap
-$createText = if ($null -eq $createOut) { "" } else { $createOut | Out-String }
-if ($LASTEXITCODE -ne 0) {
-    if ($createText -match "Already exists|has already been taken|duplicate|taken name") {
-        Write-Host "App '$AppName' already exists; continuing."
-    } else {
-        throw "fly apps create failed: $createText"
-    }
-} else {
-    Write-Host "Created app $AppName"
+# PS 5.1: 2>&1 to a variable can drop stderr; use temp files + Start-Process for reliable text + exit code.
+$stdoutFile = [System.IO.Path]::GetTempFileName()
+$stderrFile = [System.IO.Path]::GetTempFileName()
+$argList = @("apps", "create", $AppName, "--org", $Org)
+try {
+    $p = Start-Process -FilePath $Fly -ArgumentList $argList -Wait -NoNewWindow -PassThru `
+        -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+    $exitCreate = if ($p.ExitCode -ne $null) { $p.ExitCode } else { 1 }
+    $outPart = if (Test-Path -LiteralPath $stdoutFile) { [System.IO.File]::ReadAllText($stdoutFile) } else { "" }
+    $errPart = if (Test-Path -LiteralPath $stderrFile) { [System.IO.File]::ReadAllText($stderrFile) } else { "" }
+    $createText = ($outPart + "`n" + $errPart).Trim()
+} finally {
+    Remove-Item -LiteralPath $stdoutFile, $stderrFile -ErrorAction SilentlyContinue
 }
 
-# --- A2: secrets (strip UTF-8 BOM so the first key is not "\ufeffAPP_ENV") ---
-Write-Host "[A2] fly secrets import (takes a moment) ..." -ForegroundColor Cyan
+# Case-insensitive: e.g. "Name has already been taken", "already exists", GraphQL "duplicate".
+$createLooksLikeExists = $createText -imatch "already|taken|exists|duplicate"
+if ($exitCreate -eq 0) {
+    Write-Host "Created app $AppName"
+} elseif ($createLooksLikeExists) {
+    Write-Host "App '$AppName' already exists; continuing."
+} else {
+    if ([string]::IsNullOrWhiteSpace($createText)) {
+        $createText = "(no stdout/stderr; exit: $exitCreate)"
+    }
+    throw "fly apps create failed (exit $exitCreate): $createText"
+}
+
+# --- A2: secrets: flyctl reads NAME=VALUE from stdin; Go rejects "\ufeffAPP_ENV" if UTF-8 BOM is present. ---
+# Read bytes, drop EF BB BF, trim stray U+FEFF; write a temp file UTF-8 no BOM, feed stdin (same bytes Linux would use).
+Write-Host "[A2] fly secrets import (BOM-stripped .env, takes a moment) ..." -ForegroundColor Cyan
 $envFileBody = Read-TextFileUtf8NoBom -Path $EnvProd
-$envFileBody | & $Fly secrets import --app $AppName
-if ($LASTEXITCODE -ne 0) { throw "fly secrets import failed" }
+$tmpEnv = [System.IO.Path]::GetTempFileName()
+try {
+    Write-TextFileUtf8NoBom -Path $tmpEnv -Text $envFileBody
+    $pImport = Start-Process -FilePath $Fly -ArgumentList @("secrets", "import", "-a", $AppName) `
+        -RedirectStandardInput $tmpEnv -NoNewWindow -Wait -PassThru
+    $ex = if ($pImport.ExitCode -ne $null) { $pImport.ExitCode } else { 1 }
+    if ($ex -ne 0) { throw "fly secrets import failed (exit $ex)" }
+} finally {
+    Remove-Item -LiteralPath $tmpEnv -ErrorAction SilentlyContinue
+}
 Write-Host "[A2] secrets import: OK" -ForegroundColor Green
 
 # --- A3: deploy ---
