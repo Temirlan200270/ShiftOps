@@ -35,7 +35,7 @@
 
 Скрипт **`scripts/deploy_fly_production.ps1`** (из корня репо, после U2) выполняет **A1–A6, A8, A10** подряд: приложение, секреты, деплой, `/healthz`, Alembic, seed, CORS + редеплой, `setWebhook`, smoke.
 
-- [ ] **A1–A6, A8, A10** — Запуск: `.\scripts\deploy_fly_production.ps1` (опции: `-SkipSeed`, `-SkipSmoke`, `-SkipVercelEnv`)
+- [ ] **A1–A6, A8, A10** — Запуск: `.\scripts\deploy_fly_production.ps1` (опции: `-SkipSeed`, `-SkipSmoke`, `-SkipVercelEnv`) — **без** `-DryRun` (тестовый прогон без деплоя; долго ждать **нужно** на шаге `fly deploy`)
 - [ ] **A7** — Скрипт сам вызывает `vercel env add` + `vercel deploy --prod`, если установлен Vercel CLI и ты залогинен (`vercel whoami`). Иначе задай `NEXT_PUBLIC_API_URL=https://shiftops-api.fly.dev` в Dashboard Vercel и сделай production deploy вручную.
 - [ ] **A9** — Только вручную в GitHub: секреты должны **совпадать с именами в** `.github/workflows/deploy.yml` — см. таблицу ниже (не `TG_BOT_TOKEN`, а суффикс `_PROD`).
 

@@ -3,6 +3,8 @@
 #   .\scripts\deploy_fly_production.ps1
 #
 # Требуется: apps/api/.env.production (не в git) со всеми прод-секретами.
+#
+# Не передавай -DryRun, если ожидаешь реальный деплой (только печать плана и exit).
 
 [CmdletBinding()]
 param(
@@ -13,7 +15,7 @@ param(
     [switch] $SkipSeed,
     [switch] $SkipSmoke,
     [switch] $SkipVercelEnv,
-    [switch] $WhatIf
+    [switch] $DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -48,7 +50,8 @@ function Import-DotEnv {
 
 function Test-FlyAuth {
     param([string] $Fly)
-    & $Fly auth whoami 2>&1 | Out-Null
+    # Без пайпа в $null: в PS 5.1 $LASTEXITCODE после конвейера часто неверен
+    $null = & $Fly @("auth", "whoami")
     if ($LASTEXITCODE -ne 0) {
         throw "Fly.io: not logged in. Run: $Fly auth login   then: $Fly auth whoami"
     }
@@ -58,18 +61,24 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $RepoRoot
 $EnvProd = Join-Path $RepoRoot "apps\api\.env.production"
 $Fly = Get-Flyctl
+Write-Host ""
+Write-Host "=== ShiftOps Fly deploy  $(Get-Date -Format o) ===" -ForegroundColor Cyan
 Write-Host "Using flyctl: $Fly"
+Write-Host "Repo:       $RepoRoot"
+Write-Host "Env file:   $EnvProd"
+Write-Host ""
 
 if (-not (Test-Path -LiteralPath $EnvProd)) {
     throw "Create $EnvProd with production secrets (see DEPLOY_NEXT_STEPS.md)."
 }
 
-if ($WhatIf) {
-    Write-Host "WhatIf: would deploy $AppName to $ApiPublicUrl (env file: $EnvProd)"
+if ($DryRun) {
+    Write-Host "DryRun: would deploy $AppName, import secrets, fly deploy, migrations, CORS, webhook, smoke. No Fly calls made." -ForegroundColor Yellow
     exit 0
 }
 
 Test-FlyAuth -Fly $Fly
+Write-Host "[auth] flyctl whoami: OK" -ForegroundColor Green
 
 # --- A1: приложение (идемпотентно) ---
 $createOut = & $Fly apps create $AppName --org $Org 2>&1
@@ -85,12 +94,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # --- A2: секреты ---
-Write-Host "Importing secrets from apps/api/.env.production …"
+Write-Host "[A2] Importing secrets (это не мгновенно) …" -ForegroundColor Cyan
 Get-Content -LiteralPath $EnvProd -Raw | & $Fly secrets import --app $AppName
 if ($LASTEXITCODE -ne 0) { throw "fly secrets import failed" }
+Write-Host "[A2] secrets import: OK" -ForegroundColor Green
 
 # --- A3: деплой ---
 $apiDir = Join-Path $RepoRoot "apps\api"
+Write-Host "[A3] fly deploy --remote-only (обычно 3–10+ минут, билд на стороне Fly) …" -ForegroundColor Cyan
 Push-Location $apiDir
 try {
     & $Fly deploy --remote-only --config fly.toml --dockerfile Dockerfile
@@ -98,6 +109,7 @@ try {
 } finally {
     Pop-Location
 }
+Write-Host "[A3] deploy: OK" -ForegroundColor Green
 
 # healthz
 Write-Host "GET $ApiPublicUrl/healthz"
