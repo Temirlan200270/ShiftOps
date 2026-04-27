@@ -46,6 +46,9 @@ jobs:
         working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
+      - name: Git revision
+        # Makes it obvious which commit ran (e.g. alembic fixes after f740a86).
+        run: git -C "${{ github.workspace }}" log -1 --oneline
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: "pip" }
       - name: Install
