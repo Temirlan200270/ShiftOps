@@ -59,6 +59,17 @@ jobs:
         run: ruff check .
       - name: Alembic upgrade head
         run: alembic upgrade head
+      # POSTGRES_USER in the official image is a superuser. Superusers always
+      # bypass RLS (even with FORCE ROW LEVEL SECURITY). Demote so integration
+      # tests that rely on app.org_id + RLS match production (non-super app role).
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Demote CI DB user (required for RLS tests)
+        env:
+          PGPASSWORD: shiftops
+        run: |
+          psql -h localhost -U shiftops -d shiftops -v ON_ERROR_STOP=1 \
+            -c "ALTER USER shiftops WITH NOSUPERUSER;"
       - name: Pytest
         run: pytest -q
 

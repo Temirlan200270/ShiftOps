@@ -11,6 +11,9 @@ The test:
 4. Attempts to UPDATE/DELETE on `audit_events` and asserts the trigger raises.
 
 This is the load-bearing test for ADR-006 — defence-in-depth tenant isolation.
+
+Requires a non-superuser DB role: PostgreSQL superusers bypass RLS entirely.
+CI demotes the test user after migrations (see .github/workflows/ci.yml).
 """
 
 from __future__ import annotations
