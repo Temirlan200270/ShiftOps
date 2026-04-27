@@ -116,7 +116,10 @@ curl https://shiftops-api.fly.dev/healthz
 
 Должен вернуть `{"ok": true}`.
 
-### A4. Накатить миграции на Supabase
+### A4. Миграции (Supabase)
+
+После `fly deploy` миграции катаются **автоматически** (`release_command` в `apps/api/fly.toml`).
+Если нужно вручную (например, после сбоя release):
 
 ```powershell
 fly ssh console --app shiftops-api -C "alembic upgrade head"

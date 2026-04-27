@@ -64,6 +64,10 @@ class Settings(BaseSettings):
 
     tg_bot_token: SecretStr = Field(default=SecretStr(""))
     tg_bot_username: str = "ShiftOpsBot"
+    # Optional platform operator: when set, /create_org in the bot is enabled
+    # for this numeric Telegram user id. Alternative long-term: a system_admin
+    # row in DB; for now env-based is enough and keeps migrations out of pilot.
+    super_admin_tg_id: int | None = None
     tg_webhook_secret: SecretStr = Field(default=SecretStr(""))
     tg_webhook_path: str = "/api/v1/telegram/webhook"
     tg_archive_chat_id: int | None = None

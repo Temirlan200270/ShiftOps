@@ -88,6 +88,28 @@
     "generic": "Something went wrong. Please try again.",
     "criticalBlocked": "Close critical tasks to continue."
   },
+  "team": {
+    "title": "Team",
+    "subtitle": "Invite staff with a Telegram link",
+    "roleLabel": "Role",
+    "roleAdmin": "Administrator",
+    "roleOperator": "Operator",
+    "locationLabel": "Location (optional)",
+    "locationAny": "Whole organization",
+    "expiresLabel": "Link valid for (hours)",
+    "generate": "Create link",
+    "generating": "Creating…",
+    "linkLabel": "Link for the teammate",
+    "copy": "Copy",
+    "copied": "Copied",
+    "expiresAt": "Valid until {date}",
+    "hint": "Send the link in a private chat. One use, when they press Start in the bot.",
+    "openCta": "Team and invites",
+    "emptyTitle": "You are the only one here",
+    "emptyBody": "Invite your first teammate — a Telegram link, no manual IDs.",
+    "emptyCta": "Invite the first teammate",
+    "autoCopied": "Link copied to clipboard"
+  },
   "history": {
     "title": "Shift history",
     "subtitle": "Your last {count, plural, one {# shift} other {# shifts}}",

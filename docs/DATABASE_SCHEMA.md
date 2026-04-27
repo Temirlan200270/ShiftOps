@@ -129,6 +129,8 @@ erDiagram
 - `task_status`: `pending | done | skipped | waived | waiver_pending | waiver_rejected`.
 - `user_role`: `owner | admin | operator`.
 - `storage_provider_kind`: `telegram | r2`.
+- `invite` (роль в ссылке, не `owner`): `admin | operator` — только эти роли выдаются через `invites`.
+- `invites.location_id` — опционально: текст в боте («точка …») и задел под привязку оператора к локации; в `users` поля пока нет.
 
 Хранятся как `text` с `CHECK`-ограничениями (нативные enum-типы Postgres
 больно мигрировать — text+check это конвенция Supabase / Stripe).
@@ -136,6 +138,8 @@ erDiagram
 ## Индексы
 
 - `users (organization_id, role)`.
+- `invites (token) UNIQUE` — неугадываемый токен для `t.me/...?start=inv_…`.
+- `invites (organization_id, created_at)`.
 - `telegram_accounts (tg_user_id)` — первичный ключ, используется в
   поиске при auth.
 - `shifts (organization_id, status, scheduled_start)`.

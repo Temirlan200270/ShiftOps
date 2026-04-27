@@ -29,6 +29,13 @@ sequenceDiagram
     API-->>TWA: payload
 ```
 
+## Приглашения (инвайты)
+
+1. Владелец или админ в TWA вызывает `POST /api/v1/invites` — в ответе `deep_link` вида `https://t.me/<bot>?start=inv_<token>`.
+2. Сотрудник открывает ссылку: бот получает `/start` с payload `inv_<token>`.
+3. `RedeemInviteUseCase` (модуль `shiftops_api.application.invites.redeem_invite`) в одной транзакции, после `SET LOCAL row_security = off` (тот же приём, что в `ExchangeInitDataUseCase`), создаёт строки `users` и `telegram_accounts` и помечает строку `invites` как использованную.
+4. Дальше TWA: тот же `POST /api/v1/auth/exchange` с `initData` — пользователь уже в базе, JWT выдаётся штатно.
+
 ## Валидация initData
 
 По [документации Telegram](https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app):

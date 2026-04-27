@@ -29,6 +29,11 @@ kill_timeout = "20s"
 [build]
   dockerfile = "Dockerfile"
 
+# Run before traffic moves to the new image: same env/secrets as the app, fails the deploy on error.
+# See https://fly.io/docs/reference/configuration/#the-deploy-section
+[deploy]
+  release_command = "sh -c 'cd /app && alembic upgrade head'"
+
 [env]
   APP_ENV = "production"
   LOG_LEVEL = "INFO"

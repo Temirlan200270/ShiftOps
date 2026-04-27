@@ -7,6 +7,7 @@ Importing this package registers every table on `Base.metadata`. Alembic's
 
 from .attachment import Attachment
 from .audit_event import AuditEvent
+from .invite import Invite
 from .location import Location
 from .organization import Organization
 from .shift import Shift
@@ -19,6 +20,7 @@ from .user import User
 __all__ = [
     "Attachment",
     "AuditEvent",
+    "Invite",
     "Location",
     "Organization",
     "Shift",

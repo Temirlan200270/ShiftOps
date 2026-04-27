@@ -9,6 +9,7 @@ import {
   Radio,
   Sparkles,
   Upload,
+  Users,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -19,6 +20,7 @@ import { HistoryScreen } from "@/components/screens/history-screen";
 import { LiveMonitorScreen } from "@/components/screens/live-monitor-screen";
 import { TaskListScreen } from "@/components/screens/task-list-screen";
 import { SummaryScreen } from "@/components/screens/summary-screen";
+import { TeamScreen } from "@/components/screens/team-screen";
 import { TemplateEditScreen } from "@/components/screens/template-edit-screen";
 import { TemplatesListScreen } from "@/components/screens/templates-list-screen";
 import { Button } from "@/components/ui/button";
@@ -39,7 +41,8 @@ type View =
   | "templateEdit"
   | "analytics"
   | "csvImport"
-  | "liveMonitor";
+  | "liveMonitor"
+  | "team";
 
 export function DashboardScreen(): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
@@ -54,6 +57,7 @@ export function DashboardScreen(): React.JSX.Element {
   const tA = useTranslations("analytics");
   const tCsv = useTranslations("csvImport");
   const tLive = useTranslations("live");
+  const tTeam = useTranslations("team");
   const role = useAuthStore((s) => s.me?.role ?? "operator");
   const isAdmin = role === "admin" || role === "owner";
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
@@ -139,6 +143,9 @@ export function DashboardScreen(): React.JSX.Element {
   }
   if (view === "liveMonitor" && isAdmin) {
     return <LiveMonitorScreen onBack={() => setView("dashboard")} />;
+  }
+  if (view === "team" && isAdmin) {
+    return <TeamScreen onBack={() => setView("dashboard")} />;
   }
 
   const tasks = shift?.tasks ?? [];
@@ -238,6 +245,15 @@ export function DashboardScreen(): React.JSX.Element {
 
       {isAdmin ? (
         <>
+          <Button
+            variant="ghost"
+            size="block"
+            className="mt-2"
+            onClick={() => setView("team")}
+          >
+            <Users className="size-4" />
+            {tTeam("openCta")}
+          </Button>
           <Button
             variant="ghost"
             size="block"

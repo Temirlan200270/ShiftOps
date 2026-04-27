@@ -128,10 +128,20 @@ fly logs --app shiftops-api
 3. `[program:worker]` репортит `taskiq Worker started`.
 4. Health-check Fly на `/healthz` становится зелёным за ~30 с.
 
-### 3. Применить миграции и сидер (только при первом деплое)
+### 3. Миграции и сидер
+
+**Миграции:** при каждом `fly deploy` Fly выполняет `[deploy] release_command` из
+`apps/api/fly.toml` (`alembic upgrade head` в `/app`) **до** переключения трафика на новый
+образ. Если команда падает, деплой не считается успешным. Ручной запуск нужен только
+при отладке или если release завис:
 
 ```bash
 fly ssh console --app shiftops-api --command "alembic upgrade head"
+```
+
+**Сидер** (демо-данные, по желанию):
+
+```bash
 fly ssh console --app shiftops-api --command "python -m scripts.seed"
 ```
 
@@ -170,7 +180,7 @@ fly certs show api.shiftops.app --app shiftops-api
 | Логи в реальном времени | `fly logs --app shiftops-api`                                                          |
 | Открыть shell         | `fly ssh console --app shiftops-api`                                                    |
 | Перезапустить машину  | `fly machine restart <id> --app shiftops-api`                                           |
-| Прогнать миграцию     | `fly ssh console --command "alembic upgrade head"`                                      |
+| Миграция вручную      | Обычно не нужна (см. `release_command` в `fly.toml`); при сбое: `fly ssh console --command "alembic upgrade head"` |
 | Откатить релиз        | `fly releases --app shiftops-api` затем `fly deploy --image registry.fly.io/...:<old-tag>` |
 | Поднять RAM           | `fly scale memory 1024 --app shiftops-api`                                              |
 | Разделить процессы    | Отредактировать `[processes]` в `fly.toml`, разделить `api`/`worker`, затем `fly deploy` |
@@ -179,9 +189,8 @@ fly certs show api.shiftops.app --app shiftops-api
 
 `.github/workflows/deploy.yml` стартует по тегам `v*` или вручную:
 
-1. **backend** — `flyctl deploy --remote-only`, затем
-   `alembic upgrade head` на живой машине и переустановка
-   Telegram-webhook'а.
+1. **backend** — `flyctl deploy --remote-only` (миграции в `release_command`), затем
+   переустановка Telegram-webhook'а.
 2. **frontend** — стартует после успеха backend'а, вызывает
    `vercel deploy --prebuilt --prod`.
 3. **release-notes** — тегает релиз в Sentry.

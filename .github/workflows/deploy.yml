@@ -6,12 +6,12 @@ name: Deploy
 #   - Triggered by `v*` tags so only intentional releases ship.
 #   - Backend: `flyctl deploy` builds the image remotely on Fly's builder
 #     (no need to push to GHCR, saves bandwidth and time).
-#   - Migrations: run via `fly ssh console` after the new release is healthy.
-#     If migration fails, we hold the rollout — Fly's `release_command` does
-#     this automatically when configured, but we run it explicitly to keep
-#     the failure mode obvious in CI logs.
-#   - Frontend: Vercel auto-deploys on push to main; we trigger a *production*
-#     promotion via Vercel REST API only when a tag lands.
+#   - Migrations: `release_command` in apps/api/fly.toml runs `alembic upgrade head`
+#     on Fly before the new version receives traffic. No separate SSH step in CI.
+#   - Frontend: `.github/workflows/vercel-web.yml` runs Vercel on every push
+#     to `main` (see that file; avoid double-builds with Vercel's Git import).
+#     This `deploy.yml` also deploys the web app on `v*` tags after the
+#     backend, so a tagged release updates API + web together.
 #
 # Phase 2 (later, when we move to Hetzner): a separate workflow file
 # `deploy-hetzner.yml` will replace this — keeping them as siblings makes
@@ -21,11 +21,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      skip_migrations:
-        description: "Skip Alembic migrations (use only if previous run already applied)"
-        type: boolean
-        default: false
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -52,20 +47,6 @@ jobs:
             --strategy rolling \
             --wait-timeout 300 \
             --image-label ${{ github.ref_name }}
-
-      - name: Run Alembic migrations
-        if: ${{ inputs.skip_migrations != true }}
-        working-directory: apps/api
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          # Run migrations against the live machine. We pin to one machine
-          # so two concurrent CI runs don't fight for the migration lock.
-          MACHINE_ID=$(flyctl machines list --json | jq -r '.[0].id')
-          echo "Running migrations on machine $MACHINE_ID"
-          flyctl ssh console \
-            --machine "$MACHINE_ID" \
-            --command "alembic upgrade head"
 
       - name: Set Telegram webhook
         env:

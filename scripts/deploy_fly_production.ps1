@@ -165,8 +165,8 @@ if (-not $health) { throw "Health check failed. Wait for rollout and retry: $Api
 Write-Host "Health: $([pscustomobject]$health | ConvertTo-Json -Compress)"
 
 # --- A4: migrations ---
-& $Fly ssh console --app $AppName -C "alembic upgrade head"
-if ($LASTEXITCODE -ne 0) { throw "alembic upgrade head failed" }
+# Handled by Fly [deploy] release_command in apps/api/fly.toml (alembic upgrade head before traffic).
+# Manual: fly ssh console -C "alembic upgrade head" only if you need to fix a failed release.
 
 # --- A5: seed (optional) ---
 if (-not $SkipSeed) {
