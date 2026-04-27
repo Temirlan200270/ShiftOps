@@ -18,34 +18,39 @@ import { useAuthStore } from "@/lib/stores/auth-store";
  */
 export default function Page(): React.JSX.Element {
   const me = useAuthStore((s) => s.me);
+  const handshakeError = useAuthStore((s) => s.handshakeError);
+  const setHandshakeError = useAuthStore((s) => s.setHandshakeError);
   const [retrying, setRetrying] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const tSplash = useTranslations("splash");
 
   const handleRetry = React.useCallback(async () => {
     setRetrying(true);
-    setError(null);
+    setHandshakeError(null);
     try {
       await performHandshake();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "unknown");
+      setHandshakeError(err instanceof Error ? err.message : "unknown");
     } finally {
       setRetrying(false);
     }
-  }, []);
+  }, [setHandshakeError]);
 
   if (!me) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
         <div className="size-14 rounded-md bg-elevated grid place-items-center mb-4">
-          <Loader2 className="size-7 animate-spin text-primary" />
+          {retrying || !handshakeError ? (
+            <Loader2 className="size-7 animate-spin text-primary" />
+          ) : (
+            <div className="size-7 rounded-sm bg-critical/20" aria-hidden />
+          )}
         </div>
         <h1 className="text-xl font-semibold mb-1">ShiftOps</h1>
         <p className="text-muted-foreground text-sm">{tSplash("loading")}</p>
-        {error ? (
+        {handshakeError ? (
           <div className="mt-6 rounded-md border border-critical/30 bg-critical/10 p-4 text-sm">
             <p className="font-medium text-critical mb-1">{tSplash("errorTitle")}</p>
-            <p className="text-muted-foreground">{tSplash("errorBody")}</p>
+            <p className="text-muted-foreground break-words">{handshakeError}</p>
             <Button
               variant="secondary"
               size="md"

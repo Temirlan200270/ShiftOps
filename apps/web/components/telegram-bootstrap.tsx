@@ -36,8 +36,9 @@ export function TelegramBootstrap({ children }: BootstrapProps): React.JSX.Eleme
       }
     }
     if (!me) {
-      void performHandshake().catch(() => {
-        // Splash screen handles error state via auth store + retry button.
+      void performHandshake().catch((err) => {
+        const message = err instanceof Error ? err.message : "unknown";
+        useAuthStore.getState().setHandshakeError(message);
       });
     }
     return startOfflineQueueWatcher();
