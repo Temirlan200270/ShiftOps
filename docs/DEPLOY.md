@@ -95,7 +95,9 @@ fly secrets set --app shiftops-api \
 #### 1.4 Vercel (фронтенд)
 
 1. Импортировать `apps/web` как отдельный Vercel-проект (Root Directory
-   = `apps/web`, Framework = Next.js).
+   = `apps/web`, Framework = Next.js). **GitHub Actions** вызывают `vercel` из
+   **корня репозитория** (не `cd apps/web`): иначе путь сдваивается
+   (`…/apps/web/apps/web`) и деплой падает.
 2. Поставить переменные окружения (Production):
    - `NEXT_PUBLIC_API_URL=https://shiftops-api.fly.dev`
    - `NEXT_PUBLIC_TG_BOT_USERNAME=ShiftOpsBot`
