@@ -1,12 +1,11 @@
-# ShiftOps: первичный (или повторный) деплой API на Fly.io + сопутствующие шаги.
-# Запуск (из корня репозитория, после `flyctl auth login`):
+﻿# ShiftOps: first-time or repeat API deploy to Fly.io + follow-up steps.
+# From repo root, after: flyctl auth login
 #   .\scripts\deploy_fly_production.ps1
-# Если «ничего не происходит» или открывается блокнот — запускай явно:
+# If the script "does nothing" or Notepad opens, run explicitly:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy_fly_production.ps1
 #
-# Требуется: apps/api/.env.production (не в git) со всеми прод-секретами.
-#
-# Не передавай -DryRun, если ожидаешь реальный деплой (только печать плана и exit).
+# Requires: apps/api/.env.production (not in git) with production secrets.
+# Do not pass -DryRun if you expect a real deploy (it only prints a plan and exits).
 
 [CmdletBinding()]
 param(
@@ -52,7 +51,6 @@ function Import-DotEnv {
 
 function Test-FlyAuth {
     param([string] $Fly)
-    # Без пайпа в $null: в PS 5.1 $LASTEXITCODE после конвейера часто неверен
     $null = & $Fly @("auth", "whoami")
     if ($LASTEXITCODE -ne 0) {
         throw "Fly.io: not logged in. Run: $Fly auth login   then: $Fly auth whoami"
@@ -75,14 +73,14 @@ if (-not (Test-Path -LiteralPath $EnvProd)) {
 }
 
 if ($DryRun) {
-    Write-Host "DryRun: would deploy $AppName, import secrets, fly deploy, migrations, CORS, webhook, smoke. No Fly calls made." -ForegroundColor Yellow
+    Write-Host "DryRun: no Fly calls. Would deploy, secrets, CORS, webhook, smoke." -ForegroundColor Yellow
     exit 0
 }
 
 Test-FlyAuth -Fly $Fly
 Write-Host "[auth] flyctl whoami: OK" -ForegroundColor Green
 
-# --- A1: приложение (идемпотентно) ---
+# --- A1: create app (idempotent) ---
 $createOut = & $Fly apps create $AppName --org $Org 2>&1
 $createText = if ($null -eq $createOut) { "" } else { $createOut | Out-String }
 if ($LASTEXITCODE -ne 0) {
@@ -95,15 +93,15 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Created app $AppName"
 }
 
-# --- A2: секреты ---
-Write-Host "[A2] Importing secrets (это не мгновенно) …" -ForegroundColor Cyan
+# --- A2: secrets ---
+Write-Host "[A2] fly secrets import (takes a moment) ..." -ForegroundColor Cyan
 Get-Content -LiteralPath $EnvProd -Raw | & $Fly secrets import --app $AppName
 if ($LASTEXITCODE -ne 0) { throw "fly secrets import failed" }
 Write-Host "[A2] secrets import: OK" -ForegroundColor Green
 
-# --- A3: деплой ---
+# --- A3: deploy ---
 $apiDir = Join-Path $RepoRoot "apps\api"
-Write-Host "[A3] fly deploy --remote-only (обычно 3–10+ минут, билд на стороне Fly) …" -ForegroundColor Cyan
+Write-Host "[A3] fly deploy --remote-only (often 3-10+ min, remote build on Fly) ..." -ForegroundColor Cyan
 Push-Location $apiDir
 try {
     & $Fly deploy --remote-only --config fly.toml --dockerfile Dockerfile
@@ -120,17 +118,17 @@ $health = try { Invoke-RestMethod -Uri "$ApiPublicUrl/healthz" -TimeoutSec 30 } 
 if (-not $health) { throw "Health check failed. Wait for rollout and retry: $ApiPublicUrl/healthz" }
 Write-Host "Health: $([pscustomobject]$health | ConvertTo-Json -Compress)"
 
-# --- A4: миграции ---
+# --- A4: migrations ---
 & $Fly ssh console --app $AppName -C "alembic upgrade head"
 if ($LASTEXITCODE -ne 0) { throw "alembic upgrade head failed" }
 
-# --- A5: seed (опционально) ---
+# --- A5: seed (optional) ---
 if (-not $SkipSeed) {
     & $Fly ssh console --app $AppName -C "python -m scripts.seed"
     if ($LASTEXITCODE -ne 0) { throw "python -m scripts.seed failed" }
 }
 
-# --- A6: CORS (явно под Vercel + локалку) ---
+# --- A6: CORS ---
 $cors = "$VercelFrontendUrl,http://localhost:3000"
 & $Fly secrets set "API_CORS_ORIGINS=$cors" --app $AppName
 if ($LASTEXITCODE -ne 0) { throw "API_CORS_ORIGINS set failed" }
@@ -142,13 +140,13 @@ try {
     Pop-Location
 }
 
-# --- A7: Vercel (нужен vercel whoami) ---
+# --- A7: Vercel ---
 if (-not $SkipVercelEnv) {
     if (Get-Command vercel -ErrorAction SilentlyContinue) {
         $webDir = Join-Path $RepoRoot "apps\web"
         $vercelProject = Join-Path $webDir ".vercel\project.json"
         if (-not (Test-Path -LiteralPath $vercelProject)) {
-            Write-Warning "No apps/web/.vercel/project.json — link with: cd apps/web; vercel link. Skipping Vercel env."
+            Write-Warning "No apps/web/.vercel/project.json. Run: cd apps/web; vercel link. Skipping Vercel env."
         }
         elseif (Test-Path $webDir) {
             Push-Location $webDir
@@ -168,7 +166,7 @@ if (-not $SkipVercelEnv) {
     }
 }
 
-# --- A8: Telegram webhook (из .env.production) ---
+# --- A8: Telegram webhook ---
 Import-DotEnv -Path $EnvProd
 $tg = $env:TG_BOT_TOKEN
 $wh = $env:TG_WEBHOOK_SECRET
@@ -182,7 +180,7 @@ if ($tg -and $wh) {
             -d "drop_pending_updates=false" `
             -d "allowed_updates=[`"message`",`"callback_query`",`"my_chat_member`"]"
         if ($LASTEXITCODE -ne 0) { throw "curl exit $LASTEXITCODE" }
-        Write-Host "Telegram setWebhook OK → $hook"
+        Write-Host "Telegram setWebhook OK: $hook"
     } catch {
         Write-Warning "setWebhook failed (check token/URL): $_"
     }
@@ -190,7 +188,7 @@ if ($tg -and $wh) {
     Write-Warning "TG_BOT_TOKEN or TG_WEBHOOK_SECRET missing in .env.production; skip setWebhook"
 }
 
-# --- A10: smoke (нужен DATABASE_URL/остальные ключи как у API — грузим .env.production) ---
+# --- A10: smoke ---
 if (-not $SkipSmoke) {
     Import-DotEnv -Path $EnvProd
     $env:SMOKE_API_URL = $ApiPublicUrl
@@ -204,5 +202,5 @@ if (-not $SkipSmoke) {
 }
 
 Write-Host ""
-Write-Host "Done. Remaining: GitHub Actions secrets (see DEPLOY_NEXT_STEPS.md, A9) — names match .github/workflows/deploy.yml:"
-Write-Host "  FLY_API_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, TG_BOT_TOKEN_PROD, TG_WEBHOOK_SECRET_PROD, API_PUBLIC_URL_PROD, SENTRY_* (optional)"
+Write-Host "Done. Add GitHub Actions secrets (DEPLOY_NEXT_STEPS.md, A9). Names in .github/workflows/deploy.yml:"
+Write-Host "  FLY_API_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, TG_BOT_TOKEN_PROD, TG_WEBHOOK_SECRET_PROD, API_PUBLIC_URL_PROD, (optional) Sentry secrets"
