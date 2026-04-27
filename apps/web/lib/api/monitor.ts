@@ -25,6 +25,8 @@ import * as React from "react";
 import { api, type ApiResult } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
+import { getNextPublicApiBase } from "./api-base";
+
 export interface ActiveShift {
   shiftId: string;
   locationId: string;
@@ -163,8 +165,8 @@ interface UseRealtimeStreamOptions {
 }
 
 const WS_BASE = ((): string => {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
-  if (!apiBase) {
+  const apiBase = getNextPublicApiBase();
+  if (apiBase === "/api") {
     if (typeof window === "undefined") return "";
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${window.location.host}/api`;

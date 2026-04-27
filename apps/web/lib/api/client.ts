@@ -16,6 +16,8 @@
 
 import { useAuthStore } from "@/lib/stores/auth-store";
 
+import { getNextPublicApiBase } from "./api-base";
+
 export interface ApiSuccess<T> {
   ok: true;
   status: number;
@@ -31,7 +33,7 @@ export interface ApiFailure {
 
 export type ApiResult<T> = ApiSuccess<T> | ApiFailure;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+const API_BASE = getNextPublicApiBase();
 
 interface RequestInitJSON extends Omit<RequestInit, "body"> {
   body?: unknown;
