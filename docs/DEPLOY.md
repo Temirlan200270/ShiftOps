@@ -101,8 +101,9 @@ fly secrets set --app shiftops-api \
 2. Поставить переменные окружения (Production):
    - `NEXT_PUBLIC_API_URL=https://shiftops-api.fly.dev`
    - `NEXT_PUBLIC_TG_BOT_USERNAME=ShiftOpsBot`
-3. Добавить preview-URL Vercel в `API_CORS_ORIGINS` приложения Fly.
-4. Сохранить `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` как
+3. **GitHub → репозиторий → Settings → Secrets and variables → Actions → Variables** — те же публичные значения, что в Vercel: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TG_BOT_USERNAME`. Иначе `vercel build` в Actions не вшивает их в бандл (см. `.github/workflows/vercel-web.yml`).
+4. Добавить preview-URL Vercel в `API_CORS_ORIGINS` приложения Fly.
+5. Сохранить `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` как
    GitHub Actions secrets (используются `.github/workflows/deploy.yml`).
 
 > ToS Hobby-tier'а Vercel запрещает «коммерческое» использование. Пока

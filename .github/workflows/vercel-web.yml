@@ -3,6 +3,11 @@
 # Requires repository secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
 # (see docs/DEPLOY.md and DEPLOY_NEXT_STEPS.md).
 #
+# `vercel build` on GitHub runners does not reliably embed Vercel Dashboard
+# `NEXT_PUBLIC_*` values (unlike a build on Vercel). Pass the same values via
+# repository **Variables** (Settings → Secrets and variables → Actions → Variables)
+# so the Client bundle always gets the public API URL and bot name.
+#
 # If the same Vercel project is also connected to GitHub in the Vercel dashboard
 # (Git → Production Branch), you may get two builds per push — disable one path:
 # either keep this workflow, or use only Vercel's native Git integration.
@@ -12,9 +17,6 @@ name: Vercel Web
 on:
   push:
     branches: [main]
-    paths:
-      - "apps/web/**"
-      - ".github/workflows/vercel-web.yml"
   workflow_dispatch:
 
 concurrency:
@@ -51,11 +53,22 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
+      - name: Check NEXT_PUBLIC_* (required for prebuilt next build)
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+        run: |
+          if [ -z "${NEXT_PUBLIC_API_URL}" ]; then
+            echo "::error::Add repository Variable NEXT_PUBLIC_API_URL (Settings → Actions → Variables), same value as Vercel, e.g. https://shiftops-api.fly.dev"
+            exit 1
+          fi
+
       - name: Build (Vercel)
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_TG_BOT_USERNAME: ${{ vars.NEXT_PUBLIC_TG_BOT_USERNAME }}
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt to production
