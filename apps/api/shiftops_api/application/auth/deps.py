@@ -61,10 +61,11 @@ async def require_user(
         )
 
     # CRITICAL: set RLS context on this session before the handler runs any
-    # query. `SET LOCAL` is scoped to the current transaction, which the
-    # session opens lazily on first use — so we wrap in `BEGIN` explicitly.
+    # query. Use set_config(..., true) instead of SET LOCAL ... = :param —
+    # asyncpg cannot bind parameters in SET (syntax error at $1); set_config
+    # is the supported parameterized equivalent of SET LOCAL for this tx.
     await session.execute(
-        text("SET LOCAL app.org_id = :org_id"),
+        text("SELECT set_config('app.org_id', :org_id, true)"),
         {"org_id": str(payload.org)},
     )
     return CurrentUser(

@@ -275,7 +275,10 @@ async def main() -> None:
         # RLS policies require us to either be a service role OR have
         # `app.org_id` set; we set it explicitly so the seed bypasses
         # tenant-isolation constraints cleanly.
-        await session.execute(text("SET LOCAL app.org_id = :oid"), {"oid": str(_ORG_ID)})
+        await session.execute(
+            text("SELECT set_config('app.org_id', :oid, true)"),
+            {"oid": str(_ORG_ID)},
+        )
         await _ensure_org(session)
         await session.flush()
         await _ensure_location(session)

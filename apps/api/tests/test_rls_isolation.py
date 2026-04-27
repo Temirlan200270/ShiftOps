@@ -115,7 +115,10 @@ async def test_rls_blocks_cross_tenant_reads(session: AsyncSession) -> None:
     org_a = await _seed_minimal_org(session)
     org_b = await _seed_minimal_org(session)
 
-    await session.execute(text("SET LOCAL app.org_id = :o"), {"o": str(org_a["org"])})
+    await session.execute(
+        text("SELECT set_config('app.org_id', :o, true)"),
+        {"o": str(org_a["org"])},
+    )
     rows = (
         await session.execute(
             text("SELECT id FROM shifts WHERE id = :id"),
@@ -124,7 +127,10 @@ async def test_rls_blocks_cross_tenant_reads(session: AsyncSession) -> None:
     ).all()
     assert rows == []
 
-    await session.execute(text("SET LOCAL app.org_id = :o"), {"o": str(org_b["org"])})
+    await session.execute(
+        text("SELECT set_config('app.org_id', :o, true)"),
+        {"o": str(org_b["org"])},
+    )
     rows = (
         await session.execute(
             text("SELECT id FROM shifts WHERE id = :id"),
@@ -136,7 +142,10 @@ async def test_rls_blocks_cross_tenant_reads(session: AsyncSession) -> None:
 
 async def test_audit_events_are_append_only(session: AsyncSession) -> None:
     org_a = await _seed_minimal_org(session)
-    await session.execute(text("SET LOCAL app.org_id = :o"), {"o": str(org_a["org"])})
+    await session.execute(
+        text("SELECT set_config('app.org_id', :o, true)"),
+        {"o": str(org_a["org"])},
+    )
 
     event_id = uuid.uuid4()
     await session.execute(

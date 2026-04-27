@@ -381,7 +381,7 @@ def upgrade() -> None:
     # ---- Row-Level Security -------------------------------------------------
     # The pattern: enable RLS, force it (so even table owners are subject), and
     # add a single policy that permits rows where organization_id matches the
-    # session GUC. The middleware sets `SET LOCAL app.org_id = '<uuid>'` per
+    # session GUC. The app sets `app.org_id` per transaction (e.g. set_config)
     # request transaction.
     for table in RLS_TABLES:
         if table == "template_tasks":
