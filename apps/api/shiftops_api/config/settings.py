@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     api_public_url: str = "http://localhost:8000"
-    api_cors_origins: str = "http://localhost:3000"
+    # Comma-separated. Browsers treat http://127.0.0.1:3000 and http://localhost:3000 as different origins.
+    api_cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     web_public_url: str = "http://localhost:3000"
 
