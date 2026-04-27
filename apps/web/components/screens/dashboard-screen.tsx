@@ -73,6 +73,24 @@ export function DashboardScreen(): React.JSX.Element {
     void refresh();
   }, [refresh]);
 
+  // Hooks must run on every render — declare here, before any early `return`
+  // for sub-screens. Otherwise `react-hooks/rules-of-hooks` fails the build.
+  const handleStart = React.useCallback(async () => {
+    if (!shift) return;
+    setActing(true);
+    haptic("medium");
+    const result = await startShift(shift.id);
+    setActing(false);
+    if (result.ok) {
+      setShift(result.data);
+      notify("success");
+      setView("tasks");
+    } else {
+      notify("error");
+      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+    }
+  }, [shift, setShift, tErr]);
+
   if (view === "tasks" && shift) {
     return (
       <TaskListScreen
@@ -131,22 +149,6 @@ export function DashboardScreen(): React.JSX.Element {
     (t) => t.criticality === "critical" && t.status === "pending",
   ).length;
   const progress = total === 0 ? 0 : Math.round((done / total) * 100);
-
-  const handleStart = React.useCallback(async () => {
-    if (!shift) return;
-    setActing(true);
-    haptic("medium");
-    const result = await startShift(shift.id);
-    setActing(false);
-    if (result.ok) {
-      setShift(result.data);
-      notify("success");
-      setView("tasks");
-    } else {
-      notify("error");
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
-    }
-  }, [shift, setShift, tErr]);
 
   return (
     <main className="mx-auto max-w-md px-4 pt-6 pb-24 animate-fade-in-up">

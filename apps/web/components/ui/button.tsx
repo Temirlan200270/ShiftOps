@@ -26,6 +26,7 @@ const buttonVariants = cva(
         ghost: "bg-transparent text-foreground hover:bg-elevated/60",
         danger: "bg-critical text-critical-foreground hover:bg-critical/90",
         success: "bg-success text-success-foreground hover:bg-success/90",
+        warning: "bg-warning text-warning-foreground hover:bg-warning/90",
       },
       size: {
         sm: "h-9 px-3 text-sm",

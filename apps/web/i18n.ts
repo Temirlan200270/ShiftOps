@@ -1,3 +1,4 @@
+import type { AbstractIntlMessages } from "next-intl";
 import { getRequestConfig } from "next-intl/server";
 
 /**
@@ -17,10 +18,8 @@ function isSupported(value: string | undefined): value is SupportedLocale {
 
 export default getRequestConfig(async ({ locale }) => {
   const safeLocale: SupportedLocale = isSupported(locale) ? locale : "ru";
-  const messages = (await import(`./messages/${safeLocale}.json`)).default as Record<
-    string,
-    unknown
-  >;
+  const messages = (await import(`./messages/${safeLocale}.json`))
+    .default as AbstractIntlMessages;
   return { messages, locale: safeLocale };
 });
 

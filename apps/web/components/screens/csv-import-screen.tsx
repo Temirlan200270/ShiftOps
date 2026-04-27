@@ -308,7 +308,7 @@ function localiseTopLevel(
 ): string {
   // The schedule endpoint returns ``HTTP 400`` with detail
   // ``"<code>:<message>"`` for use-case Failures. Strip the prefix.
-  const cleanCode = code.includes(":") ? code.split(":")[0] : code;
+  const cleanCode = code.includes(":") ? (code.split(":")[0] ?? code) : code;
   if (KNOWN_ERROR_CODES.has(cleanCode)) return t(cleanCode);
   return fallback;
 }

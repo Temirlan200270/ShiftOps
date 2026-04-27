@@ -199,9 +199,10 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
   const recent7 = React.useMemo(
     // History comes back DESC, so the newest is index 0. Reverse so the
     // sparkline reads left=oldest -> right=newest, matching every other
-    // chart in the world.
-    () => [...items.slice(0, 7)].reverse().map((it) => it.score ?? 0),
-    [items],
+    // chart in the world. Depend on `page` rather than the derived
+    // `items` array (its identity changes every render).
+    () => [...(page?.items ?? []).slice(0, 7)].reverse().map((it) => it.score ?? 0),
+    [page],
   );
   const average =
     items.length === 0

@@ -8,6 +8,12 @@ import { TelegramBootstrap } from "@/components/telegram-bootstrap";
 
 import "./globals.css";
 
+// Force dynamic rendering for the entire app: `next-intl` reads the locale
+// from cookies/headers, which forbids static prerendering. As a Telegram Web
+// App, every request is authenticated and personalised anyway — there is no
+// value in attempting to ship static HTML.
+export const dynamic = "force-dynamic";
+
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
   display: "swap",
