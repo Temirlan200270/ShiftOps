@@ -5,7 +5,7 @@
 >
 > **Live URLs:**
 > - Frontend (Vercel): https://shiftops-web.vercel.app ✅ работает
-> - Backend (Fly): https://shiftops-api.fly.dev ⏳ заблокирован — ждём анлок аккаунта
+> - Backend (Fly): https://shiftops-api.fly.dev ⏳ после `deploy_fly_production.ps1` и деплоя
 > - DB (Supabase pooler): `aws-0-eu-central-1.pooler.supabase.com` ✅ готов
 > - Redis (Upstash): `intimate-elephant-72932.upstash.io` ✅ готов
 
@@ -27,22 +27,17 @@
 
 ### ⏳ Что делаешь ты (юзер)
 
-- [ ] **U1** — Пройти верификацию на https://fly.io/high-risk-unlock _(сейчас в работе, блокер)_
-- [ ] **U2** — `flyctl auth login` после анлока, проверить `flyctl auth whoami`
-- [ ] **U3** — Решить судьбу `render.yaml` (см. ниже про коммит удаления)
+- [x] **U1** — Верификация Fly (high-risk unlock) пройдена
+- [ ] **U2** — Один раз в этом терминале: `flyctl auth login` → `flyctl auth whoami` (в CI/агенте токена нет — логин только у тебя локально)
+- [x] **U3** — `render.yaml` в `main` отсутствует; отдельный коммит не нужен
 
-### 🤖 Что делает агент (после анлока)
+### 🤖 Автоматизация и ручные хвосты
 
-- [ ] **A1** — `fly apps create shiftops-api --org personal`
-- [ ] **A2** — `fly secrets import` массово из `apps/api/.env.production`
-- [ ] **A3** — `fly deploy --remote-only` + `curl /healthz` зелёный
-- [ ] **A4** — `fly ssh console -C "alembic upgrade head"` (схема в Supabase)
-- [ ] **A5** — `fly ssh console -C "python -m scripts.seed"` (демо-данные пилота, опционально)
-- [ ] **A6** — `fly secrets set API_CORS_ORIGINS=...` под фактический Vercel-URL
-- [ ] **A7** — Перешить `NEXT_PUBLIC_API_URL` на Vercel → `https://shiftops-api.fly.dev` + редеплой
-- [ ] **A8** — Зарегистрировать Telegram webhook на `https://shiftops-api.fly.dev/api/v1/telegram/webhook`
-- [ ] **A9** — Добавить GitHub Actions secrets (`FLY_API_TOKEN`, `VERCEL_*`, `TG_*`)
-- [ ] **A10** — Прогнать `scripts/smoke_pilot.py` против живого API
+Скрипт **`scripts/deploy_fly_production.ps1`** (из корня репо, после U2) выполняет **A1–A6, A8, A10** подряд: приложение, секреты, деплой, `/healthz`, Alembic, seed, CORS + редеплой, `setWebhook`, smoke.
+
+- [ ] **A1–A6, A8, A10** — Запуск: `.\scripts\deploy_fly_production.ps1` (опции: `-SkipSeed`, `-SkipSmoke`, `-SkipVercelEnv`)
+- [ ] **A7** — Скрипт сам вызывает `vercel env add` + `vercel deploy --prod`, если установлен Vercel CLI и ты залогинен (`vercel whoami`). Иначе задай `NEXT_PUBLIC_API_URL=https://shiftops-api.fly.dev` в Dashboard Vercel и сделай production deploy вручную.
+- [ ] **A9** — Только вручную в GitHub: секреты должны **совпадать с именами в** `.github/workflows/deploy.yml` — см. таблицу ниже (не `TG_BOT_TOKEN`, а суффикс `_PROD`).
 
 ---
 
@@ -77,21 +72,21 @@ flyctl auth whoami
 
 Должен показать твой email.
 
-### U3. Решить судьбу `render.yaml`
+### U3. `render.yaml`
 
-Сейчас файл удалён локально, на `main` ещё лежит — Fly его не читает, вреда нет, но для чистоты можно убрать. Когда скажешь, я закоммичу:
+В репозитории файла нет; Blueprint Render не используем.
 
-```
-chore: remove render.yaml — sticking with Fly.io, Render Stripe rejected our card
-```
+### Запуск деплоя
 
-### Сообщить агенту
-
-Когда `flyctl auth whoami` показывает email → пинг агенту, он подхватит дальше.
+1. `flyctl auth whoami` показывает email.  
+2. В корне: `.\scripts\deploy_fly_production.ps1`  
+3. Потом **A9** вручную (GitHub Secrets для тегов `v*`).
 
 ---
 
 ## Детали по шагам агента (после анлока)
+
+Тот же порядок выполняет **`scripts/deploy_fly_production.ps1`**; блок ниже — для ручного повтора или отладки.
 
 ### A1. Создать приложение
 
@@ -161,7 +156,7 @@ curl -F "url=https://shiftops-api.fly.dev/api/v1/telegram/webhook" \
 
 ### A9. GitHub Actions secrets
 
-`Settings → Secrets and variables → Actions → New repository secret`:
+`Settings → Secrets and variables → Actions → New repository secret`. Имена **как в workflow** (`.github/workflows/deploy.yml`):
 
 | Secret | Откуда |
 |---|---|
@@ -169,24 +164,29 @@ curl -F "url=https://shiftops-api.fly.dev/api/v1/telegram/webhook" \
 | `VERCEL_TOKEN` | https://vercel.com/account/tokens |
 | `VERCEL_ORG_ID` | `apps/web/.vercel/project.json` → `orgId` |
 | `VERCEL_PROJECT_ID` | `apps/web/.vercel/project.json` → `projectId` |
-| `TG_BOT_TOKEN` | `apps/api/.env.production` |
-| `TG_WEBHOOK_SECRET` | `apps/api/.env.production` |
-| `SENTRY_AUTH_TOKEN` | (когда подключим Sentry) |
+| `TG_BOT_TOKEN_PROD` | значение `TG_BOT_TOKEN` из `apps/api/.env.production` |
+| `TG_WEBHOOK_SECRET_PROD` | значение `TG_WEBHOOK_SECRET` из `apps/api/.env.production` |
+| `API_PUBLIC_URL_PROD` | `https://shiftops-api.fly.dev` |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | опционально; шаг release в workflow пропускается, если токена нет |
 
 ### A10. Smoke-тест
 
+Скрипт деплоя уже прогоняет smoke. Вручную (из `apps/api`, с теми же переменными, что у API, плюс доступ к Supabase):
+
 ```powershell
-python -m scripts.smoke_pilot --base-url https://shiftops-api.fly.dev
+$env:SMOKE_API_URL = "https://shiftops-api.fly.dev"
+python -m scripts.smoke_pilot
 ```
 
-Проверит: JWT-логин, создание смены, загрузку фото, телеметрию очередей, `/v1/auth/exchange`, метрики Redis-очередей.
+Проверит: exchange initData, смену, фото, закрытие (см. `smoke_pilot.py`).
 
 ---
 
 ## Бюджет времени
 
-- Анлок Fly + `flyctl auth login` (юзер): **15 мин – 2 часа** (зависит от ревью).
-- Все 10 шагов агента (A1–A10): **15–25 минут** последовательных команд.
+- `flyctl auth login` (если ещё не): **1 мин**.
+- Скрипт A1–A8 + A10 + (опц.) A7: **~15–25 мин** после готового `apps/api/.env.production`.
+- A9 (GitHub Secrets): **~5 мин** отдельно.
 
 ---
 
@@ -201,5 +201,5 @@ python -m scripts.smoke_pilot --base-url https://shiftops-api.fly.dev
 | `.env` | Локальная разработка | ✅ исправлен (Redis локальный, дубль `TG_ARCHIVE_CHAT_ID` убран) |
 | `apps/web/vercel.json` | `framework: nextjs` для монорепы | ✅ закоммичен |
 | `apps/web/.vercel/project.json` | Линк на Vercel-проект | ✅ создан (gitignored) |
-| `render.yaml` | Render Blueprint | ❌ удалён локально, на `main` лежит остаток |
+| `render.yaml` | Render Blueprint | не используется (в репо нет) |
 | `.github/workflows/deploy.yml` | CI/CD pipeline | ✅ написан, ждёт секретов из A9 |
