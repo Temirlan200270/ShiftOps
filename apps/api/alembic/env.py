@@ -7,7 +7,8 @@ Uses **sync** ``psycopg`` (``DATABASE_URL_SYNC``, or ``ALEMBIC_DATABASE_URL`` if
 IPv4 add-on — do not rely on Direct for ``fly ssh … alembic``.
 
 **``ALEMBIC_DATABASE_URL``** (optional): Direct URI for running Alembic **on a dev machine or CI**
-with IPv6. ``sslmode=require`` is appended if missing.
+with IPv6. ``sslmode=require`` is appended only for Supabase hostnames, not for ``localhost``/Docker
+Postgres (CI uses plain TCP without SSL).
 
 **``Tenant or user not found``** on the pooler: reset the DB password in Supabase and paste fresh
 Session + Transaction URIs from the dashboard.
@@ -35,9 +36,13 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def _ensure_sslmode_require(dsn: str) -> str:
+def _ensure_sslmode_for_supabase(dsn: str) -> str:
+    """Add sslmode=require for Supabase pooler/direct hosts. Skip for local Postgres (CI, Docker)."""
     p = urlparse(dsn)
     if p.scheme not in ("postgresql", "postgresql+psycopg", "postgres"):
+        return dsn
+    host = (p.hostname or "").lower()
+    if "supabase" not in host:
         return dsn
     q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)]
     lower = {k.lower() for k, _ in q}
@@ -52,7 +57,7 @@ def get_url() -> str:
     if not raw:
         msg = "Set DATABASE_URL_SYNC or ALEMBIC_DATABASE_URL (see shiftops_api.config.settings)."
         raise RuntimeError(msg)
-    return _ensure_sslmode_require(raw)
+    return _ensure_sslmode_for_supabase(raw)
 
 
 def run_migrations_offline() -> None:
