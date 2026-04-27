@@ -1,0 +1,63 @@
+# Env — gitignore ALL .env files everywhere, but keep templates checked in.
+# The negation rules MUST come AFTER the broad ignores, otherwise git
+# applies them in declaration order and re-excludes the templates.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+*.pid
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+
+# IDE / OS
+.idea/
+.vscode/
+# Cursor — ignore the whole project state, but keep team-shared rules
+# (`.cursor/rules/*.mdc`) and the MCP manifest (`.cursor/mcp.json`)
+# committable. If you ever want to share more, add a negation here.
+.cursor/
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/mcp.json
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Docker
+docker-data/
+.pgdata/
+
+# Sentry
+.sentryclirc
+
+# Local dev artefacts
+*.local

@@ -1,0 +1,52 @@
+name: Cron — keep Supabase warm + smoke healthz
+
+# Why this exists:
+#   Supabase free tier auto-pauses a project after 7 days of zero requests.
+#   Once paused, the next request takes ~60s to wake — bad for our pilot,
+#   and bad for the Telegram webhook (TG retries for ~30s then gives up).
+#
+#   We hit /healthz every 6 hours (light, no DB query) and once a day we hit
+#   an endpoint that DOES touch the DB (so Supabase counts it as activity).
+#   Six pings/day << any quota; cost is $0 across all providers.
+#
+# This is a temporary measure. Once we move to Hetzner (Phase 2 in DEPLOY.md)
+# we delete this file; self-hosted PG never sleeps.
+
+on:
+  schedule:
+    # Every 6 hours at :17 (avoid the on-the-hour cron herd of all GH users).
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-warmup
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /healthz (cheap)
+        env:
+          API_URL: ${{ secrets.API_PUBLIC_URL_PROD }}
+        run: |
+          # -f makes curl exit non-zero on HTTP 4xx/5xx so the job goes red.
+          # --retry tolerates a brief Fly cold-start race.
+          curl -fsS --retry 3 --retry-delay 5 --max-time 30 \
+            "${API_URL}/healthz" | tee /tmp/healthz.json
+          # Sanity check the body — if Fly serves a maintenance page we want
+          # to notice. The endpoint returns {"status":"ok"}.
+          grep -q '"status":"ok"' /tmp/healthz.json
+
+      # Once a day (when minute < 30 in the 6h schedule, ~25% of runs land in
+      # the 0-6 UTC window) we also touch /readyz which performs a DB ping.
+      # This is what actually keeps Supabase counted as active.
+      - name: Touch /readyz (DB activity)
+        if: ${{ github.event.schedule == '17 0 * * *' || github.event_name == 'workflow_dispatch' }}
+        env:
+          API_URL: ${{ secrets.API_PUBLIC_URL_PROD }}
+        run: |
+          curl -fsS --retry 3 --retry-delay 5 --max-time 30 \
+            "${API_URL}/readyz" | tee /tmp/readyz.json
+          grep -q '"status":"ready"' /tmp/readyz.json

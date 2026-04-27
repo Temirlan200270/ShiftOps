@@ -1,0 +1,255 @@
+{
+  "app": {
+    "name": "ShiftOps",
+    "tagline": "HoReCa shift control"
+  },
+  "splash": {
+    "loading": "Connecting to Telegram…",
+    "errorTitle": "Cannot connect",
+    "errorBody": "Open the app from the Telegram bot.",
+    "retry": "Retry"
+  },
+  "dashboard": {
+    "noShift": "No shift today",
+    "noShiftBody": "If you came in to work, ask the admin to assign a shift to you.",
+    "shiftStatus": {
+      "scheduled": "Starting soon",
+      "active": "Active shift",
+      "closed_clean": "Shift closed",
+      "closed_with_violations": "Closed with violations"
+    },
+    "startCta": "Start shift",
+    "continueCta": "Continue",
+    "summaryCta": "Open report",
+    "completed": "Done",
+    "remaining": "left",
+    "criticalLeft": "{count, plural, one {# critical task} other {# critical tasks}}"
+  },
+  "tasks": {
+    "criticality": {
+      "critical": "Critical",
+      "required": "Required",
+      "optional": "Optional"
+    },
+    "status": {
+      "pending": "Pending",
+      "done": "Done",
+      "skipped": "Skipped",
+      "waiver_pending": "Waiver pending",
+      "waived": "Waived",
+      "waiver_rejected": "Waiver rejected"
+    },
+    "photoRequired": "Photo required",
+    "commentRequired": "Comment required",
+    "openTask": "Open",
+    "markDone": "Mark done",
+    "takePhoto": "Take photo",
+    "addComment": "Comment (optional)",
+    "submit": "Submit",
+    "requestWaiver": "Cannot complete?",
+    "waiverReason": "Describe why the task cannot be done right now",
+    "waiverSubmit": "Send request",
+    "waiverPendingHint": "Request sent to the admin",
+    "suspiciousFlagged": "Photo looks like a previous one — the admin will be notified"
+  },
+  "close": {
+    "cta": "Close shift",
+    "blockedTitle": "Cannot close",
+    "blockedBody": "Finish all critical tasks first.",
+    "warningTitle": "Close with violations?",
+    "warningBody": "{count, plural, one {# required task} other {# required tasks}} not completed. Confirm?",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "summary": {
+    "title": "Shift report",
+    "score": "Shift score",
+    "completedTasks": "Completed tasks",
+    "missedTasks": "Missed",
+    "photos": "Photos",
+    "back": "Back to home",
+    "breakdownTitle": "How the score breaks down",
+    "breakdownHelp": "Each row shows points contributed out of {max}.",
+    "components": {
+      "completion": "Completion",
+      "completionHelp": "Tasks you finished or had waived.",
+      "criticalCompliance": "Critical compliance",
+      "criticalComplianceHelp": "All-or-nothing: a single missed critical task drops this to zero.",
+      "timeliness": "Timeliness",
+      "timelinessHelp": "Closed on time = full points. Linear penalty over a 2-hour overrun.",
+      "photoQuality": "Photo quality",
+      "photoQualityHelp": "Photos that didn't look like a copy of a previous one."
+    },
+    "formulaVersion": "Score formula v{version}"
+  },
+  "errors": {
+    "network": "Offline. We'll send it when you're back online.",
+    "uploadRetrying": "Photo queued — will retry automatically.",
+    "generic": "Something went wrong. Please try again.",
+    "criticalBlocked": "Close critical tasks to continue."
+  },
+  "history": {
+    "title": "Shift history",
+    "subtitle": "Your last {count, plural, one {# shift} other {# shifts}}",
+    "empty": "No closed shifts yet.",
+    "emptyHint": "Once you close your first shift it'll appear here.",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "trend7d": "Last 7 shifts",
+    "averageScore": "Average",
+    "tasksDone": "{done} / {total} tasks",
+    "openHistoryCta": "View past shifts"
+  },
+  "templates": {
+    "openManageCta": "Manage templates",
+    "listTitle": "Templates",
+    "listSubtitle": "{count, plural, one {# template} other {# templates}}",
+    "createCta": "New template",
+    "emptyTitle": "No templates yet",
+    "emptyHint": "Create one to start scheduling shifts from it.",
+    "editAria": "Edit {name}",
+    "taskCount": "{count, plural, one {# task} other {# tasks}}",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "operator": "Operator"
+    },
+    "createTitle": "New template",
+    "editTitle": "Edit template",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. Morning bar shift",
+    "roleLabel": "Assigned to",
+    "tasksHeading": "Tasks ({count})",
+    "addTaskCta": "Add task",
+    "taskTitlePlaceholder": "Task title",
+    "taskDescriptionPlaceholder": "Description (optional)",
+    "criticalityLabel": "Criticality",
+    "criticality": {
+      "critical": "Critical",
+      "required": "Required",
+      "optional": "Optional"
+    },
+    "photoFlag": "Photo",
+    "commentFlag": "Comment",
+    "moveUpAria": "Move up",
+    "moveDownAria": "Move down",
+    "removeAria": "Remove task",
+    "dragHandleAria": "Drag to reorder",
+    "reorderHint": "Drag the handle, or use the arrows for keyboard reordering.",
+    "saveCta": "Save template",
+    "saving": "Saving…",
+    "saved": "Template saved",
+    "saveError": "Could not save template",
+    "deleteCta": "Delete template",
+    "deleting": "Deleting…",
+    "deleted": "Template deleted",
+    "deleteErrorInUse": "This template is in use and cannot be deleted. Close existing shifts first.",
+    "confirmDelete": "Delete this template? This cannot be undone.",
+    "validation": {
+      "nameLength": "Template name must be 3–128 characters.",
+      "minTasks": "Add at least one task.",
+      "taskTitle": "Each task title must be 3–255 characters."
+    }
+  },
+  "analytics": {
+    "openCta": "Owner analytics",
+    "title": "Owner analytics",
+    "subtitleDays": "Last {days} days",
+    "kpis": {
+      "shiftsClosed": "Closed shifts",
+      "shiftsClean": "Clean",
+      "shiftsWithViolations": "With violations",
+      "averageScore": "Average score",
+      "cleanlinessRate": "Clean rate"
+    },
+    "ranges": {
+      "7": "7 days",
+      "30": "30 days",
+      "90": "90 days"
+    },
+    "heatmap": {
+      "title": "Performance heatmap",
+      "help": "Each cell is the average score in that day-of-week × hour slot.",
+      "noData": "No data in range",
+      "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    },
+    "violators": {
+      "title": "Top violators",
+      "help": "Operators ranked by shifts closed with violations.",
+      "empty": "Nobody has violations in this range. Nice.",
+      "shiftsTotal": "{count, plural, one {# shift} other {# shifts}}",
+      "violations": "{count, plural, one {# violation} other {# violations}}"
+    },
+    "locations": {
+      "title": "Locations",
+      "noData": "No closed shifts in range.",
+      "shifts": "{count, plural, one {# shift} other {# shifts}}",
+      "violations": "{count, plural, one {# violation} other {# violations}}"
+    },
+    "loading": "Loading analytics…",
+    "empty": "No closed shifts in this range.",
+    "emptyHint": "Once shifts close, the dashboard fills with insight."
+  },
+  "csvImport": {
+    "openCta": "Import schedule",
+    "title": "Import schedule",
+    "subtitle": "Upload a CSV with date, time, location, template, operator.",
+    "pickFile": "Choose CSV",
+    "selectedFile": "Selected: {name}",
+    "noFile": "No file chosen",
+    "dryRunCta": "Validate (dry run)",
+    "applyCta": "Import for real",
+    "applying": "Importing…",
+    "validating": "Validating…",
+    "needValidationFirst": "Run validation before importing.",
+    "totalRows": "Rows in file: {count}",
+    "createdRows": "Created: {count}",
+    "skippedRows": "Validated rows: {count}",
+    "errorsRows": "Errors: {count}",
+    "labels": {
+      "totalRows": "In file",
+      "created": "Created",
+      "validated": "Validated",
+      "errors": "Errors"
+    },
+    "errorsTitle": "Errors per row",
+    "previewTitle": "Preview",
+    "format": "Required columns: date, time_start, time_end, location, template, operator. Operator is @username, numeric Telegram id, or full name.",
+    "errorCodes": {
+      "invalid_date": "Invalid date — expected YYYY-MM-DD.",
+      "invalid_time": "Invalid time — expected HH:MM.",
+      "unknown_location": "Location not found in your organisation.",
+      "unknown_template": "Template not found.",
+      "unknown_operator": "Operator not found. Add them in Telegram first.",
+      "empty_window": "End time must be after start time.",
+      "past_window": "Start time is in the past.",
+      "duplicate_shift": "This operator already has a shift at that time.",
+      "missing_columns": "Missing required columns.",
+      "missing_header": "Missing header row.",
+      "invalid_encoding": "File must be UTF-8.",
+      "too_many_rows": "Too many rows in one upload.",
+      "file_too_large": "File is too large.",
+      "fallback": "Validation failed."
+    }
+  },
+  "live": {
+    "openCta": "Live monitor",
+    "title": "Live monitor",
+    "subtitle": "Active shifts across the organisation.",
+    "statusConnected": "Live",
+    "statusReconnecting": "Reconnecting…",
+    "statusOffline": "Offline",
+    "empty": "No active shifts right now.",
+    "emptyHint": "When operators start shifts, they appear here in real time.",
+    "criticalLeft": "{count, plural, one {# critical pending} other {# critical pending}}",
+    "lastEventAt": "Last update {time}",
+    "events": {
+      "shiftOpened": "{operator} started «{template}»",
+      "taskCompleted": "{operator}: {title}",
+      "taskSuspicious": "Suspicious photo on «{title}»",
+      "shiftClosed": "{operator} closed «{template}»",
+      "waiverRequested": "{operator} asks waiver on «{title}»",
+      "waiverDecided": "Waiver {decision}: «{title}»"
+    }
+  }
+}

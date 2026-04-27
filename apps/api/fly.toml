@@ -1,0 +1,74 @@
+# ShiftOps API on Fly.io
+#
+# Architecture decisions for free-tier (~$5/mo credit):
+#
+# 1. Single machine running supervisord with two children (uvicorn + taskiq
+#    worker). See deploy/supervisord.conf. This keeps us at ~$1.94/mo for
+#    shared-cpu-1x:512MB rather than ~$3.88/mo for two machines.
+#
+# 2. `auto_stop_machines = "off"` and `min_machines_running = 1`: Telegram
+#    sends webhooks asynchronously; if the machine is sleeping when an
+#    update arrives, Telegram will retry (briefly), but waiver-callback
+#    decisions and shift-closure notifications are time-sensitive. We pay
+#    the always-on tax to keep UX correct.
+#
+# 3. Region "fra" (Frankfurt) — closest to typical RU/EU pilot bars and to
+#    Supabase's eu-central-1 region (lowest DB latency).
+#
+# 4. We do NOT mount a volume. State lives in Supabase (Postgres) and
+#    Upstash (Redis); the machine itself is stateless and disposable.
+#
+# 5. `[[services.http_checks]]` hits `/healthz` so Fly removes a sick
+#    machine from the load balancer before TG webhooks bounce off it.
+
+app = "shiftops-api"
+primary_region = "fra"
+kill_signal = "SIGTERM"
+kill_timeout = "20s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  LOG_LEVEL = "INFO"
+  API_HOST = "0.0.0.0"
+  API_PORT = "8000"
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    soft_limit = 30
+    hard_limit = 60
+
+  [[services.http_checks]]
+    interval = "20s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/healthz"
+    protocol = "http"
+
+[processes]
+  app = "/usr/bin/supervisord -c /etc/supervisor/conf.d/shiftops.conf -n"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

@@ -1,0 +1,83 @@
+name: Nightly pg_dump
+
+# Why this exists:
+#   Supabase free tier has *no* point-in-time recovery (only paid tiers do).
+#   We need a logical backup we control, in case:
+#     - someone runs a destructive migration in prod;
+#     - we want to restore a snapshot to local dev;
+#     - we ever need to migrate off Supabase to Hetzner (Phase 2).
+#
+#   We use the SESSION pooler URL (port 5432 of the pooler), not the
+#   transaction pooler — pg_dump issues SET statements that transaction-mode
+#   pgbouncer rejects.
+#
+#   Storage choice: GitHub Actions artifacts (90-day retention, free for
+#   public repos and 500 MB free for private). When we exceed that we add a
+#   B2 / S3 upload step. Until then this is the cheapest reliable solution.
+#
+# Restore from a downloaded artifact:
+#   gunzip -c shiftops-2026-04-27.sql.gz | psql "$DATABASE_URL_SYNC"
+
+on:
+  schedule:
+    - cron: "23 2 * * *"   # 02:23 UTC = 05:23 Moscow, off-peak
+  workflow_dispatch:
+
+concurrency:
+  group: pgdump
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Required: full session-pooler URL with credentials, plain `postgres://`
+      # scheme (NOT the `postgresql+psycopg://` SQLAlchemy variant). We do
+      # NOT inject this into Fly secrets — pg_dump runs from CI only.
+      DATABASE_URL_DUMP: ${{ secrets.DATABASE_URL_DUMP }}
+    steps:
+      - name: Validate config
+        run: |
+          if [ -z "${DATABASE_URL_DUMP}" ]; then
+            echo "DATABASE_URL_DUMP secret is not set — aborting before pg_dump." >&2
+            exit 1
+          fi
+
+      - name: Install Postgres 16 client
+        run: |
+          # The default ubuntu-latest pg_dump version may lag the server.
+          # We pin v16 to match Supabase. Without this you'll see warnings
+          # about server version mismatch at restore time.
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16
+
+      - name: pg_dump
+        run: |
+          ts=$(date -u +%Y-%m-%d-%H%M%S)
+          out="shiftops-${ts}.sql.gz"
+          # --no-owner / --no-acl keep the dump portable across tenants.
+          # --quote-all-identifiers makes restores resilient to keyword changes.
+          # We stream through gzip to avoid a 200-MB intermediate file on disk.
+          pg_dump \
+            --format=plain \
+            --no-owner \
+            --no-acl \
+            --quote-all-identifiers \
+            --schema=public \
+            "${DATABASE_URL_DUMP}" \
+            | gzip -9 > "$out"
+          echo "DUMP_FILE=$out" >> "$GITHUB_ENV"
+          ls -lh "$out"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # Single rolling artifact name + retention handles pruning for us.
+          name: ${{ env.DUMP_FILE }}
+          path: ${{ env.DUMP_FILE }}
+          retention-days: 30
+          if-no-files-found: error

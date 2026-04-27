@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * ShiftOps design tokens — see docs/DESIGN_SYSTEM.md.
+ * Values live as HSL triplets so Tailwind can apply opacity utilities
+ * (e.g. `bg-primary/20`) and so we can map a future light theme by swapping
+ * variable definitions instead of editing every component.
+ */
+
+:root {
+  --bg: 222 32% 8%;
+  --surface: 222 28% 11%;
+  --elevated: 222 24% 14%;
+  --border: 222 20% 18%;
+  --fg: 220 18% 96%;
+
+  --muted: 222 16% 22%;
+  --muted-fg: 220 12% 70%;
+
+  --primary: 222 78% 60%;
+  --primary-fg: 220 30% 98%;
+
+  --success: 152 60% 42%;
+  --success-fg: 140 20% 96%;
+
+  --warning: 38 92% 56%;
+  --warning-fg: 40 90% 12%;
+
+  --critical: 358 76% 58%;
+  --critical-fg: 358 30% 98%;
+
+  --ring: 222 78% 70%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body {
+  background: hsl(var(--bg));
+  color: hsl(var(--fg));
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* Reserve space for the iOS / Android safe area inside Telegram WebApp. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Disable text selection on tappable surfaces — feels more native inside TWA. */
+button,
+[role="button"] {
+  user-select: none;
+}
+
+/* Telegram WebApp injects a viewport that may shrink during keyboard open. */
+html {
+  height: -webkit-fill-available;
+}

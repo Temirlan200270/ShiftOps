@@ -1,0 +1,147 @@
+name: Deploy
+
+# Production deployment pipeline.
+#
+# Phase 1 (current): Fly.io backend + Vercel frontend.
+#   - Triggered by `v*` tags so only intentional releases ship.
+#   - Backend: `flyctl deploy` builds the image remotely on Fly's builder
+#     (no need to push to GHCR, saves bandwidth and time).
+#   - Migrations: run via `fly ssh console` after the new release is healthy.
+#     If migration fails, we hold the rollout — Fly's `release_command` does
+#     this automatically when configured, but we run it explicitly to keep
+#     the failure mode obvious in CI logs.
+#   - Frontend: Vercel auto-deploys on push to main; we trigger a *production*
+#     promotion via Vercel REST API only when a tag lands.
+#
+# Phase 2 (later, when we move to Hetzner): a separate workflow file
+# `deploy-hetzner.yml` will replace this — keeping them as siblings makes
+# the migration a one-line concurrency change rather than a rewrite.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: "Skip Alembic migrations (use only if previous run already applied)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Deploy backend (Fly.io)
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy API + Worker
+        working-directory: apps/api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy \
+            --remote-only \
+            --strategy rolling \
+            --wait-timeout 300 \
+            --image-label ${{ github.ref_name }}
+
+      - name: Run Alembic migrations
+        if: ${{ inputs.skip_migrations != true }}
+        working-directory: apps/api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # Run migrations against the live machine. We pin to one machine
+          # so two concurrent CI runs don't fight for the migration lock.
+          MACHINE_ID=$(flyctl machines list --json | jq -r '.[0].id')
+          echo "Running migrations on machine $MACHINE_ID"
+          flyctl ssh console \
+            --machine "$MACHINE_ID" \
+            --command "alembic upgrade head"
+
+      - name: Set Telegram webhook
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN_PROD }}
+          TG_WEBHOOK_SECRET: ${{ secrets.TG_WEBHOOK_SECRET_PROD }}
+          API_PUBLIC_URL: ${{ secrets.API_PUBLIC_URL_PROD }}
+        run: |
+          # Idempotent: Telegram dedupes identical webhook URLs.
+          curl -fsS -X POST \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/setWebhook" \
+            -d "url=${API_PUBLIC_URL}/api/v1/telegram/webhook" \
+            -d "secret_token=${TG_WEBHOOK_SECRET}" \
+            -d "drop_pending_updates=false" \
+            -d "allowed_updates=[\"message\",\"callback_query\",\"my_chat_member\"]"
+
+  frontend:
+    name: Deploy frontend (Vercel)
+    runs-on: ubuntu-latest
+    environment: production
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install Vercel CLI
+        run: pnpm add -g vercel@latest
+
+      - name: Pull Vercel env (production)
+        working-directory: apps/web
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build (Vercel)
+        working-directory: apps/web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt artifact
+        working-directory: apps/web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          DEPLOY_URL=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "Deployed: $DEPLOY_URL"
+          echo "VERCEL_DEPLOY_URL=$DEPLOY_URL" >> "$GITHUB_ENV"
+
+  release-notes:
+    name: Notify Sentry
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: ${{ always() && needs.backend.result == 'success' }}
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Skip silently when Sentry is not configured yet — this lets early
+      # pilots run without forcing teams to set up Sentry on day one.
+      - name: Sentry release
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        uses: getsentry/action-release@v1
+        with:
+          environment: production
+          version: ${{ github.ref_name }}

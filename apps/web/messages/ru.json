@@ -1,0 +1,255 @@
+{
+  "app": {
+    "name": "ShiftOps",
+    "tagline": "Контроль смен в HoReCa"
+  },
+  "splash": {
+    "loading": "Подключаемся к Telegram…",
+    "errorTitle": "Не удалось подключиться",
+    "errorBody": "Откройте приложение через бота в Telegram.",
+    "retry": "Повторить"
+  },
+  "dashboard": {
+    "noShift": "Сегодня смены нет",
+    "noShiftBody": "Если вы пришли на смену, попросите администратора назначить её на вас.",
+    "shiftStatus": {
+      "scheduled": "Скоро начало",
+      "active": "Смена активна",
+      "closed_clean": "Смена закрыта",
+      "closed_with_violations": "Закрыта с нарушениями"
+    },
+    "startCta": "Начать смену",
+    "continueCta": "Продолжить",
+    "summaryCta": "Открыть отчёт",
+    "completed": "Выполнено",
+    "remaining": "осталось",
+    "criticalLeft": "{count, plural, one {# критическая задача} few {# критические задачи} other {# критических задач}}"
+  },
+  "tasks": {
+    "criticality": {
+      "critical": "Критическая",
+      "required": "Обязательная",
+      "optional": "Дополнительная"
+    },
+    "status": {
+      "pending": "В ожидании",
+      "done": "Готово",
+      "skipped": "Пропущено",
+      "waiver_pending": "На рассмотрении",
+      "waived": "Снято",
+      "waiver_rejected": "Отклонено"
+    },
+    "photoRequired": "Требуется фото",
+    "commentRequired": "Требуется комментарий",
+    "openTask": "Открыть",
+    "markDone": "Отметить выполнено",
+    "takePhoto": "Сделать фото",
+    "addComment": "Комментарий (опц.)",
+    "submit": "Отправить",
+    "requestWaiver": "Невозможно выполнить?",
+    "waiverReason": "Опишите, почему задачу нельзя выполнить сейчас",
+    "waiverSubmit": "Отправить запрос",
+    "waiverPendingHint": "Запрос отправлен администратору",
+    "suspiciousFlagged": "Фото похоже на предыдущее — отчёт уйдёт администратору"
+  },
+  "close": {
+    "cta": "Закрыть смену",
+    "blockedTitle": "Нельзя закрыть смену",
+    "blockedBody": "Сначала выполните все критические задачи.",
+    "warningTitle": "Закрыть с нарушениями?",
+    "warningBody": "Не выполнено {count, plural, one {# обязательная} few {# обязательные} other {# обязательных}} задача. Подтверждаете?",
+    "confirm": "Подтвердить",
+    "cancel": "Отмена"
+  },
+  "summary": {
+    "title": "Отчёт смены",
+    "score": "Балл смены",
+    "completedTasks": "Выполнено задач",
+    "missedTasks": "Пропущено",
+    "photos": "Фото",
+    "back": "На главную",
+    "breakdownTitle": "Из чего сложился балл",
+    "breakdownHelp": "В каждой строке — сколько баллов из {max} вы заработали.",
+    "components": {
+      "completion": "Выполнение",
+      "completionHelp": "Задачи, которые вы выполнили или по которым приняли освобождение.",
+      "criticalCompliance": "Критические задачи",
+      "criticalComplianceHelp": "Всё или ничего: одна пропущенная критическая обнуляет этот блок.",
+      "timeliness": "Своевременность",
+      "timelinessHelp": "Вовремя — полный балл. Дальше — линейное снижение в течение 2 часов.",
+      "photoQuality": "Качество фото",
+      "photoQualityHelp": "Фото, которые не оказались похожими на прошлые отчёты."
+    },
+    "formulaVersion": "Формула v{version}"
+  },
+  "errors": {
+    "network": "Нет связи. Сохраним и отправим, когда появится.",
+    "uploadRetrying": "Фото в очереди — отправим автоматически.",
+    "generic": "Что-то пошло не так. Попробуйте ещё раз.",
+    "criticalBlocked": "Закройте критические задачи, чтобы продолжить."
+  },
+  "history": {
+    "title": "История смен",
+    "subtitle": "Последние {count, plural, one {# смена} few {# смены} other {# смен}}",
+    "empty": "Закрытых смен пока нет.",
+    "emptyHint": "После первой закрытой смены она появится здесь.",
+    "loadMore": "Загрузить ещё",
+    "loading": "Загружаем…",
+    "trend7d": "Последние 7 смен",
+    "averageScore": "Средний",
+    "tasksDone": "{done} из {total} задач",
+    "openHistoryCta": "Открыть историю"
+  },
+  "templates": {
+    "openManageCta": "Управление шаблонами",
+    "listTitle": "Шаблоны",
+    "listSubtitle": "{count, plural, one {# шаблон} few {# шаблона} other {# шаблонов}}",
+    "createCta": "Новый шаблон",
+    "emptyTitle": "Шаблонов пока нет",
+    "emptyHint": "Создайте первый, чтобы начать назначать смены.",
+    "editAria": "Редактировать «{name}»",
+    "taskCount": "{count, plural, one {# задача} few {# задачи} other {# задач}}",
+    "role": {
+      "owner": "Владелец",
+      "admin": "Администратор",
+      "operator": "Оператор"
+    },
+    "createTitle": "Новый шаблон",
+    "editTitle": "Редактирование шаблона",
+    "nameLabel": "Название",
+    "namePlaceholder": "Например, «Утренняя смена бара»",
+    "roleLabel": "Кому назначается",
+    "tasksHeading": "Задачи ({count})",
+    "addTaskCta": "Добавить задачу",
+    "taskTitlePlaceholder": "Заголовок задачи",
+    "taskDescriptionPlaceholder": "Описание (необязательно)",
+    "criticalityLabel": "Критичность",
+    "criticality": {
+      "critical": "Критическая",
+      "required": "Обязательная",
+      "optional": "Опциональная"
+    },
+    "photoFlag": "Фото",
+    "commentFlag": "Коммент",
+    "moveUpAria": "Переместить выше",
+    "moveDownAria": "Переместить ниже",
+    "removeAria": "Удалить задачу",
+    "dragHandleAria": "Перетащить для изменения порядка",
+    "reorderHint": "Перетащите за маркер или используйте стрелки для клавиатурного перестроения.",
+    "saveCta": "Сохранить шаблон",
+    "saving": "Сохраняем…",
+    "saved": "Шаблон сохранён",
+    "saveError": "Не удалось сохранить шаблон",
+    "deleteCta": "Удалить шаблон",
+    "deleting": "Удаляем…",
+    "deleted": "Шаблон удалён",
+    "deleteErrorInUse": "Шаблон используется в активных или прошедших сменах. Сначала закройте их.",
+    "confirmDelete": "Удалить шаблон? Действие необратимо.",
+    "validation": {
+      "nameLength": "Название должно быть от 3 до 128 символов.",
+      "minTasks": "Добавьте хотя бы одну задачу.",
+      "taskTitle": "Заголовок каждой задачи должен быть от 3 до 255 символов."
+    }
+  },
+  "analytics": {
+    "openCta": "Аналитика владельца",
+    "title": "Аналитика владельца",
+    "subtitleDays": "За последние {days, plural, one {# день} few {# дня} other {# дней}}",
+    "kpis": {
+      "shiftsClosed": "Закрытых смен",
+      "shiftsClean": "Чистых",
+      "shiftsWithViolations": "С нарушениями",
+      "averageScore": "Средний балл",
+      "cleanlinessRate": "Доля чистых"
+    },
+    "ranges": {
+      "7": "7 дней",
+      "30": "30 дней",
+      "90": "90 дней"
+    },
+    "heatmap": {
+      "title": "Тепловая карта",
+      "help": "Каждая клетка — средний балл смен в этом дне недели и часу.",
+      "noData": "Нет данных за период",
+      "days": ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"]
+    },
+    "violators": {
+      "title": "Топ нарушителей",
+      "help": "Сотрудники, у которых больше смен с нарушениями.",
+      "empty": "Нарушений нет. Хорошая работа.",
+      "shiftsTotal": "{count, plural, one {# смена} few {# смены} other {# смен}}",
+      "violations": "{count, plural, one {# нарушение} few {# нарушения} other {# нарушений}}"
+    },
+    "locations": {
+      "title": "Локации",
+      "noData": "Закрытых смен за период нет.",
+      "shifts": "{count, plural, one {# смена} few {# смены} other {# смен}}",
+      "violations": "{count, plural, one {# нарушение} few {# нарушения} other {# нарушений}}"
+    },
+    "loading": "Загружаем аналитику…",
+    "empty": "За этот период ещё нет закрытых смен.",
+    "emptyHint": "Как только смены начнут закрываться, дашборд оживёт."
+  },
+  "csvImport": {
+    "openCta": "Импорт расписания",
+    "title": "Импорт расписания",
+    "subtitle": "Загрузите CSV с колонками: дата, время, локация, шаблон, оператор.",
+    "pickFile": "Выбрать CSV",
+    "selectedFile": "Выбран: {name}",
+    "noFile": "Файл не выбран",
+    "dryRunCta": "Проверить (без записи)",
+    "applyCta": "Импортировать",
+    "applying": "Импортируем…",
+    "validating": "Проверяем…",
+    "needValidationFirst": "Сначала проверьте файл.",
+    "totalRows": "Строк в файле: {count}",
+    "createdRows": "Создано смен: {count}",
+    "skippedRows": "Прошли валидацию: {count}",
+    "errorsRows": "Ошибок: {count}",
+    "labels": {
+      "totalRows": "Всего строк",
+      "created": "Создано",
+      "validated": "Проверено",
+      "errors": "Ошибок"
+    },
+    "errorsTitle": "Ошибки по строкам",
+    "previewTitle": "Предпросмотр",
+    "format": "Колонки: date, time_start, time_end, location, template, operator. Оператор — это @username, ID Telegram или полное имя.",
+    "errorCodes": {
+      "invalid_date": "Неверная дата — нужен формат ГГГГ-ММ-ДД.",
+      "invalid_time": "Неверное время — нужен формат ЧЧ:ММ.",
+      "unknown_location": "Локация не найдена в вашей организации.",
+      "unknown_template": "Шаблон не найден.",
+      "unknown_operator": "Оператор не найден. Попросите его открыть бота.",
+      "empty_window": "Конец смены должен быть позже начала.",
+      "past_window": "Начало смены в прошлом.",
+      "duplicate_shift": "У этого оператора уже есть смена в это время.",
+      "missing_columns": "Не хватает обязательных колонок.",
+      "missing_header": "Не хватает строки заголовков.",
+      "invalid_encoding": "Файл должен быть в кодировке UTF-8.",
+      "too_many_rows": "Слишком много строк за один импорт.",
+      "file_too_large": "Файл слишком большой.",
+      "fallback": "Не удалось выполнить проверку."
+    }
+  },
+  "live": {
+    "openCta": "Live-монитор",
+    "title": "Live-монитор",
+    "subtitle": "Активные смены в реальном времени.",
+    "statusConnected": "В эфире",
+    "statusReconnecting": "Переподключаемся…",
+    "statusOffline": "Нет связи",
+    "empty": "Сейчас активных смен нет.",
+    "emptyHint": "Как только сотрудник начнёт смену, она появится здесь.",
+    "criticalLeft": "{count, plural, one {# критическая} few {# критические} other {# критических}}",
+    "lastEventAt": "Обновлено {time}",
+    "events": {
+      "shiftOpened": "{operator} начал «{template}»",
+      "taskCompleted": "{operator}: {title}",
+      "taskSuspicious": "Подозрительное фото на «{title}»",
+      "shiftClosed": "{operator} закрыл «{template}»",
+      "waiverRequested": "{operator} просит снять «{title}»",
+      "waiverDecided": "Решение по освобождению ({decision}): «{title}»"
+    }
+  }
+}
