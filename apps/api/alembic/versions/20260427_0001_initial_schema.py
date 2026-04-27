@@ -22,15 +22,15 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-# Tables that need RLS isolation by app.org_id.
+# Tables that need RLS isolation by app.org_id (direct column on the row).
+# task_instances / attachments have no organization_id — policies are defined
+# below via shifts (and task_instances) joins.
 RLS_TABLES = (
     "locations",
     "users",
     "templates",
     "template_tasks",
     "shifts",
-    "task_instances",
-    "attachments",
     "audit_events",
 )
 
