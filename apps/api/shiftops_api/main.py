@@ -95,15 +95,19 @@ def create_app() -> FastAPI:
     )
 
     # `API_CORS_ORIGINS` = explicit (prod, custom domain, localhost). Branch /
-    # preview Vercel URLs change per deployment (`*-git-*-…vercel.app`); a regex
-    # covers them all so CORS preflight (OPTIONS) is not 400 for missing Origin.
+    # preview Vercel URLs: `allow_origin_regex`. Mobile Telegram WebView often
+    # sends `Origin: https://web.telegram.org` (not the mini-app URL) — must allow
+    # or preflight returns 400. `allow_private_network` avoids 400 when Chrome
+    # sends `Access-Control-Request-Private-Network` on some clients.
+    _tg_embed = ("https://web.telegram.org", "https://telegram.org")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
+        allow_origins=[*settings.cors_origins_list, *_tg_embed],
         allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        allow_private_network=True,
     )
 
     install_error_handlers(app)
