@@ -31,8 +31,14 @@ class Settings(BaseSettings):
 
     web_public_url: str = "http://localhost:3000"
 
-    database_url: str = "postgresql+asyncpg://shiftops:shiftops@postgres:5432/shiftops"
-    database_url_sync: str = "postgresql+psycopg://shiftops:shiftops@postgres:5432/shiftops"
+    database_url: str = Field(
+        default="postgresql+asyncpg://shiftops:shiftops@postgres:5432/shiftops",
+        description="Runtime async pool. Supabase: use transaction pooler :6543 (postgresql+asyncpg).",
+    )
+    database_url_sync: str = Field(
+        default="postgresql+psycopg://shiftops:shiftops@postgres:5432/shiftops",
+        description="Sync URL for Alembic/psycopg. Supabase: use session pooler :5432 or direct db host (DEPLOY.md).",
+    )
     # Connection pool sizing is environment-dependent:
     #   - Local Postgres: defaults are fine.
     #   - Supabase free tier (transaction pooler): ceiling is ~60 connections

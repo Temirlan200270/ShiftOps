@@ -1,18 +1,20 @@
 """Alembic environment.
 
-Uses sync psycopg driver for migrations (Alembic does not need async),
-but the application uses asyncpg at runtime.
+Uses **sync** ``psycopg`` (``database_url_sync`` / ``DATABASE_URL_SYNC``) only.
+The API uses **async** ``asyncpg`` (``DATABASE_URL``) — often the Supabase
+*transaction* pooler on :6543. Alembic DDL against that pooler can fail
+(``Tenant or user not found``, prepared statements). For production, set
+``DATABASE_URL_SYNC`` to the **session** pooler on :5432 or **direct** host
+``db.<project>.supabase.co`` (see ``docs/DEPLOY.md``).
 """
 
 from __future__ import annotations
 
-import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from shiftops_api.config.settings import get_settings
 from shiftops_api.infra.db.base import Base
@@ -28,7 +30,7 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return get_settings().database_url
+    return get_settings().database_url_sync
 
 
 def run_migrations_offline() -> None:
@@ -54,20 +56,14 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 
-async def run_async_migrations() -> None:
-    config.set_main_option("sqlalchemy.url", get_url())
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+def run_migrations_online() -> None:
+    connectable = create_engine(
+        get_url(),
         poolclass=pool.NullPool,
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
-
-
-def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    with connectable.connect() as connection:
+        do_run_migrations(connection)
+    connectable.dispose()
 
 
 if context.is_offline_mode():
