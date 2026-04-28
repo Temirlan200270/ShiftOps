@@ -102,7 +102,9 @@ fly secrets set --app shiftops-api \
 2. Скопировать из раздела **Connection pooling** заново:
    - **Transaction pooler** → `DATABASE_URL` с заменой префикса на `postgresql+asyncpg://` и портом **6543**;
    - **Session pooler** → `DATABASE_URL_SYNC` с префиксом `postgresql+psycopg://` и портом **5432**.
-3. Выставить секреты и задеплоить:
+3. Выставить секреты и задеплоить.
+
+**Linux / macOS (bash)** — обратный слэш `\` переносит строку:
 
 ```bash
 cd apps/api
@@ -113,6 +115,15 @@ fly secrets set \
 
 fly deploy --remote-only
 ```
+
+**Windows:** в **cmd.exe** многострочный ввод с `\` **не** работает; в **PowerShell** перенос — символ **backtick** `` ` ``, не `\`. Проще одной строкой (из каталога `apps\api`):
+
+```powershell
+fly secrets set -a shiftops-api "DATABASE_URL=postgresql+asyncpg://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" "DATABASE_URL_SYNC=postgresql+psycopg://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+fly deploy --remote-only
+```
+
+В PowerShell символ `$` внутри пароля в двойных кавычках может подставляться как переменная — при проблемах оберните значения в **одинарные** кавычки или задайте секреты через **`fly secrets import`** из UTF‑8 файла без BOM (как в `deploy_fly_production.ps1`).
 
 Имя пользователя в URI должно совпадать с тем, что показывает Supabase (часто `postgres.<project-ref>`), без ручной «сборки» строки.
 
