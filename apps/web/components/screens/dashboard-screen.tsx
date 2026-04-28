@@ -32,9 +32,6 @@ import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
 
-/** Dev / Strict Mode occasionally double-mounts the initial refresh — avoid stacking identical toasts. */
-let lastDashboardShiftToastAt = 0;
-
 type View =
   | "dashboard"
   | "tasks"
@@ -53,6 +50,7 @@ export function DashboardScreen(): React.JSX.Element {
   const [view, setView] = React.useState<View>("dashboard");
   const [loading, setLoading] = React.useState(true);
   const [acting, setActing] = React.useState(false);
+  const lastShiftToastAtRef = React.useRef(0);
   const tDash = useTranslations("dashboard");
   const tErr = useTranslations("errors");
   const tHist = useTranslations("history");
@@ -72,8 +70,8 @@ export function DashboardScreen(): React.JSX.Element {
       setShift(result.data);
     } else {
       const now = Date.now();
-      if (now - lastDashboardShiftToastAt >= 3800) {
-        lastDashboardShiftToastAt = now;
+      if (now - lastShiftToastAtRef.current >= 3800) {
+        lastShiftToastAtRef.current = now;
         toast({ variant: "critical", title: tErr("generic"), description: result.message });
       }
     }
@@ -81,8 +79,11 @@ export function DashboardScreen(): React.JSX.Element {
   }, [setShift, tErr]);
 
   React.useEffect(() => {
+    // Intentionally mount-only: manual refreshes are triggered by user actions (start/close).
+    // This avoids double refreshes under React 18 dev Strict Mode and keeps sub-screens steadier.
     void refresh();
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Hooks must run on every render — declare here, before any early `return`
   // for sub-screens. Otherwise `react-hooks/rules-of-hooks` fails the build.

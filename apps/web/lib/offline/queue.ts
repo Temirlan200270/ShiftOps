@@ -36,6 +36,8 @@ interface QueuedUpload {
   enqueuedAt: number;
 }
 
+let drainFlight: Promise<{ ok: number; failed: number }> | null = null;
+
 export async function enqueuePhotoUpload(input: {
   taskId: string;
   photo: Blob;
@@ -52,7 +54,7 @@ export async function enqueuePhotoUpload(input: {
   await set(`${QUEUE_PREFIX}${id}`, entry);
 }
 
-export async function drainQueue(): Promise<{ ok: number; failed: number }> {
+async function drainQueueOnce(): Promise<{ ok: number; failed: number }> {
   let ok = 0;
   let failed = 0;
   const allKeys = (await keys()) as string[];
@@ -83,9 +85,32 @@ export async function drainQueue(): Promise<{ ok: number; failed: number }> {
   return { ok, failed };
 }
 
+/**
+ * Serialized draining. Telegram can emit repeated focus/online events while the app wakes up,
+ * and without a lock two drains may pick the same IndexedDB key concurrently.
+ */
+export async function drainQueue(): Promise<{ ok: number; failed: number }> {
+  if (drainFlight) {
+    return drainFlight;
+  }
+  drainFlight = drainQueueOnce().finally(() => {
+    drainFlight = null;
+  });
+  return drainFlight;
+}
+
 export function startOfflineQueueWatcher(): () => void {
+  const debounceMs = 300;
+  let timer: number | null = null;
+
   const drain = (): void => {
-    void drainQueue();
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+    timer = window.setTimeout(() => {
+      timer = null;
+      void drainQueue();
+    }, debounceMs);
   };
   window.addEventListener("online", drain);
   window.addEventListener("focus", drain);
@@ -93,5 +118,9 @@ export function startOfflineQueueWatcher(): () => void {
   return () => {
     window.removeEventListener("online", drain);
     window.removeEventListener("focus", drain);
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
   };
 }

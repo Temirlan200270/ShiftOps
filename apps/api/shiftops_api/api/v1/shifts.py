@@ -178,18 +178,26 @@ async def get_my_shift(
     return CurrentShiftResponse.model_validate(result.value, from_attributes=True)
 
 
-@router.post("/{shift_id}/start", response_model=StartShiftResponse)
+@router.post("/{shift_id}/start", response_model=CurrentShiftResponse)
 async def start_shift(
     shift_id: UUID,
     user: CurrentUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
-) -> StartShiftResponse:
+) -> CurrentShiftResponse:
     use_case = StartShiftUseCase(session=session)
     result = await use_case.execute(shift_id=shift_id, user=user)
     if isinstance(result, Failure):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result.error.code)
     assert isinstance(result, Success)
-    return StartShiftResponse(shift_id=result.value.id)
+
+    # Return the updated current shift (same shape as GET /v1/shifts/me) to avoid
+    # an extra round-trip on flaky connections.
+    read_use_case = ListMyShiftUseCase(session=session)
+    read_result = await read_use_case.execute(user=user)
+    if isinstance(read_result, Failure):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=read_result.error.code)
+    assert isinstance(read_result, Success)
+    return CurrentShiftResponse.model_validate(read_result.value, from_attributes=True)
 
 
 @router.post("/tasks/{task_id}/complete", response_model=CompleteTaskResponse)

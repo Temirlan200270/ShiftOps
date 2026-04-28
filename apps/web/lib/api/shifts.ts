@@ -97,9 +97,9 @@ export async function fetchMyShift(): Promise<ApiResult<ShiftSummary | null>> {
 }
 
 export async function startShift(shiftId: string): Promise<ApiResult<ShiftSummary | null>> {
-  const result = await api.post<{ shift_id: string }>(`/v1/shifts/${shiftId}/start`);
+  const result = await api.post<CurrentShiftDTO>(`/v1/shifts/${shiftId}/start`);
   if (!result.ok) return result;
-  return fetchMyShift();
+  return { ok: true, status: result.status, data: fromCurrentShift(result.data) };
 }
 
 export async function completeTask(input: {

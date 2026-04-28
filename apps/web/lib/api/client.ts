@@ -14,6 +14,7 @@
 
 import { refreshAccessToken } from "@/lib/auth/refresh-access";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { updateServerTimeOffsetFromResponse } from "@/lib/time/server-time";
 
 import { getNextPublicApiBase } from "./api-base";
 
@@ -129,6 +130,8 @@ async function rawRequest<T>(
       message: err instanceof Error ? err.message : "network error",
     };
   }
+
+  updateServerTimeOffsetFromResponse(response);
 
   if (response.status === 204) {
     return { ok: true, status: 204, data: undefined as unknown as T };

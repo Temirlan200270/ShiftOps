@@ -39,6 +39,7 @@ import {
   type RealtimeStatus,
 } from "@/lib/api/monitor";
 import { toast } from "@/lib/stores/toast-store";
+import { nowServerMs } from "@/lib/time/server-time";
 
 interface LiveMonitorScreenProps {
   onBack: () => void;
@@ -49,9 +50,9 @@ type FeedItem = { id: string; at: number; key: string; values: Record<string, st
 const FEED_MAX = 30;
 
 function useTick(intervalMs: number): number {
-  const [tick, setTick] = React.useState(() => Date.now());
+  const [tick, setTick] = React.useState(() => nowServerMs());
   React.useEffect(() => {
-    const id = setInterval(() => setTick(Date.now()), intervalMs);
+    const id = setInterval(() => setTick(nowServerMs()), intervalMs);
     return () => clearInterval(id);
   }, [intervalMs]);
   return tick;
@@ -129,7 +130,7 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
       // Heartbeats and the initial hello aren't user-visible.
       if (event.type === "ping" || event.type === "hello") return;
 
-      setLastEventAt(Date.now());
+      setLastEventAt(nowServerMs());
 
       if (event.type === "shift.opened") {
         const data = event.data as Extract<RealtimeEvent, { type: "shift.opened" }>["data"];
@@ -329,7 +330,7 @@ function pushFeed(
   item: Omit<FeedItem, "at">,
 ): void {
   setFeed((prev) => {
-    const next = [{ ...item, at: Date.now() }, ...prev];
+    const next = [{ ...item, at: nowServerMs() }, ...prev];
     if (next.length > FEED_MAX) next.length = FEED_MAX;
     return next;
   });
