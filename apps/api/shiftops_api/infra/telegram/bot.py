@@ -229,10 +229,16 @@ async def org_invite(message: Message) -> None:
         return
     role = parts[2].strip().lower()
     hours: int | None = None
+    assumed_tg_id: int | None = None
     if len(parts) >= 4:
         try:
             hours = int(parts[3])
         except ValueError:
+            hours = None
+        # Common mistake: pass a Telegram user id as the 3rd arg. If the value is
+        # wildly out of invite TTL range, treat it as tg_id and keep default TTL.
+        if hours is not None and hours > 168 and hours >= 10_000:
+            assumed_tg_id = hours
             hours = None
 
     factory = get_sessionmaker()
@@ -253,11 +259,19 @@ async def org_invite(message: Message) -> None:
         uname = settings.tg_bot_username.lstrip("@")
         deep = f"https://t.me/{uname}?start=inv_{r.value.token}"
         await session.commit()
+        hint = (
+            "\n\n<i>Похоже, вы передали Telegram ID третьим аргументом.</i>\n"
+            "Инвайт не требует ID: просто отправьте ссылку человеку (или нажмите сами).\n"
+            "Пример: <code>/org_invite &lt;org_uuid&gt; admin</code>"
+            if assumed_tg_id is not None
+            else ""
+        )
         await message.answer(
             "✅ Инвайт создан.\n"
             f"Роль: <b>{role}</b>\n"
             f"Ссылка: {deep}\n"
             f"Истекает: <code>{r.value.expires_at.isoformat()}</code>"
+            f"{hint}"
         )
 
 
