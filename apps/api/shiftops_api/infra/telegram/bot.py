@@ -23,7 +23,6 @@ dispatcher modular so we can add routers without touching this file.
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 
 from aiogram import Bot, Dispatcher, F, Router
@@ -34,9 +33,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import CallbackQuery, Message, Update
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.application.invites.create_system_invite import CreateSystemInviteUseCase
 from shiftops_api.application.invites.redeem_invite import RedeemInviteUseCase
 from shiftops_api.application.organizations.create_organization import (
     CreateOrganizationUseCase,
@@ -54,7 +54,6 @@ _storage = MemoryStorage()
 
 class CreateOrgFSM(StatesGroup):
     org_name = State()
-    owner_tg_id = State()
 
 
 def _bot() -> Bot:
@@ -183,88 +182,134 @@ async def create_org_name(message: Message, state: FSMContext) -> None:
     if not name or len(name) < 2:
         await message.answer("Название слишком короткое. Повторите или /cancel")
         return
-    await state.update_data(org_name=name)
-    await state.set_state(CreateOrgFSM.owner_tg_id)
-    await message.answer(
-        "Кто будет <b>владельцем</b>?\n"
-        "• Пришлите <b>числовой Telegram ID</b> (узнать: @userinfobot), <b>или</b>\n"
-        "• <b>Перешлите сюда любое сообщение</b> от этого человека (если у него "
-        "не скрыт профиль при пересылке).\n"
-        "Отмена: /cancel"
-    )
-
-
-def _parse_owner_tg_id(message: Message) -> int | None:
-    if message.forward_from is not None:
-        return int(message.forward_from.id)
-    text = (message.text or "").strip()
-    if not text:
-        return None
-    m = re.fullmatch(r"-?\d+", text)
-    if m is None:
-        return None
-    tid = int(m.group(0))
-    return tid if tid > 0 else None
-
-
-@_router.message(StateFilter(CreateOrgFSM.owner_tg_id))
-async def create_org_owner(message: Message, state: FSMContext) -> None:
-    if not message.from_user or not _is_super_admin(message.from_user.id):
-        return
-    if message.text:
-        raw = message.text.strip()
-        if raw.lower().startswith("/cancel"):
-            await state.clear()
-            await message.answer("Отменено.")
-            return
-        if raw.startswith("/"):
-            await message.answer("Сначала завершите ввод владельца или /cancel")
-            return
-    data = await state.get_data()
-    name = str(data.get("org_name", ""))
-    if not name:
-        await state.clear()
-        await message.answer("Сессия сброшена. Начните с /create_org")
-        return
-
-    owner_tg = _parse_owner_tg_id(message)
-    if owner_tg is None:
-        if message.forward_from is None and (message.text or "").strip():
-            await message.answer(
-                "Нужен <b>только</b> числовой id (без букв) "
-                "или <b>пересланное сообщение</b> от владельца. /cancel"
-            )
-        else:
-            await message.answer(
-                "Не удалось взять ID: при <b>скрытой пересылке</b> введите числовой id вручную. "
-                "/cancel"
-            )
-        return
-
-    display = f"Owner {owner_tg}"
     factory = get_sessionmaker()
     async with factory() as session:
         uc = CreateOrganizationUseCase(session)
-        r = await uc.execute(
-            name=name,
-            owner_tg_user_id=owner_tg,
-            owner_display_name=display,
-        )
+        r = await uc.execute(name=name)
         if isinstance(r, Failure):
-            await message.answer(
-                f"Ошибка: {r.error.code}. "
-                f"Проверьте, что id свободен, и повторите /create_org"
-            )
+            await message.answer(f"Ошибка: {r.error.code}. Повторите /create_org")
             await session.rollback()
             await state.clear()
             return
         assert isinstance(r, Success)
         await session.commit()
         await state.clear()
+        org_id = r.value.organization_id
         await message.answer(
-            f"✅ Организация <b>{r.value.name}</b> создана. "
-            f"Владелец: internal user id = {r.value.owner_user_id!s} (Telegram {owner_tg})."
+            f"✅ Организация <b>{r.value.name}</b> создана.\n"
+            f"ID: <code>{org_id}</code>\n\n"
+            "Выдай инвайт владельцу/админу (без Telegram ID):\n"
+            f"<code>/org_invite {org_id} owner</code>\n"
+            f"<code>/org_invite {org_id} admin</code>"
         )
+
+
+def _parse_uuid(text: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(text.strip())
+    except Exception:
+        return None
+
+
+@_router.message(Command("org_invite"))
+async def org_invite(message: Message) -> None:
+    """Super-admin: create an invite for owner/admin/operator without existing users."""
+    if message.from_user is None or not _is_super_admin(message.from_user.id):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer(
+            "Использование:\n"
+            "<code>/org_invite <org_uuid> <owner|admin|operator> [hours]</code>"
+        )
+        return
+    org_id = _parse_uuid(parts[1])
+    if org_id is None:
+        await message.answer("org_uuid не распознан.")
+        return
+    role = parts[2].strip().lower()
+    hours: int | None = None
+    if len(parts) >= 4:
+        try:
+            hours = int(parts[3])
+        except ValueError:
+            hours = None
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        uc = CreateSystemInviteUseCase(session)
+        r = await uc.execute(
+            organization_id=org_id,
+            role=role,
+            location_id=None,
+            expires_in_hours=hours,
+        )
+        if isinstance(r, Failure):
+            await message.answer(f"Не удалось создать инвайт: {r.error.code}")
+            await session.rollback()
+            return
+        assert isinstance(r, Success)
+        settings = get_settings()
+        uname = settings.tg_bot_username.lstrip("@")
+        deep = f"https://t.me/{uname}?start=inv_{r.value.token}"
+        await session.commit()
+        await message.answer(
+            "✅ Инвайт создан.\n"
+            f"Роль: <b>{role}</b>\n"
+            f"Ссылка: {deep}\n"
+            f"Истекает: <code>{r.value.expires_at.isoformat()}</code>"
+        )
+
+
+@_router.message(Command("org_set_owner"))
+async def org_set_owner(message: Message) -> None:
+    """Super-admin: (re)assign a single owner inside an org by tg_id.
+
+    The user must already exist in the org (e.g. via /org_invite ... admin),
+    then we promote them to owner and demote any other owners to admin.
+    """
+
+    if message.from_user is None or not _is_super_admin(message.from_user.id):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer("Использование:\n<code>/org_set_owner <org_uuid> <tg_user_id></code>")
+        return
+    org_id = _parse_uuid(parts[1])
+    if org_id is None:
+        await message.answer("org_uuid не распознан.")
+        return
+    try:
+        tg_id = int(parts[2])
+    except ValueError:
+        await message.answer("tg_user_id должен быть числом.")
+        return
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        await session.execute(text("SET LOCAL row_security = off"))
+        row = (
+            await session.execute(
+                select(TelegramAccount, User)
+                .join(User, User.id == TelegramAccount.user_id)
+                .where(TelegramAccount.tg_user_id == tg_id)
+                .where(User.organization_id == org_id)
+            )
+        ).first()
+        if row is None:
+            await message.answer("Пользователь с таким tg_id не найден в этой организации.")
+            return
+        _, user = row
+        await session.execute(
+            text(
+                "UPDATE users SET role = 'admin' "
+                "WHERE organization_id = :org AND role = 'owner' AND id <> :uid"
+            ),
+            {"org": str(org_id), "uid": str(user.id)},
+        )
+        user.role = "owner"
+        await session.commit()
+        await message.answer(f"✅ Владелец назначен. user_id=<code>{user.id}</code>")
 
 
 @_router.message(Command("cancel"))

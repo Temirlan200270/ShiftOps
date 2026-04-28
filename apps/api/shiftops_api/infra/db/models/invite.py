@@ -17,7 +17,7 @@ class Invite(UuidPkMixin, TimestampMixin, Base):
     __tablename__ = "invites"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('admin','operator')",
+            "role IN ('owner','admin','operator')",
             name="ck_invites_role_invitable_only",
         ),
     )
@@ -37,10 +37,10 @@ class Invite(UuidPkMixin, TimestampMixin, Base):
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
