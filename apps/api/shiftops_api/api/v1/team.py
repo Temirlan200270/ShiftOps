@@ -17,8 +17,7 @@ from shiftops_api.application.team.deactivate_member import (
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_session
-from shiftops_api.infra.db.models import TelegramAccount
-from shiftops_api.infra.db.models import User
+from shiftops_api.infra.db.models import TelegramAccount, User
 
 router = APIRouter()
 
