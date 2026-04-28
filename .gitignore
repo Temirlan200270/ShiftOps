@@ -59,5 +59,11 @@ docker-data/
 # Sentry
 .sentryclirc
 
+# Claude Code — machine-specific overrides (paths, permissions); not team-shared.
+.claude/settings.local.json
+
+# Vercel CLI project link (root and app; apps/web also lists `.vercel`)
+.vercel/
+
 # Local dev artefacts
 *.local
