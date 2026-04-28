@@ -36,6 +36,21 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _ensure_sync_driver(dsn: str) -> str:
+    """Force psycopg (v3) for sync migrations.
+
+    If the URL omits the driver (e.g. `postgresql://...`), SQLAlchemy defaults to
+    `psycopg2`, which we intentionally do not ship in the API image.
+    """
+
+    p = urlparse(dsn)
+    if p.scheme in ("postgres", "postgresql"):
+        return urlunparse(p._replace(scheme="postgresql+psycopg"))
+    if p.scheme in ("postgresql+psycopg2", "postgresql+psycopg2cffi"):
+        return urlunparse(p._replace(scheme="postgresql+psycopg"))
+    return dsn
+
+
 def _ensure_sslmode_for_supabase(dsn: str) -> str:
     """Add sslmode=require for Supabase pooler/direct hosts. Skip for local Postgres (CI, Docker)."""
     p = urlparse(dsn)
@@ -57,7 +72,7 @@ def get_url() -> str:
     if not raw:
         msg = "Set DATABASE_URL_SYNC or ALEMBIC_DATABASE_URL (see shiftops_api.config.settings)."
         raise RuntimeError(msg)
-    return _ensure_sslmode_for_supabase(raw)
+    return _ensure_sslmode_for_supabase(_ensure_sync_driver(raw))
 
 
 def run_migrations_offline() -> None:
