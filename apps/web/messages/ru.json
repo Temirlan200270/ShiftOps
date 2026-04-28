@@ -93,6 +93,7 @@
     "title": "Команда",
     "subtitle": "Пригласите сотрудника по ссылке в Telegram",
     "roleLabel": "Роль",
+    "roleOwner": "Владелец",
     "roleAdmin": "Администратор",
     "roleOperator": "Оператор",
     "locationLabel": "Локация (опц.)",
@@ -109,7 +110,10 @@
     "emptyTitle": "Пока только вы",
     "emptyBody": "Пригласите первого сотрудника — ссылка в Telegram, без ручного ввода ID.",
     "emptyCta": "Пригласить первого сотрудника",
-    "autoCopied": "Ссылка скопирована"
+    "autoCopied": "Ссылка скопирована",
+    "membersTitle": "Участники организации",
+    "membersLoading": "Загружаем список…",
+    "memberYou": "(вы)"
   },
   "history": {
     "title": "История смен",

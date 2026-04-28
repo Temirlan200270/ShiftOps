@@ -20,12 +20,28 @@ export interface TeamSummary {
   org_total_members: number;
 }
 
+export interface TeamMemberRow {
+  id: string;
+  full_name: string;
+  role: "owner" | "admin" | "operator" | string;
+  is_active: boolean;
+  tg_user_id: number | null;
+  tg_username: string | null;
+  can_deactivate: boolean;
+  cannot_deactivate_reason: string | null;
+}
+
 export async function fetchLocations(): Promise<ApiResult<LocationRow[]>> {
   return api.get<LocationRow[]>("/v1/locations");
 }
 
 export async function fetchTeamSummary(): Promise<ApiResult<TeamSummary>> {
   return api.get<TeamSummary>("/v1/team/summary");
+}
+
+export async function fetchTeamMembers(includeInactive?: boolean): Promise<ApiResult<TeamMemberRow[]>> {
+  const q = includeInactive === true ? "?include_inactive=true" : "";
+  return api.get<TeamMemberRow[]>(`/v1/team/members${q}`);
 }
 
 export async function createInvite(payload: {

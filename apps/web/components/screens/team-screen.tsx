@@ -9,8 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   createInvite,
   fetchLocations,
+  fetchTeamMembers,
   fetchTeamSummary,
   type LocationRow,
+  type TeamMemberRow,
 } from "@/lib/api/invites";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { toast } from "@/lib/stores/toast-store";
@@ -26,6 +28,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const me = useAuthStore((s) => s.me);
   const isOwner = me?.role === "owner";
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
+  const [members, setMembers] = React.useState<TeamMemberRow[] | null>(null);
   const [loadingLocs, setLoadingLocs] = React.useState(true);
   const [otherMembersCount, setOtherMembersCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<"admin" | "operator">("operator");
@@ -46,7 +49,11 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   React.useEffect(() => {
     void (async () => {
       setLoadingLocs(true);
-      const [locR, teamR] = await Promise.all([fetchLocations(), fetchTeamSummary()]);
+      const [locR, teamR, memR] = await Promise.all([
+        fetchLocations(),
+        fetchTeamSummary(),
+        fetchTeamMembers(false),
+      ]);
       if (locR.ok) {
         setLocations(locR.data);
       } else {
@@ -57,6 +64,12 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
       } else {
         setOtherMembersCount(-1);
         toast({ variant: "critical", title: tErr("generic"), description: teamR.message });
+      }
+      if (memR.ok) {
+        setMembers(memR.data);
+      } else {
+        setMembers([]);
+        toast({ variant: "critical", title: tErr("generic"), description: memR.message });
       }
       setLoadingLocs(false);
     })();
@@ -132,6 +145,55 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
         </div>
         <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
       </header>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">{t("membersTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent className={members === null || loadingLocs ? "animate-pulse" : undefined}>
+          {members === null || loadingLocs ? (
+            <p className="text-sm text-muted-foreground">{t("membersLoading")}</p>
+          ) : members.length === 0 ? (
+            <p className="text-sm text-muted-foreground">—</p>
+          ) : (
+            <ul className="space-y-0 divide-y divide-border/60" aria-label={t("membersTitle")}>
+              {members.map((member) => {
+                const roleKey = member.role as "owner" | "admin" | "operator";
+                const badge =
+                  roleKey === "owner"
+                    ? t("roleOwner")
+                    : roleKey === "admin"
+                      ? t("roleAdmin")
+                      : roleKey === "operator"
+                        ? t("roleOperator")
+                        : member.role;
+                const isSelf = member.id === me?.id;
+                return (
+                  <li
+                    key={member.id}
+                    className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium leading-snug break-words">
+                        {member.full_name}
+                        {isSelf ? (
+                          <span className="text-muted-foreground font-normal text-xs ms-1.5">{t("memberYou")}</span>
+                        ) : null}
+                      </p>
+                      {member.tg_username ? (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">@{member.tg_username}</p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground border border-border rounded-full px-2 py-0.5 whitespace-nowrap">
+                      {badge}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {showEmpty ? (
         <section

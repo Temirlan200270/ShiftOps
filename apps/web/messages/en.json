@@ -93,6 +93,7 @@
     "title": "Team",
     "subtitle": "Invite staff with a Telegram link",
     "roleLabel": "Role",
+    "roleOwner": "Owner",
     "roleAdmin": "Administrator",
     "roleOperator": "Operator",
     "locationLabel": "Location (optional)",
@@ -109,7 +110,10 @@
     "emptyTitle": "You are the only one here",
     "emptyBody": "Invite your first teammate — a Telegram link, no manual IDs.",
     "emptyCta": "Invite the first teammate",
-    "autoCopied": "Link copied to clipboard"
+    "autoCopied": "Link copied to clipboard",
+    "membersTitle": "Organization members",
+    "membersLoading": "Loading roster…",
+    "memberYou": "(you)"
   },
   "history": {
     "title": "Shift history",
