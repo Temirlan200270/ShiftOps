@@ -39,11 +39,11 @@ jobs:
           # to notice. The endpoint returns {"status":"ok"}.
           grep -q '"status":"ok"' /tmp/healthz.json
 
-      # Once a day (when minute < 30 in the 6h schedule, ~25% of runs land in
-      # the 0-6 UTC window) we also touch /readyz which performs a DB ping.
-      # This is what actually keeps Supabase counted as active.
+      # Always run /readyz so Supabase counts the project as active.
+      # SELECT 1 every 6 hours is negligible; skipping it was the bug that
+      # caused Supabase to auto-pause (the previous condition matched a cron
+      # expression that was never scheduled).
       - name: Touch /readyz (DB activity)
-        if: ${{ github.event.schedule == '17 0 * * *' || github.event_name == 'workflow_dispatch' }}
         env:
           API_URL: ${{ secrets.API_PUBLIC_URL_PROD }}
         run: |

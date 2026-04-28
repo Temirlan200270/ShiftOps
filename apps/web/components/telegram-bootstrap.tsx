@@ -2,9 +2,8 @@
 
 import * as React from "react";
 
-import { HandshakeError, performHandshake } from "@/lib/auth/handshake";
+import { performHandshake } from "@/lib/auth/handshake";
 import { startOfflineQueueWatcher } from "@/lib/offline/queue";
-import { getNextPublicApiBase } from "@/lib/api/api-base";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { getTelegramWebApp } from "@/lib/telegram/init";
 
@@ -38,10 +37,8 @@ export function TelegramBootstrap({ children }: BootstrapProps): React.JSX.Eleme
     }
     if (!me) {
       void performHandshake().catch((err) => {
-        const code = err instanceof HandshakeError ? err.code : "unknown";
         const message = err instanceof Error ? err.message : "unknown";
-        const apiBase = getNextPublicApiBase();
-        useAuthStore.getState().setHandshakeError(`[${code}] ${message}\nAPI: ${apiBase}`);
+        useAuthStore.getState().setHandshakeError(message);
       });
     }
     return startOfflineQueueWatcher();
