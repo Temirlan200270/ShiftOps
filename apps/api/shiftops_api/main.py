@@ -20,7 +20,7 @@ from sqlalchemy import text
 from shiftops_api import __version__
 from shiftops_api.api.errors import install_error_handlers
 from shiftops_api.api.v1.router import api_v1_router
-from shiftops_api.config import get_settings
+from shiftops_api.config import Settings, get_settings
 from shiftops_api.infra.db.engine import dispose_engine, get_sessionmaker
 from shiftops_api.infra.logging import configure_logging
 from shiftops_api.infra.queue import broker
@@ -84,15 +84,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         log.info("api.shutdown")
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
-    app = FastAPI(
-        title="ShiftOps API",
-        version=__version__,
-        lifespan=lifespan,
-        docs_url="/docs" if settings.app_env != "production" else None,
-        redoc_url=None,
-    )
+def apply_cors_middleware(app: FastAPI, settings: Settings) -> None:
+    """Attach production CORS policy (tested in `tests/test_cors.py`)."""
 
     # `API_CORS_ORIGINS` = explicit (prod, custom domain, localhost). Branch /
     # preview Vercel URLs: `allow_origin_regex`. Mobile Telegram WebView often
@@ -109,6 +102,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         allow_private_network=True,
     )
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(
+        title="ShiftOps API",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url="/docs" if settings.app_env != "production" else None,
+        redoc_url=None,
+    )
+
+    apply_cors_middleware(app, settings)
 
     install_error_handlers(app)
     app.include_router(api_v1_router, prefix="/api/v1")
