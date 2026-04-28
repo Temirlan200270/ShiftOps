@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -21,10 +22,35 @@ _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
+def _asyncpg_connect_args(database_url: str) -> dict[str, object]:
+    """asyncpg caches prepared statements per connection.
+
+    Supabase (and other setups) route ``DATABASE_URL`` through **PgBouncer**
+    in *transaction* or *statement* pool mode. The same logical server-side
+    connection can be handed to different clients between transactions, so
+    prepared statement names from a previous checkout collide →
+    ``DuplicatePreparedStatementError`` on ``select pg_catalog.version()`` etc.
+
+    Disabling the statement cache is the fix recommended by asyncpg when
+    PgBouncer cannot preserve prepared statements (see error hint in logs).
+    Direct Postgres (local Docker, port 5432) keeps the default cache.
+    """
+
+    try:
+        parsed = make_url(database_url)
+    except Exception:
+        return {}
+    host = (parsed.host or "").lower()
+    if parsed.port == 6543 or "pooler" in host:
+        return {"statement_cache_size": 0}
+    return {}
+
+
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         settings = get_settings()
+        connect_args = _asyncpg_connect_args(settings.database_url)
         _engine = create_async_engine(
             settings.database_url,
             echo=False,
@@ -35,6 +61,7 @@ def get_engine() -> AsyncEngine:
             # hold one longer we'd hit a stale-socket error. Recycle just
             # before that to avoid the round-trip.
             pool_recycle=settings.db_pool_recycle_seconds,
+            connect_args=connect_args,
         )
     return _engine
 
