@@ -1,6 +1,6 @@
 """Allow owner invites + system-created invites.
 
-Revision ID: 0005_invites_owner_and_system_created
+Revision ID: 0005_invites_owner_sys
 Revises: 0004_invites
 Create Date: 2026-04-28
 
@@ -19,7 +19,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0005_invites_owner_and_system_created"
+revision: str = "0005_invites_owner_sys"
 down_revision: str | None = "0004_invites"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
