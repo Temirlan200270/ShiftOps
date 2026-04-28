@@ -113,6 +113,7 @@
     "autoCopied": "Link copied to clipboard",
     "membersTitle": "Organization members",
     "membersLoading": "Loading roster…",
+    "membersLoadFailed": "Could not load the member list. Try again later.",
     "memberYou": "(you)"
   },
   "history": {

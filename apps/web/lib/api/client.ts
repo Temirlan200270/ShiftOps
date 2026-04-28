@@ -69,6 +69,9 @@ function shouldRetryAfterRefresh(status: number, failure: ApiFailure): boolean {
   if (failure.code === "not_an_access_token") {
     return true;
   }
+  if (failure.code === "missing_bearer_token") {
+    return true;
+  }
   if (/signature has expired/i.test(failure.message)) {
     return true;
   }
@@ -89,6 +92,11 @@ async function rawRequest<T>(
 ): Promise<ApiResult<T>> {
   const skipRefresh =
     path.startsWith("/v1/auth/exchange") || path.startsWith("/v1/auth/refresh");
+
+  const boot = useAuthStore.getState();
+  if (!boot.accessToken && boot.refreshToken && !skipRefresh) {
+    await refreshAccessToken();
+  }
 
   const accessToken = useAuthStore.getState().accessToken;
   const headers = new Headers(init.headers ?? {});

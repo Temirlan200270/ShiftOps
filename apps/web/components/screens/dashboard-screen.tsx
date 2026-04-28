@@ -32,6 +32,9 @@ import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
 
+/** Dev / Strict Mode occasionally double-mounts the initial refresh — avoid stacking identical toasts. */
+let lastDashboardShiftToastAt = 0;
+
 type View =
   | "dashboard"
   | "tasks"
@@ -68,7 +71,11 @@ export function DashboardScreen(): React.JSX.Element {
     if (result.ok) {
       setShift(result.data);
     } else {
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      const now = Date.now();
+      if (now - lastDashboardShiftToastAt >= 3800) {
+        lastDashboardShiftToastAt = now;
+        toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      }
     }
     setLoading(false);
   }, [setShift, tErr]);

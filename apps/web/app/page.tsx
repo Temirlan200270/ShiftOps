@@ -19,6 +19,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 export default function Page(): React.JSX.Element {
   const me = useAuthStore((s) => s.me);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const authBootstrapComplete = useAuthStore((s) => s.authBootstrapComplete);
   const handshakeError = useAuthStore((s) => s.handshakeError);
   const handshakeErrorCode = useAuthStore((s) => s.handshakeErrorCode);
   const setHandshakeError = useAuthStore((s) => s.setHandshakeError);
@@ -41,7 +42,7 @@ export default function Page(): React.JSX.Element {
     }
   }, [setHandshakeError]);
 
-  if (!me || !accessToken) {
+  if (!authBootstrapComplete || !me || !accessToken) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
         <div className="size-14 rounded-md bg-elevated grid place-items-center mb-4">

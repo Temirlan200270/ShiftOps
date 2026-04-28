@@ -21,9 +21,12 @@ interface BootstrapProps {
  * 3. After persisted state rehydrates: if there is no access token, tries
  *    refresh JWT first, then initData handshake.
  *
- * Splash & error states are rendered by `app/page.tsx` (driven off
- * `me` / `accessToken` / handshake error); this component only orchestrates
- * side-effects.
+ * Always calls `markAuthBootstrapComplete()` in `finally`, so `app/page.tsx`
+ * blocks the dashboard until this pass finishes — avoids API calls racing
+ * before tokens are refreshed.
+ *
+ * Splash & error states are rendered by `app/page.tsx`; this component only
+ * orchestrates side-effects.
  */
 export function TelegramBootstrap({ children }: BootstrapProps): React.JSX.Element {
   React.useEffect(() => {
@@ -40,37 +43,46 @@ export function TelegramBootstrap({ children }: BootstrapProps): React.JSX.Eleme
     let cancelled = false;
 
     async function authenticateAfterHydrate(): Promise<void> {
-      const state = useAuthStore.getState();
-      if (state.accessToken) {
-        return;
-      }
-      if (state.refreshToken) {
-        const ok = await refreshAccessToken();
-        if (cancelled) {
+      try {
+        const state = useAuthStore.getState();
+        if (state.accessToken) {
           return;
         }
-        if (ok) {
-          return;
+        if (state.refreshToken) {
+          const ok = await refreshAccessToken();
+          if (cancelled) {
+            return;
+          }
+          if (ok) {
+            return;
+          }
         }
-      }
 
-      await performHandshake().catch((err) => {
-        if (err instanceof HandshakeError) {
-          useAuthStore.getState().setHandshakeError(err.message, err.code);
-          return;
-        }
-        const message = err instanceof Error ? err.message : "unknown";
-        useAuthStore.getState().setHandshakeError(message, null);
-      });
+        await performHandshake().catch((err) => {
+          if (err instanceof HandshakeError) {
+            useAuthStore.getState().setHandshakeError(err.message, err.code);
+            return;
+          }
+          const message = err instanceof Error ? err.message : "unknown";
+          useAuthStore.getState().setHandshakeError(message, null);
+        });
+      } finally {
+        useAuthStore.getState().markAuthBootstrapComplete();
+      }
     }
 
-    const unsub = useAuthStore.persist.onFinishHydration(() => {
-      if (!cancelled) {
-        void authenticateAfterHydrate();
-      }
-    });
+    const unsub =
+      useAuthStore.persist.hasHydrated() !== true
+        ? useAuthStore.persist.onFinishHydration(() => {
+            if (!cancelled) {
+              void authenticateAfterHydrate();
+            }
+          })
+        : () => {
+            /* hydrate already ran before this effect subscribed */
+          };
 
-    if (useAuthStore.persist.hasHydrated()) {
+    if (useAuthStore.persist.hasHydrated() === true) {
       void authenticateAfterHydrate();
     }
 

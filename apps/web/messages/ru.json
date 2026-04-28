@@ -113,6 +113,7 @@
     "autoCopied": "Ссылка скопирована",
     "membersTitle": "Участники организации",
     "membersLoading": "Загружаем список…",
+    "membersLoadFailed": "Не удалось загрузить список участников. Повторите позже.",
     "memberYou": "(вы)"
   },
   "history": {

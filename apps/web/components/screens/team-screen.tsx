@@ -39,6 +39,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const [expiresAt, setExpiresAt] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const formRef = React.useRef<HTMLDivElement>(null);
+  const [membersFetchError, setMembersFetchError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!isOwner) {
@@ -49,31 +50,56 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   React.useEffect(() => {
     void (async () => {
       setLoadingLocs(true);
+      setMembersFetchError(null);
+
       const [locR, teamR, memR] = await Promise.all([
         fetchLocations(),
         fetchTeamSummary(),
         fetchTeamMembers(false),
       ]);
+
       if (locR.ok) {
         setLocations(locR.data);
       } else {
-        toast({ variant: "critical", title: tErr("generic"), description: locR.message });
+        setLocations([]);
       }
+
       if (teamR.ok) {
         setOtherMembersCount(teamR.data.other_members_count);
       } else {
         setOtherMembersCount(-1);
-        toast({ variant: "critical", title: tErr("generic"), description: teamR.message });
       }
+
       if (memR.ok) {
         setMembers(memR.data);
       } else {
         setMembers([]);
-        toast({ variant: "critical", title: tErr("generic"), description: memR.message });
       }
+
+      let toastShown = false;
+      if (!locR.ok) {
+        toastShown = true;
+        toast({
+          variant: "critical",
+          title: tErr("generic"),
+          description: locR.message,
+        });
+      }
+      if (!toastShown && !teamR.ok) {
+        toastShown = true;
+        toast({
+          variant: "critical",
+          title: tErr("generic"),
+          description: teamR.message,
+        });
+      }
+      if (!toastShown && !memR.ok) {
+        setMembersFetchError(t("membersLoadFailed"));
+      }
+
       setLoadingLocs(false);
     })();
-  }, [tErr]);
+  }, [t, tErr]);
 
   const alone = otherMembersCount === 0;
   const showEmpty = !loadingLocs && otherMembersCount !== null && alone;
@@ -153,6 +179,8 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
         <CardContent className={members === null || loadingLocs ? "animate-pulse" : undefined}>
           {members === null || loadingLocs ? (
             <p className="text-sm text-muted-foreground">{t("membersLoading")}</p>
+          ) : membersFetchError ? (
+            <p className="text-sm text-critical">{membersFetchError}</p>
           ) : members.length === 0 ? (
             <p className="text-sm text-muted-foreground">—</p>
           ) : (

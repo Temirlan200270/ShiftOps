@@ -36,6 +36,11 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   me: MeProfile | null;
+  /**
+   * `false` until persist rehydration + TelegramBootstrap finished auth (refresh/handshake).
+   * Not persisted — avoids mounting the dashboard before the session is stable (prevents API 401 toasts flood).
+   */
+  authBootstrapComplete: boolean;
   /** Set when `performHandshake` fails; not persisted — otherwise the splash would spin forever. */
   handshakeError: string | null;
   handshakeErrorCode: string | null;
@@ -46,6 +51,7 @@ interface AuthState {
   }) => void;
   setAccessToken: (accessToken: string) => void;
   setHandshakeError: (message: string | null, code?: string | null) => void;
+  markAuthBootstrapComplete: () => void;
   clear: () => void;
 }
 
@@ -55,18 +61,28 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       me: null,
+      authBootstrapComplete: false,
       handshakeError: null,
       handshakeErrorCode: null,
       setSession: ({ accessToken, refreshToken, me }) =>
-        set({ accessToken, refreshToken, me, handshakeError: null, handshakeErrorCode: null }),
+        set({
+          accessToken,
+          refreshToken,
+          me,
+          authBootstrapComplete: true,
+          handshakeError: null,
+          handshakeErrorCode: null,
+        }),
       setAccessToken: (accessToken) => set({ accessToken, handshakeError: null, handshakeErrorCode: null }),
       setHandshakeError: (message, code) =>
         set({ handshakeError: message, handshakeErrorCode: code ?? null }),
+      markAuthBootstrapComplete: () => set({ authBootstrapComplete: true }),
       clear: () =>
         set({
           accessToken: null,
           refreshToken: null,
           me: null,
+          authBootstrapComplete: false,
           handshakeError: null,
           handshakeErrorCode: null,
         }),
