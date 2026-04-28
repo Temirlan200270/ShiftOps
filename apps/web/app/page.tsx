@@ -12,19 +12,37 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 /**
  * Root page → either splash (S0), dashboard (S1) or downstream screens.
  *
- * The router stays single-route on purpose: TWA back navigation is awkward
- * when the URL changes (Telegram uses its own back button), so we drive
- * screens with local React state instead.
+ * Session latch: after a successful `me` + access token, we do not force a
+ * full-screen splash if the access token is temporarily empty but a refresh
+ * token still exists (client will mint a new access JWT). This avoids UI
+ * flicker while staying strict on first load and full logout.
  */
 export default function Page(): React.JSX.Element {
   const me = useAuthStore((s) => s.me);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const refreshToken = useAuthStore((s) => s.refreshToken);
   const authBootstrapComplete = useAuthStore((s) => s.authBootstrapComplete);
   const handshakeError = useAuthStore((s) => s.handshakeError);
   const handshakeErrorCode = useAuthStore((s) => s.handshakeErrorCode);
   const setHandshakeError = useAuthStore((s) => s.setHandshakeError);
   const [retrying, setRetrying] = React.useState(false);
+  const [sessionLatched, setSessionLatched] = React.useState(false);
   const tSplash = useTranslations("splash");
+
+  React.useEffect(() => {
+    if (me?.id && accessToken) {
+      setSessionLatched(true);
+      return;
+    }
+    if (!me && !accessToken && !refreshToken) {
+      setSessionLatched(false);
+    }
+  }, [me, accessToken, refreshToken]);
+
+  const showBlockingSplash =
+    !authBootstrapComplete ||
+    ((!me || !accessToken) &&
+      (!sessionLatched || !me || (!accessToken && !refreshToken)));
 
   const handleRetry = React.useCallback(async () => {
     setRetrying(true);
@@ -42,7 +60,7 @@ export default function Page(): React.JSX.Element {
     }
   }, [setHandshakeError]);
 
-  if (!authBootstrapComplete || !me || !accessToken) {
+  if (showBlockingSplash) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
         <div className="size-14 rounded-md bg-elevated grid place-items-center mb-4">

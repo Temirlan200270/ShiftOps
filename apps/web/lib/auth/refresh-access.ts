@@ -32,11 +32,13 @@ async function refreshAccessTokenOnce(): Promise<boolean> {
       : await response.text().catch(() => "");
 
   if (!response.ok) {
+    useAuthStore.getState().clear();
     return false;
   }
 
   const data = payload as { access_token?: string };
   if (typeof data.access_token !== "string") {
+    useAuthStore.getState().clear();
     return false;
   }
 

@@ -44,6 +44,38 @@ export function getTelegramWebApp(): TelegramWebApp | null {
   return window.Telegram?.WebApp ?? null;
 }
 
+/** Poll until `telegram-web-app.js` defines `Telegram.WebApp` (defer script may load after React effects). */
+export function waitForTelegramWebApp(
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<TelegramWebApp | null> {
+  if (typeof window === "undefined") {
+    return Promise.resolve(null);
+  }
+  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const intervalMs = opts.intervalMs ?? 40;
+  return new Promise((resolve) => {
+    const tg = getTelegramWebApp();
+    if (tg) {
+      resolve(tg);
+      return;
+    }
+    let elapsed = 0;
+    const id = window.setInterval(() => {
+      const next = getTelegramWebApp();
+      elapsed += intervalMs;
+      if (next) {
+        window.clearInterval(id);
+        resolve(next);
+        return;
+      }
+      if (elapsed >= timeoutMs) {
+        window.clearInterval(id);
+        resolve(null);
+      }
+    }, intervalMs);
+  });
+}
+
 export function getInitDataRaw(): string | null {
   return getTelegramWebApp()?.initData ?? null;
 }

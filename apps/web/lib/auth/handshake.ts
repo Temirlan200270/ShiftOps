@@ -37,30 +37,42 @@ export class HandshakeError extends Error {
   }
 }
 
+let handshakeFlight: Promise<MeProfile> | null = null;
+
 export async function performHandshake(): Promise<MeProfile> {
-  const initData = getInitDataRaw();
-  if (!initData) {
-    throw new HandshakeError("not_in_telegram", "initData not present");
+  if (handshakeFlight) {
+    return handshakeFlight;
   }
+  handshakeFlight = (async (): Promise<MeProfile> => {
+    const initData = getInitDataRaw();
+    if (!initData) {
+      throw new HandshakeError("not_in_telegram", "initData not present");
+    }
 
-  const result = await api.post<ExchangeResponse>("/v1/auth/exchange", { init_data: initData });
-  if (!result.ok) {
-    throw new HandshakeError(result.code || "exchange_failed", result.message);
-  }
+    const result = await api.post<ExchangeResponse>("/v1/auth/exchange", { init_data: initData });
+    if (!result.ok) {
+      throw new HandshakeError(result.code || "exchange_failed", result.message);
+    }
 
-  const { access_token, refresh_token, me } = result.data;
-  const profile: MeProfile = {
-    id: me.id,
-    fullName: me.full_name,
-    role: me.role,
-    organizationId: me.organization_id,
-    locale: me.locale,
-    tgUserId: me.tg_user_id,
-  };
-  useAuthStore.getState().setSession({
-    accessToken: access_token,
-    refreshToken: refresh_token,
-    me: profile,
+    const { access_token, refresh_token, me } = result.data;
+    const profile: MeProfile = {
+      id: me.id,
+      fullName: me.full_name,
+      role: me.role,
+      organizationId: me.organization_id,
+      locale: me.locale,
+      tgUserId: me.tg_user_id,
+    };
+    useAuthStore.getState().setSession({
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      me: profile,
+    });
+    return profile;
+  })().finally(() => {
+    handshakeFlight = null;
   });
-  return profile;
+  return handshakeFlight;
 }
+
+
