@@ -321,11 +321,75 @@ async def cancel_fsm(message: Message, state: FSMContext) -> None:
 
 @_router.message(Command("help"))
 async def handle_help(message: Message) -> None:
+    web_app_url = get_settings().web_public_url
+    if message.from_user is not None and _is_super_admin(message.from_user.id):
+        await message.answer(
+            "<b>ShiftOps · Super admin</b>\n\n"
+            "Организации:\n"
+            "• <code>/create_org</code> — создать организацию (без владельца)\n"
+            "• <code>/org_invite &lt;org_uuid&gt; &lt;owner|admin|operator&gt; [hours]</code> — инвайт-ссылка\n"
+            "• <code>/org_set_owner &lt;org_uuid&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n\n"
+            "Сервис:\n"
+            "• <code>/cancel</code> — отменить текущий сценарий\n"
+            "• <code>/start</code> — обычный старт\n\n"
+            f"Web App: {web_app_url}"
+        )
+        return
+
+    if message.from_user is None:
+        await message.answer(f"<b>ShiftOps</b>\n\nWeb App: {web_app_url}")
+        return
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        existing = await _existing_tg_user(session, message.from_user.id)
+
+    if existing is None:
+        await message.answer(
+            "<b>ShiftOps</b>\n\n"
+            "Вы ещё не привязаны к организации.\n"
+            "Попросите администратора прислать инвайт-ссылку и нажмите её в этом чате.\n\n"
+            f"Web App: {web_app_url}\n"
+            "Команды:\n"
+            "• <code>/start</code> — старт (инвайт-ссылка тоже приходит сюда)\n"
+            "• <code>/help</code> — помощь"
+        )
+        return
+
+    _, user = existing
+    role = (user.role or "").lower()
+    if role == "owner":
+        await message.answer(
+            "<b>ShiftOps · Владелец</b>\n\n"
+            f"Web App: {web_app_url}\n\n"
+            "Действия:\n"
+            "• Управление точками/шаблонами/командой — в Web App\n"
+            "• Приглашения сотрудникам — в Web App (раздел команды/инвайты)\n\n"
+            "Команды:\n"
+            "• <code>/start</code>\n"
+            "• <code>/help</code>"
+        )
+        return
+
+    if role == "admin":
+        await message.answer(
+            "<b>ShiftOps · Администратор</b>\n\n"
+            f"Web App: {web_app_url}\n\n"
+            "Действия:\n"
+            "• Управление шаблонами/командой — в Web App\n\n"
+            "Команды:\n"
+            "• <code>/start</code>\n"
+            "• <code>/help</code>"
+        )
+        return
+
     await message.answer(
-        "<b>ShiftOps</b> помогает вести смены и контроль чек-листов.\n\n"
-        "• /start — войти / привязать аккаунт (или инвайт-ссылка).\n"
-        "• Открыть Web App — список задач смены.\n"
-        "• Уведомления о ваших сменах будут приходить сюда."
+        "<b>ShiftOps</b>\n\n"
+        f"Web App: {web_app_url}\n\n"
+        "Команды:\n"
+        "• <code>/start</code>\n"
+        "• <code>/help</code>\n\n"
+        "Если вы ожидаете задачи и ничего не видно — попросите администратора проверить вашу роль."
     )
 
 
