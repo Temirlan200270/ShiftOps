@@ -7,6 +7,7 @@
     "loading": "Подключаемся к Telegram…",
     "errorTitle": "Не удалось подключиться",
     "errorBody": "Откройте приложение через бота в Telegram.",
+    "initDataExpiredHint": "Сессия Telegram устарела. Полностью закройте мини-приложение и откройте ShiftOps снова из бота.",
     "retry": "Повторить"
   },
   "dashboard": {

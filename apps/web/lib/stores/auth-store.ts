@@ -38,12 +38,14 @@ interface AuthState {
   me: MeProfile | null;
   /** Set when `performHandshake` fails; not persisted — otherwise the splash would spin forever. */
   handshakeError: string | null;
+  handshakeErrorCode: string | null;
   setSession: (input: {
     accessToken: string;
     refreshToken: string;
     me: MeProfile;
   }) => void;
-  setHandshakeError: (message: string | null) => void;
+  setAccessToken: (accessToken: string) => void;
+  setHandshakeError: (message: string | null, code?: string | null) => void;
   clear: () => void;
 }
 
@@ -54,15 +56,25 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       me: null,
       handshakeError: null,
+      handshakeErrorCode: null,
       setSession: ({ accessToken, refreshToken, me }) =>
-        set({ accessToken, refreshToken, me, handshakeError: null }),
-      setHandshakeError: (message) => set({ handshakeError: message }),
+        set({ accessToken, refreshToken, me, handshakeError: null, handshakeErrorCode: null }),
+      setAccessToken: (accessToken) => set({ accessToken, handshakeError: null, handshakeErrorCode: null }),
+      setHandshakeError: (message, code) =>
+        set({ handshakeError: message, handshakeErrorCode: code ?? null }),
       clear: () =>
-        set({ accessToken: null, refreshToken: null, me: null, handshakeError: null }),
+        set({
+          accessToken: null,
+          refreshToken: null,
+          me: null,
+          handshakeError: null,
+          handshakeErrorCode: null,
+        }),
     }),
     {
       name: "shiftops.auth.v1",
       partialize: (state) => ({
+        accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         me: state.me,
       }),

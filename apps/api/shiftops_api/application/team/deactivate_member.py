@@ -79,3 +79,26 @@ class DeactivateMemberUseCase:
         await self._session.flush()
         return Success(MemberDeactivated(user_id=target.id))
 
+
+async def evaluate_deactivation_eligibility(
+    *,
+    actor: CurrentUser,
+    target: User,
+    session: AsyncSession,
+) -> tuple[bool, str | None]:
+    """Whether *actor* may deactivate *target*, with a stable failure code for UI."""
+    allowed = _can_deactivate(actor=actor, target=target)
+    if isinstance(allowed, Failure):
+        return False, allowed.error.code
+
+    sid = get_settings().super_admin_tg_id
+    if sid is not None:
+        row = (
+            await session.execute(
+                select(TelegramAccount.tg_user_id).where(TelegramAccount.user_id == target.id)
+            )
+        ).scalar_one_or_none()
+        if row == sid:
+            return False, "cannot_deactivate_super_admin"
+    return True, None
+

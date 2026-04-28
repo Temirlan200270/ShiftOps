@@ -20,6 +20,11 @@ from shiftops_api.application.auth.exchange_init_data import (
     AuthSuccess,
     ExchangeInitDataUseCase,
 )
+from shiftops_api.application.auth.refresh_access import (
+    RefreshAccessUseCase,
+    RefreshFailure,
+    RefreshSuccess,
+)
 from shiftops_api.config import get_settings
 from shiftops_api.infra.db.engine import get_session
 from shiftops_api.infra.telegram.init_data import InitDataValidator
@@ -46,6 +51,16 @@ class TelegramAuthResponse(BaseModel):
     token_type: str = "Bearer"
     expires_in: int
     me: MeProfile
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "Bearer"
+    expires_in: int
 
 
 @router.post(
@@ -86,3 +101,26 @@ async def telegram_exchange(
             tg_user_id=result.user.tg_user_id,
         ),
     )
+
+
+@router.post(
+    "/refresh",
+    response_model=RefreshTokenResponse,
+    summary="Mint a new access token from a refresh JWT",
+)
+async def refresh_access_token(
+    payload: RefreshTokenRequest,
+    session: AsyncSession = Depends(get_session),
+) -> RefreshTokenResponse:
+    uc = RefreshAccessUseCase(session)
+    result = await uc.execute(payload.refresh_token)
+    if isinstance(result, RefreshFailure):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=result.reason)
+    assert isinstance(result, RefreshSuccess)
+    await session.commit()
+    return RefreshTokenResponse(
+        access_token=result.access_token,
+        expires_in=result.expires_in,
+    )
+
+

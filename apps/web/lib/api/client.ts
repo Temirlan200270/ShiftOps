@@ -9,11 +9,10 @@
  * 1. Bearer token injection (read from `useAuthStore`).
  * 2. JSON parse + error normalisation into a `Result`-like discriminator
  *    so screens never have to try/catch a network call themselves.
- * 3. A single chokepoint for 401 -> refresh-token logic (see `refresh()`).
- *
- * If the API moves to gRPC-Web or tRPC later, this is the only file to swap.
+ * 3. 401 → refresh access token via `/v1/auth/refresh` (single-flight), then one retry.
  */
 
+import { refreshAccessToken } from "@/lib/auth/refresh-access";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 import { getNextPublicApiBase } from "./api-base";
@@ -39,11 +38,64 @@ interface RequestInitJSON extends Omit<RequestInit, "body"> {
   body?: unknown;
 }
 
-async function rawRequest<T>(path: string, init: RequestInitJSON = {}): Promise<ApiResult<T>> {
+function parseErrorPayload(payload: unknown): { code: string; message: string } {
+  const record = (payload as Record<string, unknown>) ?? {};
+  const code = typeof record.code === "string" ? record.code : "";
+  const message = typeof record.message === "string" ? record.message : "";
+  return { code, message };
+}
+
+function buildFailure(
+  status: number,
+  payload: unknown,
+  fallbackMessage: string,
+): ApiFailure {
+  const { code, message } = parseErrorPayload(payload);
+  return {
+    ok: false,
+    status,
+    code: code || `http_${status}`,
+    message: message || fallbackMessage,
+  };
+}
+
+function shouldRetryAfterRefresh(status: number, failure: ApiFailure): boolean {
+  if (status !== 401) {
+    return false;
+  }
+  if (failure.code === "invalid_token") {
+    return true;
+  }
+  if (failure.code === "not_an_access_token") {
+    return true;
+  }
+  if (/signature has expired/i.test(failure.message)) {
+    return true;
+  }
+  return false;
+}
+
+function logApiClientEvent(kind: string, meta: Record<string, unknown>): void {
+  if (process.env.NODE_ENV !== "development") {
+    return;
+  }
+  console.error("[api]", kind, meta);
+}
+
+async function rawRequest<T>(
+  path: string,
+  init: RequestInitJSON = {},
+  options: { isRetryAfterRefresh?: boolean } = {},
+): Promise<ApiResult<T>> {
+  const skipRefresh =
+    path.startsWith("/v1/auth/exchange") || path.startsWith("/v1/auth/refresh");
+
   const accessToken = useAuthStore.getState().accessToken;
   const headers = new Headers(init.headers ?? {});
   headers.set("Accept", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
 
   let body: BodyInit | undefined;
   if (init.body instanceof FormData) {
@@ -57,6 +109,11 @@ async function rawRequest<T>(path: string, init: RequestInitJSON = {}): Promise<
   try {
     response = await fetch(`${API_BASE}${path}`, { ...init, headers, body });
   } catch (err) {
+    logApiClientEvent("network_error", {
+      path,
+      method: init.method ?? "GET",
+      message: err instanceof Error ? err.message : String(err),
+    });
     return {
       ok: false,
       status: 0,
@@ -75,13 +132,30 @@ async function rawRequest<T>(path: string, init: RequestInitJSON = {}): Promise<
     : await response.text().catch(() => "");
 
   if (!response.ok) {
-    const failure = (payload as Record<string, unknown>) ?? {};
-    return {
-      ok: false,
+    const failure = buildFailure(
+      response.status,
+      payload,
+      typeof payload === "string" && payload.length > 0 ? payload : response.statusText,
+    );
+
+    if (
+      !options.isRetryAfterRefresh &&
+      !skipRefresh &&
+      shouldRetryAfterRefresh(response.status, failure)
+    ) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return rawRequest<T>(path, init, { isRetryAfterRefresh: true });
+      }
+    }
+
+    logApiClientEvent("http_error", {
+      path,
+      method: init.method ?? "GET",
       status: response.status,
-      code: typeof failure.code === "string" ? failure.code : `http_${response.status}`,
-      message: typeof failure.message === "string" ? failure.message : response.statusText,
-    };
+      code: failure.code,
+    });
+    return failure;
   }
 
   return { ok: true, status: response.status, data: payload as T };

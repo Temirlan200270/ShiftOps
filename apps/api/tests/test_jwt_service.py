@@ -49,6 +49,20 @@ def test_short_secret_rejected() -> None:
         JwtService(secret="short")
 
 
+def test_verify_refresh_only_rejects_access_token() -> None:
+    svc = JwtService(secret=SECRET)
+    token = svc.mint_access(user_id=uuid.uuid4(), org_id=uuid.uuid4(), role=UserRole.OPERATOR)
+    with pytest.raises(JwtError):
+        svc.verify_refresh_only(token)
+
+
+def test_verify_refresh_only_accepts_refresh() -> None:
+    svc = JwtService(secret=SECRET)
+    token = svc.mint_refresh(user_id=uuid.uuid4(), org_id=uuid.uuid4(), role=UserRole.OWNER)
+    payload = svc.verify_refresh_only(token)
+    assert payload.token_type == "refresh"
+
+
 def test_tampered_token_rejected() -> None:
     svc = JwtService(secret=SECRET)
     token = svc.mint_access(user_id=uuid.uuid4(), org_id=uuid.uuid4(), role=UserRole.OPERATOR)

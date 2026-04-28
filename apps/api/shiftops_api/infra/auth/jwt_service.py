@@ -109,6 +109,13 @@ class JwtService:
         except (KeyError, ValueError) as exc:
             raise JwtError(f"malformed claims: {exc}") from exc
 
+    def verify_refresh_only(self, token: str) -> JwtPayload:
+        """Validate a refresh JWT (``typ=refresh``)."""
+        payload = self.verify(token)
+        if payload.token_type != "refresh":
+            raise JwtError("not_a_refresh_token")
+        return payload
+
     def _mint(
         self,
         *,
