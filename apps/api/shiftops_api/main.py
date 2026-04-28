@@ -89,14 +89,14 @@ def apply_cors_middleware(app: FastAPI, settings: Settings) -> None:
 
     # `API_CORS_ORIGINS` = explicit (prod, custom domain, localhost). Branch /
     # preview Vercel URLs: `allow_origin_regex`. Mobile Telegram WebView often
-    # sends `Origin: https://web.telegram.org` (not the mini-app URL) — must allow
-    # or preflight returns 400. `allow_private_network` avoids 400 when Chrome
-    # sends `Access-Control-Request-Private-Network` on some clients.
+    # `allow_origin_regex`: Vercel previews/prod on `*.vercel.app`, and any
+    # `*.telegram.org` host (oauth / web / desktop clients). Apex `telegram.org`
+    # stays in `allow_origins` — it does not match the subdomain regex.
     _tg_embed = ("https://web.telegram.org", "https://telegram.org")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[*settings.cors_origins_list, *_tg_embed],
-        allow_origin_regex=r"https://.*\.vercel\.app",
+        allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.telegram\.org",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

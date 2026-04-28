@@ -48,6 +48,57 @@ function Write-TextFileUtf8NoBom {
     [System.IO.File]::WriteAllText($Path, $Text, $enc)
 }
 
+function Normalize-EnvUrlValue {
+    param([string] $Raw)
+    $t = $Raw.Trim().TrimEnd('/')
+    if ($t.Length -ge 2 -and $t.StartsWith('"') -and $t.EndsWith('"')) { $t = $t.Substring(1, $t.Length - 2).Trim() }
+    elseif ($t.Length -ge 2 -and $t.StartsWith("'") -and $t.EndsWith("'")) { $t = $t.Substring(1, $t.Length - 2).Trim() }
+    $t
+}
+
+function Merge-ApiCorsOriginsIntoEnvText {
+    <#
+    Ensures API_CORS_ORIGINS in the dotenv body includes $EnsureOrigins **and** every
+    origin already listed in the file. Previously, a later deploy step replaced the
+    whole secret with only two URLs and dropped custom domains — that caused OPTIONS 400.
+    #>
+    param(
+        [string] $Text,
+        [string[]] $EnsureOrigins
+    )
+    $set = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($o in $EnsureOrigins) {
+        if ([string]::IsNullOrWhiteSpace($o)) { continue }
+        $t = Normalize-EnvUrlValue $o
+        if ($t) { [void]$set.Add($t) }
+    }
+    $lines = $Text -split "`r?`n", -1
+    $out = New-Object System.Collections.ArrayList
+    $found = $false
+    foreach ($line in $lines) {
+        if ($line -match '^[ \t]*API_CORS_ORIGINS[ \t]*=') {
+            $found = $true
+            $ix = $line.IndexOf('=')
+            $v = if ($ix -ge 0) { $line.Substring($ix + 1).Trim() } else { "" }
+            foreach ($p in ($v -split ',')) {
+                $t = Normalize-EnvUrlValue $p
+                if ($t) { [void]$set.Add($t) }
+            }
+            $arr = [string[]]@($set)
+            [Array]::Sort($arr)
+            [void]$out.Add("API_CORS_ORIGINS=" + ($arr -join ','))
+        } else {
+            [void]$out.Add($line)
+        }
+    }
+    if (-not $found) {
+        $arr = [string[]]@($set)
+        [Array]::Sort($arr)
+        [void]$out.Add("API_CORS_ORIGINS=" + ($arr -join ','))
+    }
+    ($out -join "`n")
+}
+
 function Import-DotEnv {
     param([string] $Path)
     if (-not (Test-Path -LiteralPath $Path)) { throw "Missing file: $Path" }
@@ -133,6 +184,12 @@ if ($exitCreate -eq 0) {
 # --stage: set secrets on the app without rolling Machines (avoids failed health rollouts before [A3] deploys a fixed image).
 Write-Host "[A2] fly secrets import --stage (BOM-stripped .env, no premature machine rollout) ..." -ForegroundColor Cyan
 $envFileBody = Read-TextFileUtf8NoBom -Path $EnvProd
+$corsEnsure = @(
+    $VercelFrontendUrl.TrimEnd('/'),
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+)
+$envFileBody = Merge-ApiCorsOriginsIntoEnvText -Text $envFileBody -EnsureOrigins $corsEnsure
 $tmpEnv = [System.IO.Path]::GetTempFileName()
 try {
     Write-TextFileUtf8NoBom -Path $tmpEnv -Text $envFileBody
@@ -175,16 +232,8 @@ if (-not $SkipSeed) {
 }
 
 # --- A6: CORS ---
-$cors = "$VercelFrontendUrl,http://localhost:3000"
-& $Fly secrets set "API_CORS_ORIGINS=$cors" --app $AppName
-if ($LASTEXITCODE -ne 0) { throw "API_CORS_ORIGINS set failed" }
-Push-Location $apiDir
-try {
-    & $Fly deploy --remote-only --config fly.toml --dockerfile Dockerfile
-    if ($LASTEXITCODE -ne 0) { throw "fly deploy (after CORS) failed" }
-} finally {
-    Pop-Location
-}
+# Merged into .env before [A2] `fly secrets import` (Merge-ApiCorsOriginsIntoEnvText).
+# Do **not** call `fly secrets set API_CORS_ORIGINS=...` here: that used to wipe custom domains.
 
 # --- A7: Vercel ---
 if (-not $SkipVercelEnv) {

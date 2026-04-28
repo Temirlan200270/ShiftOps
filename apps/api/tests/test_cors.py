@@ -61,6 +61,19 @@ def test_preflight_allows_explicit_dashboard_origin(cors_client: TestClient) -> 
     assert r.headers.get("access-control-allow-origin") == origin
 
 
+def test_preflight_allows_telegram_oauth_origin(cors_client: TestClient) -> None:
+    origin = "https://oauth.telegram.org"
+    r = cors_client.options(
+        "/probe",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert r.status_code == 200
+    assert r.headers.get("access-control-allow-origin") == origin
+
+
 def test_preflight_allows_telegram_embed_origin(cors_client: TestClient) -> None:
     origin = "https://web.telegram.org"
     r = cors_client.options(

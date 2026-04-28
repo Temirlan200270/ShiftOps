@@ -92,6 +92,30 @@ fly secrets set --app shiftops-api \
 Всё, что содержит URL-спецсимволы, оборачиваем в одинарные кавычки;
 двойные позволят шеллу разверстать `$` и тихо сломают секреты.
 
+**Скрипт `scripts/deploy_fly_production.ps1`:** перед `fly secrets import` он **объединяет** `API_CORS_ORIGINS` из `apps/api/.env.production` с `$VercelFrontendUrl`, `http://localhost:3000` и `http://127.0.0.1:3000`. Так мы не затираем кастомные домены (старый вариант перезаписывал секрет только двумя URL и ломал CORS).
+
+#### 1.3a Ошибка деплоя: `Tenant or user not found` (Supabase pooler)
+
+Если `release_command` / `alembic upgrade head` падает с этим текстом на `*.pooler.supabase.com`, на Fly **протухли или неверны** `DATABASE_URL` / `DATABASE_URL_SYNC`.
+
+1. Supabase → **Project Settings** → **Database** → при необходимости **Reset database password**.
+2. Скопировать из раздела **Connection pooling** заново:
+   - **Transaction pooler** → `DATABASE_URL` с заменой префикса на `postgresql+asyncpg://` и портом **6543**;
+   - **Session pooler** → `DATABASE_URL_SYNC` с префиксом `postgresql+psycopg://` и портом **5432**.
+3. Выставить секреты и задеплоить:
+
+```bash
+cd apps/api
+fly secrets set \
+  DATABASE_URL='postgresql+asyncpg://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres' \
+  DATABASE_URL_SYNC='postgresql+psycopg://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres' \
+  --app shiftops-api
+
+fly deploy --remote-only
+```
+
+Имя пользователя в URI должно совпадать с тем, что показывает Supabase (часто `postgres.<project-ref>`), без ручной «сборки» строки.
+
 #### 1.4 Vercel (фронтенд)
 
 1. Импортировать `apps/web` как отдельный Vercel-проект (Root Directory
@@ -102,7 +126,7 @@ fly secrets set --app shiftops-api \
    - `NEXT_PUBLIC_API_URL=https://shiftops-api.fly.dev`
    - `NEXT_PUBLIC_TG_BOT_USERNAME=ShiftOpsBot`
 3. **По умолчанию** CI подставляет `https://shiftops-api.fly.dev` и `ShiftOpsBot` (см. `.github/workflows/vercel-web.yml`). Чтобы сменить API или бота без правки репо, задай `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_TG_BOT_USERNAME` в **Actions → Variables** или **Secrets** (и то же в Vercel, чтобы везде совпадало).
-4. В `API_CORS_ORIGINS` на Fly — прод и свои домены; превью `*.vercel.app` кроме того **разрешается в коде** (`allow_origin_regex` в `main.py`), иначе каждый новый превью-URL дал бы `OPTIONS … 400` (CORS).
+4. В `API_CORS_ORIGINS` на Fly — прод и свои домены; превью `*.vercel.app` и хосты `*.telegram.org` кроме того **разрешаются в коде** (`allow_origin_regex` в `main.py`), иначе часть клиентов Telegram дала бы `OPTIONS … 400` (CORS).
 5. Сохранить `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` как
    GitHub Actions secrets (используются `.github/workflows/deploy.yml`).
 
