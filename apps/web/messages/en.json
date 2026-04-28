@@ -8,7 +8,9 @@
     "errorTitle": "Cannot connect",
     "errorBody": "Open the app from the Telegram bot.",
     "initDataExpiredHint": "This Telegram session expired. Fully close the mini app, then open ShiftOps again from the bot.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "signInAgain": "Sign in again",
+    "signInAgainHint": "No active session. Tap to sign in with Telegram again without reloading the mini app."
   },
   "dashboard": {
     "noShift": "No shift today",

@@ -77,12 +77,13 @@ export const useAuthStore = create<AuthState>()(
       setHandshakeError: (message, code) =>
         set({ handshakeError: message, handshakeErrorCode: code ?? null }),
       markAuthBootstrapComplete: () => set({ authBootstrapComplete: true }),
+      /** Full logout — keep `authBootstrapComplete: true` so `page.tsx` never waits forever on a one-shot bootstrap effect. */
       clear: () =>
         set({
           accessToken: null,
           refreshToken: null,
           me: null,
-          authBootstrapComplete: false,
+          authBootstrapComplete: true,
           handshakeError: null,
           handshakeErrorCode: null,
         }),

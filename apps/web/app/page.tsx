@@ -6,7 +6,7 @@ import * as React from "react";
 
 import { DashboardScreen } from "@/components/screens/dashboard-screen";
 import { Button } from "@/components/ui/button";
-import { HandshakeError, performHandshake } from "@/lib/auth/handshake";
+import { runBootstrapAuthSession } from "@/lib/auth/bootstrap-session";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 /**
@@ -44,21 +44,22 @@ export default function Page(): React.JSX.Element {
     ((!me || !accessToken) &&
       (!sessionLatched || !me || (!accessToken && !refreshToken)));
 
-  const handleRetry = React.useCallback(async () => {
+  const handleAuthRetry = React.useCallback(async () => {
     setRetrying(true);
     setHandshakeError(null);
     try {
-      await performHandshake();
-    } catch (err) {
-      if (err instanceof HandshakeError) {
-        setHandshakeError(err.message, err.code);
-      } else {
-        setHandshakeError(err instanceof Error ? err.message : "unknown", null);
-      }
+      await runBootstrapAuthSession();
     } finally {
       setRetrying(false);
     }
   }, [setHandshakeError]);
+
+  const showSignInAgainCta =
+    authBootstrapComplete &&
+    !handshakeError &&
+    !me &&
+    !accessToken &&
+    !refreshToken;
 
   if (showBlockingSplash) {
     return (
@@ -72,6 +73,20 @@ export default function Page(): React.JSX.Element {
         </div>
         <h1 className="text-xl font-semibold mb-1">ShiftOps</h1>
         <p className="text-muted-foreground text-sm">{tSplash("loading")}</p>
+        {showSignInAgainCta ? (
+          <div className="mt-8 max-w-sm">
+            <p className="text-muted-foreground text-sm mb-3">{tSplash("signInAgainHint")}</p>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleAuthRetry}
+              disabled={retrying}
+            >
+              <RotateCw className={`size-4 ${retrying ? "animate-spin" : ""}`} />
+              {tSplash("signInAgain")}
+            </Button>
+          </div>
+        ) : null}
         {handshakeError ? (
           <div className="mt-6 rounded-md border border-critical/30 bg-critical/10 p-4 text-sm">
             <p className="font-medium text-critical mb-1">{tSplash("errorTitle")}</p>
@@ -86,10 +101,10 @@ export default function Page(): React.JSX.Element {
                 variant="secondary"
                 size="md"
                 className="mt-3"
-                onClick={handleRetry}
+                onClick={handleAuthRetry}
                 disabled={retrying}
               >
-                <RotateCw className="size-4" />
+                <RotateCw className={`size-4 ${retrying ? "animate-spin" : ""}`} />
                 {tSplash("retry")}
               </Button>
             ) : null}

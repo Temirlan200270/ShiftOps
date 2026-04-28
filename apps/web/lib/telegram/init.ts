@@ -16,6 +16,9 @@ interface TelegramWebApp {
   initDataUnsafe: { user?: { language_code?: string } };
   ready: () => void;
   expand: () => void;
+  /** https://core.telegram.org/bots/webapps#events-available-for-web-apps */
+  onEvent?: (eventType: string, handler: () => void) => void;
+  offEvent?: (eventType: string, handler: () => void) => void;
   HapticFeedback?: {
     impactOccurred?: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void;
     notificationOccurred?: (style: "error" | "success" | "warning") => void;
@@ -42,6 +45,48 @@ declare global {
 export function getTelegramWebApp(): TelegramWebApp | null {
   if (typeof window === "undefined") return null;
   return window.Telegram?.WebApp ?? null;
+}
+
+/**
+ * After rotation / Safari chrome / keyboard / safe-area changes the WebApp height updates.
+ * A single `expand()` at cold start is not always enough on iOS; re-invoke behind a throttle.
+ */
+export function subscribeTelegramExpandOnViewportChange(tg: TelegramWebApp): () => void {
+  const throttleMs = 400;
+  let last = 0;
+  const expand = (): void => {
+    const now = Date.now();
+    if (now - last < throttleMs) {
+      return;
+    }
+    last = now;
+    try {
+      tg.expand();
+    } catch {
+      /* no-op outside Telegram host */
+    }
+  };
+
+  const onViewportChanged = (): void => {
+    expand();
+  };
+
+  if (typeof tg.onEvent === "function") {
+    tg.onEvent("viewportChanged", onViewportChanged);
+    return () => {
+      tg.offEvent?.("viewportChanged", onViewportChanged);
+    };
+  }
+
+  if (typeof window !== "undefined" && window.visualViewport) {
+    const vv = window.visualViewport;
+    vv.addEventListener("resize", onViewportChanged);
+    return () => {
+      vv.removeEventListener("resize", onViewportChanged);
+    };
+  }
+
+  return () => {};
 }
 
 /** Poll until `telegram-web-app.js` defines `Telegram.WebApp` (defer script may load after React effects). */
