@@ -6,7 +6,8 @@ import * as React from "react";
 
 import { DashboardScreen } from "@/components/screens/dashboard-screen";
 import { Button } from "@/components/ui/button";
-import { performHandshake } from "@/lib/auth/handshake";
+import { HandshakeError, performHandshake } from "@/lib/auth/handshake";
+import { getNextPublicApiBase } from "@/lib/api/api-base";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 /**
@@ -29,7 +30,10 @@ export default function Page(): React.JSX.Element {
     try {
       await performHandshake();
     } catch (err) {
-      setHandshakeError(err instanceof Error ? err.message : "unknown");
+      const code = err instanceof HandshakeError ? err.code : "unknown";
+      const message = err instanceof Error ? err.message : "unknown";
+      const apiBase = getNextPublicApiBase();
+      setHandshakeError(`[${code}] ${message}\nAPI: ${apiBase}`);
     } finally {
       setRetrying(false);
     }
