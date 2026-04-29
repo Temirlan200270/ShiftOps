@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical, Sparkles, Trash2, UserCog, Users } from "lucide-react";
+import { ArrowLeft, MoreVertical, Sparkles, Trash2, UserCog, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -317,16 +317,18 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   }, [reloadMembers, removeSheet, t, tErr, translateManageError]);
 
   return (
-    <main className="mx-auto max-w-md px-4 pt-6 pb-24 animate-fade-in-up">
-      <header className="mb-6">
-        <Button variant="ghost" className="mb-2 -ml-2" onClick={onBack} type="button">
-          ←
+    <main className="mx-auto max-w-md px-4 pt-4 pb-24 animate-fade-in-up">
+      <header className="mb-4 flex items-start gap-3">
+        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 shrink-0 px-2" type="button">
+          <ArrowLeft className="size-5" />
         </Button>
-        <div className="flex items-center gap-2">
-          <Users className="size-6 text-primary" />
-          <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Users className="size-5 shrink-0 text-primary" aria-hidden />
+            <h1 className="text-lg font-semibold">{t("title")}</h1>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("subtitle")}</p>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
       </header>
 
       <Card className="mb-6">

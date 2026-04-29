@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from shiftops_api.application.auth.deps import CurrentUser
 from shiftops_api.application.organizations.business_hours_config import BusinessHoursConfig
@@ -43,6 +44,8 @@ class SaveBusinessHoursUseCase:
             return Failure(DomainError("organization_not_found"))
 
         org.business_hours = payload.to_storage()
+        # JSONB assignments sometimes skip change detection; force UPDATE of the column.
+        flag_modified(org, "business_hours")
         await self._session.commit()
         return Success(None)
 

@@ -29,12 +29,15 @@ function newKey(): string {
   return crypto.randomUUID();
 }
 
+type TimeFieldKind = "open" | "close";
+
 /** API expects exactly ``HH:MM``; browsers may emit ``HH:MM:SS`` from ``<input type="time">``. */
-function toApiTime(raw: string): string {
+function toApiTime(raw: string, kind: TimeFieldKind): string {
   const t = raw.trim();
   const parts = t.split(":");
-  if (parts.length < 2) {
-    return "00:00";
+  if (parts.length < 2 || t === "") {
+    // Empty / invalid must not become identical 00:00–00:00 (API rejects that).
+    return kind === "open" ? "09:00" : "22:00";
   }
   const h = Math.min(23, Math.max(0, Number.parseInt(parts[0] ?? "0", 10) || 0));
   const m = Math.min(59, Math.max(0, Number.parseInt(parts[1] ?? "0", 10) || 0));
@@ -46,14 +49,14 @@ function mapFromDto(dto: BusinessHoursDTO): { regular: LocalRegular[]; dated: Lo
     regular: dto.regular.map((r) => ({
       localKey: newKey(),
       weekdays: [...r.weekdays].sort((a, b) => a - b),
-      opens: toApiTime(r.opens),
-      closes: toApiTime(r.closes),
+      opens: toApiTime(r.opens, "open"),
+      closes: toApiTime(r.closes, "close"),
     })),
     dated: dto.dated.map((d) => ({
       localKey: newKey(),
       on: d.on,
-      opens: toApiTime(d.opens),
-      closes: toApiTime(d.closes),
+      opens: toApiTime(d.opens, "open"),
+      closes: toApiTime(d.closes, "close"),
       note: d.note ?? "",
     })),
   };
@@ -64,15 +67,15 @@ function toDto(regular: LocalRegular[], dated: LocalDated[]): BusinessHoursDTO {
     timezone: null,
     regular: regular.map(({ weekdays, opens, closes }) => ({
       weekdays,
-      opens: toApiTime(opens),
-      closes: toApiTime(closes),
+      opens: toApiTime(opens, "open"),
+      closes: toApiTime(closes, "close"),
     })),
     dated: dated.map(({ on, opens, closes, note }) => {
       const n = (note ?? "").trim();
       return {
         on,
-        opens: toApiTime(opens),
-        closes: toApiTime(closes),
+        opens: toApiTime(opens, "open"),
+        closes: toApiTime(closes, "close"),
         note: n === "" ? null : n,
       };
     }),

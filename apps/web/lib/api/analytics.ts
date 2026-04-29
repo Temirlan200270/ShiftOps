@@ -128,7 +128,8 @@ interface HeatmapDTO {
 interface ViolatorDTO {
   user_id: string;
   full_name: string;
-  role: string;
+  /** Present on API v2; older servers omit it. */
+  role?: string;
   shifts_total: number;
   shifts_with_violations: number;
   average_score: number | null;
@@ -190,11 +191,12 @@ interface OverviewDTO {
   range_to: string;
   days: number;
   kpis: KpiDTO;
-  heatmap: HeatmapDTO[];
-  top_violators: ViolatorDTO[];
-  locations: LocationDTO[];
-  templates: TemplateDTO[];
-  criticality: CriticalityDTO[];
+  heatmap?: HeatmapDTO[];
+  top_violators?: ViolatorDTO[];
+  locations?: LocationDTO[];
+  /** v2 fields — absent on older `/overview` responses. */
+  templates?: TemplateDTO[];
+  criticality?: CriticalityDTO[];
   antifake: AntifakeDTO | null;
   sla_late_start: SlaDTO | null;
   role_split: RoleSplitDTO | null;
@@ -213,40 +215,49 @@ function kpiFromDto(dto: KpiDTO): AnalyticsKpi {
 }
 
 function overviewFromDto(dto: OverviewDTO): AnalyticsOverview {
+  // Older API deployments (or partial JSON) may omit v2 list fields — treat
+  // as empty arrays so the UI never throws on `.map()` during sheet open/close
+  // or after a hot reload against a stale edge.
+  const heatmap = dto.heatmap ?? [];
+  const topViolators = dto.top_violators ?? [];
+  const locations = dto.locations ?? [];
+  const templates = dto.templates ?? [];
+  const criticality = dto.criticality ?? [];
+
   return {
     rangeFrom: dto.range_from,
     rangeTo: dto.range_to,
     days: dto.days,
     kpis: kpiFromDto(dto.kpis),
-    heatmap: dto.heatmap.map((c) => ({
+    heatmap: heatmap.map((c) => ({
       dayOfWeek: c.day_of_week,
       hourOfDay: c.hour_of_day,
       shiftCount: c.shift_count,
       averageScore: c.average_score,
     })),
-    topViolators: dto.top_violators.map((v) => ({
+    topViolators: topViolators.map((v) => ({
       userId: v.user_id,
       fullName: v.full_name,
-      role: v.role,
+      role: v.role ?? "",
       shiftsTotal: v.shifts_total,
       shiftsWithViolations: v.shifts_with_violations,
       averageScore: v.average_score,
     })),
-    locations: dto.locations.map((loc) => ({
+    locations: locations.map((loc) => ({
       locationId: loc.location_id,
       locationName: loc.location_name,
       shiftsTotal: loc.shifts_total,
       shiftsWithViolations: loc.shifts_with_violations,
       averageScore: loc.average_score,
     })),
-    templates: dto.templates.map((t) => ({
+    templates: templates.map((t) => ({
       templateId: t.template_id,
       templateName: t.template_name,
       shiftsTotal: t.shifts_total,
       shiftsWithViolations: t.shifts_with_violations,
       averageScore: t.average_score,
     })),
-    criticality: dto.criticality.map((c) => ({
+    criticality: criticality.map((c) => ({
       criticality: c.criticality,
       tasksTotal: c.tasks_total,
       done: c.done,
@@ -315,5 +326,15 @@ export async function fetchOverview(
   const path = `/v1/analytics/overview${qs.toString() ? `?${qs.toString()}` : ""}`;
   const result = await api.get<OverviewDTO>(path);
   if (!result.ok) return result;
-  return { ok: true, status: result.status, data: overviewFromDto(result.data) };
+  try {
+    return { ok: true, status: result.status, data: overviewFromDto(result.data) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      status: 500,
+      code: "overview_parse_failed",
+      message,
+    };
+  }
 }

@@ -148,7 +148,7 @@ export function OperatorProfileSheet({
   }, [items]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet modal={false} open={open} onOpenChange={onOpenChange}>
       <SheetContent title={t("title")}>
         {operator === null ? (
           <p className="text-sm text-muted-foreground">{t("empty")}</p>

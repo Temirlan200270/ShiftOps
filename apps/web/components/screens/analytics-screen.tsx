@@ -316,8 +316,11 @@ function CustomRangeSheet({
     onOpenChange(false);
   };
 
+  // `modal={false}`: Radix modal mode locks `document.body` scroll and adds
+  // scrollbar-gutter compensation; in Telegram WebView that often produces a
+  // visible "jump" of the header buttons when the sheet closes (Cancel).
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet modal={false} open={open} onOpenChange={onOpenChange}>
       <SheetContent title={t("title")}>
         <div className="grid grid-cols-2 gap-3 mt-2">
           <label className="block text-xs">
@@ -488,7 +491,7 @@ export function AnalyticsScreen({
         </div>
       </header>
 
-      <div className="flex gap-2 mb-2">
+      <div className="flex shrink-0 flex-nowrap gap-2 overflow-x-auto pb-0.5 mb-2">
         {PRESETS.map((p) => (
           <button
             key={p}
@@ -542,7 +545,7 @@ export function AnalyticsScreen({
               className="rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground"
             >
               <option value="">{tA("filters.locationAll")}</option>
-              {locations!.map((loc) => (
+              {(locations ?? []).map((loc) => (
                 <option key={loc.id} value={loc.id}>
                   {loc.name}
                 </option>
