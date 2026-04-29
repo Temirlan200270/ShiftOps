@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import SecretStr
 
-from shiftops_api.config.settings import Settings
 from shiftops_api.config.production_guard import assert_production_secrets_configured
+from shiftops_api.config.settings import Settings
 
 
 def test_noop_when_not_production() -> None:

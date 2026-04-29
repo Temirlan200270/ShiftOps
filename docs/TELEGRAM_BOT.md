@@ -11,14 +11,44 @@
 | Команда | Аудитория | Поведение |
 | - | - | - |
 | `/start` | все | Если не привязан: поприветствовать + «попросите админа добавить вас». Если привязан: открыть TWA. |
-| `/start org_<uuid>` | диплинк приглашения | Привязывает `telegram_accounts.user_id` к уже существующему месту. |
+| `/start inv_<token>` | диплинк приглашения | Принимает одноразовое приглашение и привязывает `telegram_accounts.user_id`. |
 | `/myshift` | оператор | Диплинк в экран текущей смены. |
 | `/today` | админ / собственник | Краткая текстовая сводка по сменам сегодняшнего дня по всем локациям. |
-| `/help` | все | Короткая справка. |
+| `/help` | все | Короткая справка. Текст подбирается по роли (super-admin / owner / admin / operator). |
+| `/team_list` | владелец | Список активных участников организации с подсказками по `/set_role` и `/remove_member`. |
+| `/set_role <@username\|tg_id> <admin\|operator>` | владелец | Меняет роль участника между admin и operator. Роль `owner` через эту команду не выдаётся. |
+| `/remove_member <@username\|tg_id>` | владелец | Деактивирует участника (soft-delete). |
+| `/create_org` | super-admin | FSM создания пустой организации без владельца. |
+| `/org_invite <org_uuid> <owner\|admin\|operator> [hours]` | super-admin | Создаёт инвайт-ссылку для указанной роли. |
+| `/org_set_owner <org_uuid> <tg_user_id>` | super-admin | Назначает / переназначает владельца, существующих owner'ов в этой org понижает до admin. |
+| `/org_set_role <org_uuid> <tg_user_id> <admin\|operator>` | super-admin | Меняет роль участника в любой организации. |
+| `/org_remove_member <org_uuid> <tg_user_id>` | super-admin | Деактивирует участника в указанной организации. |
+| `/cancel` | super-admin | Сбрасывает текущий FSM-сценарий. |
 
 `/start`-диплинки используют `t.me/ShiftOpsBot?start=<payload>`, где
-`<payload>` это `org_<uuid>` для приглашений или `shift_<uuid>` для
+`<payload>` это `inv_<token>` для приглашений или `shift_<uuid>` для
 «открыть конкретную смену».
+
+### Авторизация для команд управления командой
+
+| Действие | Требуемая роль |
+| - | - |
+| Просмотр списка | `admin`, `owner`, super-admin (TWA) |
+| Смена ролей | `owner`, super-admin |
+| Деактивация участника | `owner`, super-admin |
+
+Платформенный super-admin определяется по `super_admin_tg_id` в settings и
+никаких записей в БД не требует. Защищён от изменений на уровне организации:
+владелец не может ни сменить ему роль, ни удалить.
+
+## Профиль бота (BotFather)
+
+При старте API (`shiftops_api.main.lifespan`) выполняется идемпотентный вызов
+`setMyDescription`, `setMyShortDescription` и `setMyCommands` — тексты лежат в
+[`infra/telegram/bot_profile.py`](../apps/api/shiftops_api/infra/telegram/bot_profile.py).
+Описание показывается в пустом чате до нажатия Start, короткое — в карточке
+бота, а команды попадают в slash-меню. Ошибка обращения к Telegram логируется
+и не блокирует запуск API.
 
 ## Inline callbacks
 

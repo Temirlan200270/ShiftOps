@@ -26,6 +26,7 @@ from shiftops_api.infra.db.engine import dispose_engine, get_sessionmaker
 from shiftops_api.infra.logging import configure_logging
 from shiftops_api.infra.queue import broker
 from shiftops_api.infra.realtime import get_event_bus
+from shiftops_api.infra.telegram.bot_profile import configure_bot_profile
 
 # HTTP-latency buckets tuned for a Python service that mostly does
 # Postgres pooler round-trips on Supabase free tier. The default
@@ -68,6 +69,29 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if not broker.is_worker_process:
         await broker.startup()
         log.info("taskiq.broker.startup")
+
+    # Push bot description / commands to BotFather so the empty-chat welcome
+    # screen and slash menu reflect the current build. Skipped in non-API
+    # contexts (worker, tests) and on missing token to keep startup green.
+    settings = get_settings()
+    token = settings.tg_bot_token.get_secret_value()
+    if (
+        not broker.is_worker_process
+        and settings.app_env != "local"
+        and token
+    ):
+        from aiogram import Bot
+        from aiogram.client.default import DefaultBotProperties
+        from aiogram.enums import ParseMode
+
+        _bot = Bot(
+            token=token,
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        )
+        try:
+            await configure_bot_profile(_bot)
+        finally:
+            await _bot.session.close()
 
     try:
         yield

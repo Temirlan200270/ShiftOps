@@ -116,7 +116,57 @@
     "membersTitle": "Organization members",
     "membersLoading": "Loading roster…",
     "membersLoadFailed": "Could not load the member list. Try again later.",
-    "memberYou": "(you)"
+    "memberYou": "(you)",
+    "actions": {
+      "open": "Actions",
+      "label": "Member actions",
+      "changeRole": "Change role",
+      "remove": "Remove member"
+    },
+    "changeRole": {
+      "title": "Change role",
+      "description": "Pick a new role. Owner can only be assigned via the bot.",
+      "selectAdmin": "Administrator",
+      "selectOperator": "Operator",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Role updated",
+      "noOp": "Member already has this role."
+    },
+    "remove": {
+      "title": "Remove this member?",
+      "description": "{name} won't be able to open ShiftOps anymore. You can re-invite them later.",
+      "confirm": "Remove",
+      "cancelLabel": "Cancel",
+      "removing": "Removing…",
+      "removed": "Member removed"
+    },
+    "manageErrors": {
+      "cannot_manage_self": "You cannot perform this action on yourself.",
+      "cannot_manage_super_admin": "This user is protected at the platform level.",
+      "insufficient_role": "Not allowed. Only owner or super-admin can do this.",
+      "cannot_change_owner_role": "Owner role is managed via /org_set_owner in the bot.",
+      "user_not_found": "User not found.",
+      "already_inactive": "User is already inactive.",
+      "invalid_target_role": "Unsupported role."
+    }
+  },
+  "onboarding": {
+    "title": "Welcome to ShiftOps",
+    "subtitle": "Real-time HoReCa shift control — straight inside Telegram.",
+    "slide1": {
+      "title": "Open and close-of-shift checklists",
+      "body": "Operators get tasks with photo proof and comments. No paper checklists, no skipped steps."
+    },
+    "slide2": {
+      "title": "Anti-fake protection and quality score",
+      "body": "Photo similarity checks and an automatic shift score show exactly where discipline slipped."
+    },
+    "slide3": {
+      "title": "You're ready",
+      "body": "Without an invite yet? Ask the owner or admin to send you a link. As soon as you accept it, you'll land on your shift."
+    },
+    "cta": "Get started"
   },
   "history": {
     "title": "Shift history",

@@ -36,13 +36,17 @@ from aiogram.types import CallbackQuery, Message, Update
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.application.auth.deps import CurrentUser
 from shiftops_api.application.invites.create_system_invite import CreateSystemInviteUseCase
 from shiftops_api.application.invites.redeem_invite import RedeemInviteUseCase
 from shiftops_api.application.organizations.create_organization import (
     CreateOrganizationUseCase,
 )
 from shiftops_api.application.shifts.approve_waiver import ApproveWaiverUseCase
+from shiftops_api.application.team.change_member_role import ChangeMemberRoleUseCase
+from shiftops_api.application.team.deactivate_member import DeactivateMemberUseCase
 from shiftops_api.config import get_settings
+from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import TelegramAccount, User
@@ -342,7 +346,9 @@ async def handle_help(message: Message) -> None:
             "Организации:\n"
             "• <code>/create_org</code> — создать организацию (без владельца)\n"
             "• <code>/org_invite &lt;org_uuid&gt; &lt;owner|admin|operator&gt; [hours]</code> — инвайт-ссылка\n"
-            "• <code>/org_set_owner &lt;org_uuid&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n\n"
+            "• <code>/org_set_owner &lt;org_uuid&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n"
+            "• <code>/org_set_role &lt;org_uuid&gt; &lt;tg_user_id&gt; &lt;admin|operator&gt;</code> — сменить роль участника любой org\n"
+            "• <code>/org_remove_member &lt;org_uuid&gt; &lt;tg_user_id&gt;</code> — деактивировать участника\n\n"
             "Сервис:\n"
             "• <code>/cancel</code> — отменить текущий сценарий\n"
             "• <code>/start</code> — обычный старт\n\n"
@@ -376,6 +382,10 @@ async def handle_help(message: Message) -> None:
         await message.answer(
             "<b>ShiftOps · Владелец</b>\n\n"
             f"Web App: {web_app_url}\n\n"
+            "Команда:\n"
+            "• <code>/team_list</code> — список участников + кнопки «изменить роль/удалить»\n"
+            "• <code>/set_role &lt;@username|tg_id&gt; &lt;admin|operator&gt;</code> — сменить роль\n"
+            "• <code>/remove_member &lt;@username|tg_id&gt;</code> — удалить (деактивировать) участника\n\n"
             "Действия:\n"
             "• Управление точками/шаблонами/командой — в Web App\n"
             "• Приглашения сотрудникам — в Web App (раздел команды/инвайты)\n\n"
@@ -390,7 +400,8 @@ async def handle_help(message: Message) -> None:
             "<b>ShiftOps · Администратор</b>\n\n"
             f"Web App: {web_app_url}\n\n"
             "Действия:\n"
-            "• Управление шаблонами/командой — в Web App\n\n"
+            "• Просмотр команды/шаблонов — в Web App\n"
+            "• Изменение ролей и удаление участников — только владелец/супер-админ\n\n"
             "Команды:\n"
             "• <code>/start</code>\n"
             "• <code>/help</code>"
@@ -405,6 +416,317 @@ async def handle_help(message: Message) -> None:
         "• <code>/help</code>\n\n"
         "Если вы ожидаете задачи и ничего не видно — попросите администратора проверить вашу роль."
     )
+
+
+async def _resolve_owner_actor(
+    session: AsyncSession, tg_user_id: int
+) -> tuple[CurrentUser, User] | None:
+    """Find an owner record by Telegram id (RLS bypass).
+
+    Returns ``(actor, owner_user)`` so callers can construct a
+    :class:`CurrentUser` with the right org context, or ``None`` if the user
+    is not an owner of any active org. Sets ``app.org_id`` for downstream RLS.
+    """
+
+    await session.execute(text("SET LOCAL row_security = off"))
+    row = (
+        await session.execute(
+            select(User)
+            .join(TelegramAccount, TelegramAccount.user_id == User.id)
+            .where(TelegramAccount.tg_user_id == tg_user_id)
+            .where(User.role == UserRole.OWNER.value)
+            .where(User.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    actor = CurrentUser(
+        id=row.id,
+        organization_id=row.organization_id,
+        role=UserRole.OWNER,
+        tg_user_id=tg_user_id,
+    )
+    return actor, row
+
+
+def _strip_username(token: str) -> str:
+    return token.lstrip("@").strip()
+
+
+async def _resolve_target_user(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    raw: str,
+) -> User | None:
+    """Resolve `@username` or numeric `tg_user_id` to a User row in *org*.
+
+    Falls back to ``None`` when nothing matches; callers turn that into a
+    user-friendly error in the bot reply.
+    """
+
+    raw = raw.strip()
+    if not raw:
+        return None
+    tg_user_id: int | None
+    try:
+        tg_user_id = int(raw)
+    except ValueError:
+        tg_user_id = None
+
+    stmt = (
+        select(User)
+        .join(TelegramAccount, TelegramAccount.user_id == User.id)
+        .where(User.organization_id == organization_id)
+    )
+    if tg_user_id is not None:
+        stmt = stmt.where(TelegramAccount.tg_user_id == tg_user_id)
+    else:
+        username = _strip_username(raw)
+        if not username:
+            return None
+        stmt = stmt.where(TelegramAccount.tg_username == username)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+_TEAM_ERR_MESSAGES: dict[str, str] = {
+    "user_not_found": "Пользователь не найден в этой организации.",
+    "cannot_manage_self": "Нельзя выполнить действие над самим собой.",
+    "cannot_manage_super_admin": "Этого пользователя нельзя менять на уровне организации.",
+    "insufficient_role": "Недостаточно прав. Только владелец или супер-админ.",
+    "cannot_change_owner_role": "Роль владельца меняется только через /org_set_owner.",
+    "already_inactive": "Пользователь уже деактивирован.",
+    "invalid_target_role": "Допустимые роли: admin, operator.",
+}
+
+
+def _team_err_text(code: str) -> str:
+    return _TEAM_ERR_MESSAGES.get(code, f"Ошибка: {code}")
+
+
+@_router.message(Command("team_list"))
+async def team_list_for_owner(message: Message) -> None:
+    if message.from_user is None:
+        return
+    if _is_super_admin(message.from_user.id):
+        await message.answer(
+            "Используйте <code>/org_set_role</code> или <code>/org_remove_member</code> "
+            "с указанием <code>org_uuid</code>."
+        )
+        return
+    factory = get_sessionmaker()
+    async with factory() as session:
+        bound = await _resolve_owner_actor(session, message.from_user.id)
+        if bound is None:
+            await message.answer("Команда доступна только владельцам организации.")
+            return
+        actor, _ = bound
+        rows = (
+            await session.execute(
+                select(User, TelegramAccount.tg_user_id, TelegramAccount.tg_username)
+                .outerjoin(TelegramAccount, TelegramAccount.user_id == User.id)
+                .where(User.organization_id == actor.organization_id)
+                .where(User.is_active.is_(True))
+                .order_by(User.full_name.asc(), User.role.asc())
+            )
+        ).all()
+
+    if not rows:
+        await message.answer("В команде только вы.")
+        return
+
+    lines: list[str] = ["<b>Команда</b>:"]
+    for r in rows:
+        u, tg_id, tg_username = r[0], r[1], r[2]
+        handle = f"@{tg_username}" if tg_username else (str(tg_id) if tg_id else "—")
+        lines.append(f"• <b>{u.full_name}</b> · {u.role} · {handle}")
+    lines.append(
+        "\n<i>Чтобы изменить роль:</i> <code>/set_role &lt;@username|tg_id&gt; &lt;admin|operator&gt;</code>"
+    )
+    lines.append("<i>Чтобы удалить:</i> <code>/remove_member &lt;@username|tg_id&gt;</code>")
+    await message.answer("\n".join(lines))
+
+
+@_router.message(Command("set_role"))
+async def set_role_for_owner(message: Message) -> None:
+    if message.from_user is None:
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer(
+            "Использование:\n<code>/set_role &lt;@username|tg_user_id&gt; &lt;admin|operator&gt;</code>"
+        )
+        return
+    raw_target, raw_role = parts[1], parts[2].lower()
+    if raw_role not in {"admin", "operator"}:
+        await message.answer("Допустимые роли: <b>admin</b>, <b>operator</b>.")
+        return
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        bound = await _resolve_owner_actor(session, message.from_user.id)
+        if bound is None:
+            await message.answer("Команда доступна только владельцам организации.")
+            return
+        actor, _ = bound
+        target = await _resolve_target_user(
+            session, organization_id=actor.organization_id, raw=raw_target
+        )
+        if target is None:
+            await message.answer(_team_err_text("user_not_found"))
+            return
+        uc = ChangeMemberRoleUseCase(session)
+        result = await uc.execute(
+            actor=actor, target_user_id=target.id, new_role=raw_role
+        )
+        if isinstance(result, Failure):
+            await message.answer(_team_err_text(result.error.code))
+            await session.rollback()
+            return
+        assert isinstance(result, Success)
+        await session.commit()
+        suffix = " (без изменений)" if result.value.no_op else ""
+        await message.answer(
+            f"✅ Роль обновлена{suffix}: <b>{target.full_name}</b> → <b>{result.value.role}</b>"
+        )
+
+
+@_router.message(Command("remove_member"))
+async def remove_member_for_owner(message: Message) -> None:
+    if message.from_user is None:
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer(
+            "Использование:\n<code>/remove_member &lt;@username|tg_user_id&gt;</code>"
+        )
+        return
+    raw_target = parts[1]
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        bound = await _resolve_owner_actor(session, message.from_user.id)
+        if bound is None:
+            await message.answer("Команда доступна только владельцам организации.")
+            return
+        actor, _ = bound
+        target = await _resolve_target_user(
+            session, organization_id=actor.organization_id, raw=raw_target
+        )
+        if target is None:
+            await message.answer(_team_err_text("user_not_found"))
+            return
+        uc = DeactivateMemberUseCase(session)
+        result = await uc.execute(actor=actor, target_user_id=target.id)
+        if isinstance(result, Failure):
+            await message.answer(_team_err_text(result.error.code))
+            await session.rollback()
+            return
+        assert isinstance(result, Success)
+        await session.commit()
+        await message.answer(f"✅ Удалён: <b>{target.full_name}</b>")
+
+
+@_router.message(Command("org_set_role"))
+async def org_set_role_for_super_admin(message: Message) -> None:
+    if message.from_user is None or not _is_super_admin(message.from_user.id):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 4:
+        await message.answer(
+            "Использование:\n"
+            "<code>/org_set_role &lt;org_uuid&gt; &lt;tg_user_id&gt; &lt;admin|operator&gt;</code>"
+        )
+        return
+    org_id = _parse_uuid(parts[1])
+    if org_id is None:
+        await message.answer("org_uuid не распознан.")
+        return
+    try:
+        tg_id = int(parts[2])
+    except ValueError:
+        await message.answer("tg_user_id должен быть числом.")
+        return
+    raw_role = parts[3].lower()
+    if raw_role not in {"admin", "operator"}:
+        await message.answer("Допустимые роли: <b>admin</b>, <b>operator</b>.")
+        return
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        await session.execute(text("SET LOCAL row_security = off"))
+        target = await _resolve_target_user(
+            session, organization_id=org_id, raw=str(tg_id)
+        )
+        if target is None:
+            await message.answer(_team_err_text("user_not_found"))
+            return
+        actor = CurrentUser(
+            id=uuid.uuid4(),
+            organization_id=org_id,
+            role=UserRole.OWNER,
+            tg_user_id=message.from_user.id,
+        )
+        uc = ChangeMemberRoleUseCase(session)
+        result = await uc.execute(
+            actor=actor, target_user_id=target.id, new_role=raw_role
+        )
+        if isinstance(result, Failure):
+            await message.answer(_team_err_text(result.error.code))
+            await session.rollback()
+            return
+        assert isinstance(result, Success)
+        await session.commit()
+        suffix = " (без изменений)" if result.value.no_op else ""
+        await message.answer(
+            f"✅ Роль обновлена{suffix}: <b>{target.full_name}</b> → <b>{result.value.role}</b>"
+        )
+
+
+@_router.message(Command("org_remove_member"))
+async def org_remove_member_for_super_admin(message: Message) -> None:
+    if message.from_user is None or not _is_super_admin(message.from_user.id):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer(
+            "Использование:\n<code>/org_remove_member &lt;org_uuid&gt; &lt;tg_user_id&gt;</code>"
+        )
+        return
+    org_id = _parse_uuid(parts[1])
+    if org_id is None:
+        await message.answer("org_uuid не распознан.")
+        return
+    try:
+        tg_id = int(parts[2])
+    except ValueError:
+        await message.answer("tg_user_id должен быть числом.")
+        return
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        await session.execute(text("SET LOCAL row_security = off"))
+        target = await _resolve_target_user(
+            session, organization_id=org_id, raw=str(tg_id)
+        )
+        if target is None:
+            await message.answer(_team_err_text("user_not_found"))
+            return
+        actor = CurrentUser(
+            id=uuid.uuid4(),
+            organization_id=org_id,
+            role=UserRole.OWNER,
+            tg_user_id=message.from_user.id,
+        )
+        uc = DeactivateMemberUseCase(session)
+        result = await uc.execute(actor=actor, target_user_id=target.id)
+        if isinstance(result, Failure):
+            await message.answer(_team_err_text(result.error.code))
+            await session.rollback()
+            return
+        assert isinstance(result, Success)
+        await session.commit()
+        await message.answer(f"✅ Удалён: <b>{target.full_name}</b>")
 
 
 @_router.callback_query(lambda c: (c.data or "").startswith("waiver:"))

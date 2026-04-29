@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { DashboardScreen } from "@/components/screens/dashboard-screen";
+import { OnboardingScreen, hasSeenOnboarding } from "@/components/screens/onboarding-screen";
 import { Button } from "@/components/ui/button";
 import { runBootstrapAuthSession } from "@/lib/auth/bootstrap-session";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -27,7 +28,14 @@ export default function Page(): React.JSX.Element {
   const setHandshakeError = useAuthStore((s) => s.setHandshakeError);
   const [retrying, setRetrying] = React.useState(false);
   const [sessionLatched, setSessionLatched] = React.useState(false);
+  // `null` until we've checked localStorage on the client; this avoids a
+  // hydration flash where onboarding briefly renders for already-seen users.
+  const [showOnboarding, setShowOnboarding] = React.useState<boolean | null>(null);
   const tSplash = useTranslations("splash");
+
+  React.useEffect(() => {
+    setShowOnboarding(!hasSeenOnboarding());
+  }, []);
 
   React.useEffect(() => {
     if (me?.id && accessToken) {
@@ -111,6 +119,16 @@ export default function Page(): React.JSX.Element {
           </div>
         ) : null}
       </main>
+    );
+  }
+
+  if (showOnboarding === true) {
+    return (
+      <OnboardingScreen
+        onDone={() => {
+          setShowOnboarding(false);
+        }}
+      />
     );
   }
 

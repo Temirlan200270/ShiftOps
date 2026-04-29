@@ -1,9 +1,8 @@
-"""Pure-rules tests for member deactivation.
+"""Pure-rules tests for :class:`ChangeMemberRoleUseCase` guards.
 
-The guard is delegated to :func:`can_manage_member` (see
-``test_change_member_role_rules.py``); here we cover the deactivate-specific
-edges: already-inactive targets and that owner is in fact allowed to
-deactivate other roles.
+The DB-touching code paths are exercised by integration tests; here we focus
+on the deterministic predicate ``can_manage_member`` plus the role-transition
+constraints that live entirely in the use case (no IO).
 """
 
 from __future__ import annotations
@@ -34,17 +33,16 @@ def _clear_settings_cache() -> None:
     get_settings.cache_clear()
 
 
-def test_owner_can_deactivate_admin_operator_owner() -> None:
+def test_owner_can_manage_admin_and_operator() -> None:
     org = uuid.uuid4()
     actor = _actor(uid=uuid.uuid4(), org=org, role=UserRole.OWNER)
-    for role in ("owner", "admin", "operator"):
+    for role in ("admin", "operator"):
         target = _UserLike(uid=uuid.uuid4(), role=role)
         r = can_manage_member(actor=actor, target=target, target_tg_id=None)  # type: ignore[arg-type]
         assert getattr(r, "error", None) is None
 
 
-def test_admin_cannot_deactivate_anyone() -> None:
-    """Regression: admin used to be able to deactivate operator. No longer."""
+def test_admin_cannot_manage_anyone() -> None:
     org = uuid.uuid4()
     actor = _actor(uid=uuid.uuid4(), org=org, role=UserRole.ADMIN)
     for role in ("owner", "admin", "operator"):
@@ -53,7 +51,7 @@ def test_admin_cannot_deactivate_anyone() -> None:
         assert r.error.code == "insufficient_role"
 
 
-def test_operator_cannot_deactivate_anyone() -> None:
+def test_operator_cannot_manage_anyone() -> None:
     org = uuid.uuid4()
     actor = _actor(uid=uuid.uuid4(), org=org, role=UserRole.OPERATOR)
     target = _UserLike(uid=uuid.uuid4(), role="operator")
@@ -61,7 +59,7 @@ def test_operator_cannot_deactivate_anyone() -> None:
     assert r.error.code == "insufficient_role"
 
 
-def test_cannot_deactivate_self() -> None:
+def test_cannot_manage_self() -> None:
     org = uuid.uuid4()
     uid = uuid.uuid4()
     actor = _actor(uid=uid, org=org, role=UserRole.OWNER)
@@ -70,7 +68,7 @@ def test_cannot_deactivate_self() -> None:
     assert r.error.code == "cannot_manage_self"
 
 
-def test_cannot_deactivate_super_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cannot_manage_super_admin_target(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPER_ADMIN_TG_ID", "9001")
     get_settings.cache_clear()
     org = uuid.uuid4()
@@ -78,3 +76,25 @@ def test_cannot_deactivate_super_admin(monkeypatch: pytest.MonkeyPatch) -> None:
     target = _UserLike(uid=uuid.uuid4(), role="admin")
     r = can_manage_member(actor=actor, target=target, target_tg_id=9001)  # type: ignore[arg-type]
     assert r.error.code == "cannot_manage_super_admin"
+
+
+def test_super_admin_actor_can_manage_anyone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPER_ADMIN_TG_ID", "9001")
+    get_settings.cache_clear()
+    org = uuid.uuid4()
+    actor = _actor(uid=uuid.uuid4(), org=org, role=UserRole.ADMIN, tg=9001)
+    for role in ("owner", "admin", "operator"):
+        target = _UserLike(uid=uuid.uuid4(), role=role)
+        r = can_manage_member(actor=actor, target=target, target_tg_id=None)  # type: ignore[arg-type]
+        assert getattr(r, "error", None) is None
+
+
+def test_super_admin_cannot_manage_self(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPER_ADMIN_TG_ID", "9001")
+    get_settings.cache_clear()
+    org = uuid.uuid4()
+    uid = uuid.uuid4()
+    actor = _actor(uid=uid, org=org, role=UserRole.OWNER, tg=9001)
+    target = _UserLike(uid=uid, role="owner")
+    r = can_manage_member(actor=actor, target=target, target_tg_id=9001)  # type: ignore[arg-type]
+    assert r.error.code == "cannot_manage_self"

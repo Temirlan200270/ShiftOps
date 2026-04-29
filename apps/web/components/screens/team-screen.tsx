@@ -1,17 +1,21 @@
 "use client";
 
-import { Sparkles, Users } from "lucide-react";
+import { MoreVertical, Sparkles, Trash2, UserCog, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
+  changeMemberRole,
   createInvite,
   fetchLocations,
   fetchTeamMembers,
   fetchTeamSummary,
+  removeMember,
   type LocationRow,
+  type ManageableRole,
   type TeamMemberRow,
 } from "@/lib/api/invites";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -21,6 +25,32 @@ import { haptic, notify } from "@/lib/telegram/init";
 type TeamScreenProps = {
   onBack: () => void;
 };
+
+type ManageErrorKey =
+  | "cannot_manage_self"
+  | "cannot_manage_super_admin"
+  | "insufficient_role"
+  | "cannot_change_owner_role"
+  | "user_not_found"
+  | "already_inactive"
+  | "invalid_target_role";
+
+const KNOWN_MANAGE_ERRORS = new Set<ManageErrorKey>([
+  "cannot_manage_self",
+  "cannot_manage_super_admin",
+  "insufficient_role",
+  "cannot_change_owner_role",
+  "user_not_found",
+  "already_inactive",
+  "invalid_target_role",
+]);
+
+function extractErrorCode(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  // Backend serializes detail as "code: message" — keep just the code.
+  const head = raw.split(":", 1)[0]?.trim();
+  return head || raw;
+}
 
 export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const t = useTranslations("team");
@@ -40,6 +70,25 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const [copied, setCopied] = React.useState(false);
   const formRef = React.useRef<HTMLDivElement>(null);
   const [membersFetchError, setMembersFetchError] = React.useState<string | null>(null);
+
+  // Action-menu / modals state
+  const [actionMember, setActionMember] = React.useState<TeamMemberRow | null>(null);
+  const [roleSheet, setRoleSheet] = React.useState<TeamMemberRow | null>(null);
+  const [removeSheet, setRemoveSheet] = React.useState<TeamMemberRow | null>(null);
+  const [pendingRole, setPendingRole] = React.useState<ManageableRole>("operator");
+  const [savingRole, setSavingRole] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
+
+  const translateManageError = React.useCallback(
+    (code: string | null | undefined, fallback: string | null): string => {
+      const c = code as ManageErrorKey | null;
+      if (c && KNOWN_MANAGE_ERRORS.has(c)) {
+        return t(`manageErrors.${c}`);
+      }
+      return fallback ?? tErr("generic");
+    },
+    [t, tErr],
+  );
 
   React.useEffect(() => {
     if (!isOwner) {
@@ -104,6 +153,13 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const alone = otherMembersCount === 0;
   const showEmpty = !loadingLocs && otherMembersCount !== null && alone;
 
+  const reloadMembers = React.useCallback(async () => {
+    const memR = await fetchTeamMembers(false);
+    if (memR.ok) {
+      setMembers(memR.data);
+    }
+  }, []);
+
   const scrollToInviteForm = React.useCallback(() => {
     haptic("medium");
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -159,6 +215,67 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
     }
   }, [expiresH, locationId, role, t, tErr]);
 
+  const openActionMenu = React.useCallback((m: TeamMemberRow) => {
+    haptic("light");
+    setActionMember(m);
+  }, []);
+
+  const closeActionMenu = React.useCallback(() => {
+    setActionMember(null);
+  }, []);
+
+  const openRoleEditor = React.useCallback((m: TeamMemberRow) => {
+    setActionMember(null);
+    const initial: ManageableRole = m.role === "admin" ? "admin" : "operator";
+    setPendingRole(initial);
+    setRoleSheet(m);
+  }, []);
+
+  const openRemoveConfirm = React.useCallback((m: TeamMemberRow) => {
+    setActionMember(null);
+    setRemoveSheet(m);
+  }, []);
+
+  const handleSaveRole = React.useCallback(async () => {
+    if (!roleSheet) return;
+    setSavingRole(true);
+    const r = await changeMemberRole(roleSheet.id, pendingRole);
+    setSavingRole(false);
+    if (r.ok) {
+      notify("success");
+      toast({ variant: "success", title: t("changeRole.saved"), duration: 2500 });
+      setRoleSheet(null);
+      void reloadMembers();
+    } else {
+      const code = extractErrorCode(r.code);
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: translateManageError(code, r.message),
+      });
+    }
+  }, [pendingRole, reloadMembers, roleSheet, t, tErr, translateManageError]);
+
+  const handleConfirmRemove = React.useCallback(async () => {
+    if (!removeSheet) return;
+    setRemoving(true);
+    const r = await removeMember(removeSheet.id);
+    setRemoving(false);
+    if (r.ok) {
+      notify("success");
+      toast({ variant: "success", title: t("remove.removed"), duration: 2500 });
+      setRemoveSheet(null);
+      void reloadMembers();
+    } else {
+      const code = extractErrorCode(r.code);
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: translateManageError(code, r.message),
+      });
+    }
+  }, [reloadMembers, removeSheet, t, tErr, translateManageError]);
+
   return (
     <main className="mx-auto max-w-md px-4 pt-6 pb-24 animate-fade-in-up">
       <header className="mb-6">
@@ -196,6 +313,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                         ? t("roleOperator")
                         : member.role;
                 const isSelf = member.id === me?.id;
+                const showActions = member.can_change_role || member.can_deactivate;
                 return (
                   <li
                     key={member.id}
@@ -205,16 +323,35 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                       <p className="font-medium leading-snug break-words">
                         {member.full_name}
                         {isSelf ? (
-                          <span className="text-muted-foreground font-normal text-xs ms-1.5">{t("memberYou")}</span>
+                          <span className="text-muted-foreground font-normal text-xs ms-1.5">
+                            {t("memberYou")}
+                          </span>
                         ) : null}
                       </p>
                       {member.tg_username ? (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">@{member.tg_username}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          @{member.tg_username}
+                        </p>
                       ) : null}
                     </div>
-                    <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground border border-border rounded-full px-2 py-0.5 whitespace-nowrap">
-                      {badge}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground border border-border rounded-full px-2 py-0.5 whitespace-nowrap">
+                        {badge}
+                      </span>
+                      {showActions ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openActionMenu(member);
+                          }}
+                          className="rounded-full p-1 text-muted-foreground hover:bg-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
+                          aria-label={t("actions.open")}
+                          title={t("actions.open")}
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}
@@ -365,6 +502,152 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Per-member action menu */}
+      <Sheet
+        open={actionMember !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) closeActionMenu();
+        }}
+      >
+        <SheetContent title={t("actions.label")}>
+          {actionMember ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="block"
+                disabled={!actionMember.can_change_role}
+                onClick={() => {
+                  if (actionMember.can_change_role) openRoleEditor(actionMember);
+                }}
+              >
+                <UserCog className="size-4" />
+                {t("actions.changeRole")}
+              </Button>
+              {!actionMember.can_change_role && actionMember.cannot_change_role_reason ? (
+                <p className="text-xs text-muted-foreground -mt-1">
+                  {translateManageError(
+                    actionMember.cannot_change_role_reason,
+                    null,
+                  )}
+                </p>
+              ) : null}
+
+              <Button
+                type="button"
+                variant="danger"
+                size="block"
+                disabled={!actionMember.can_deactivate}
+                onClick={() => {
+                  if (actionMember.can_deactivate) openRemoveConfirm(actionMember);
+                }}
+              >
+                <Trash2 className="size-4" />
+                {t("actions.remove")}
+              </Button>
+              {!actionMember.can_deactivate && actionMember.cannot_deactivate_reason ? (
+                <p className="text-xs text-muted-foreground -mt-1">
+                  {translateManageError(
+                    actionMember.cannot_deactivate_reason,
+                    null,
+                  )}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
+      {/* Change role */}
+      <Sheet
+        open={roleSheet !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) setRoleSheet(null);
+        }}
+      >
+        <SheetContent title={t("changeRole.title")}>
+          {roleSheet ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">{t("changeRole.description")}</p>
+              <div className="grid gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="member-role"
+                    checked={pendingRole === "admin"}
+                    onChange={() => {
+                      setPendingRole("admin");
+                    }}
+                  />
+                  {t("changeRole.selectAdmin")}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="member-role"
+                    checked={pendingRole === "operator"}
+                    onChange={() => {
+                      setPendingRole("operator");
+                    }}
+                  />
+                  {t("changeRole.selectOperator")}
+                </label>
+              </div>
+              <Button
+                type="button"
+                size="block"
+                disabled={savingRole}
+                onClick={() => {
+                  void handleSaveRole();
+                }}
+              >
+                {savingRole ? t("changeRole.saving") : t("changeRole.save")}
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
+      {/* Remove member */}
+      <Sheet
+        open={removeSheet !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) setRemoveSheet(null);
+        }}
+      >
+        <SheetContent title={t("remove.title")}>
+          {removeSheet ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                {t("remove.description", { name: removeSheet.full_name })}
+              </p>
+              <Button
+                type="button"
+                size="block"
+                variant="danger"
+                disabled={removing}
+                onClick={() => {
+                  void handleConfirmRemove();
+                }}
+              >
+                {removing ? t("remove.removing") : t("remove.confirm")}
+              </Button>
+              <Button
+                type="button"
+                size="block"
+                variant="secondary"
+                disabled={removing}
+                onClick={() => {
+                  setRemoveSheet(null);
+                }}
+              >
+                {t("remove.cancelLabel")}
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }

@@ -20,6 +20,8 @@ export interface TeamSummary {
   org_total_members: number;
 }
 
+export type ManageableRole = "admin" | "operator";
+
 export interface TeamMemberRow {
   id: string;
   full_name: string;
@@ -29,6 +31,8 @@ export interface TeamMemberRow {
   tg_username: string | null;
   can_deactivate: boolean;
   cannot_deactivate_reason: string | null;
+  can_change_role: boolean;
+  cannot_change_role_reason: string | null;
 }
 
 export async function fetchLocations(): Promise<ApiResult<LocationRow[]>> {
@@ -54,4 +58,17 @@ export async function createInvite(payload: {
     location_id: payload.location_id,
     expires_in_hours: payload.expires_in_hours,
   });
+}
+
+export async function changeMemberRole(
+  userId: string,
+  role: ManageableRole,
+): Promise<ApiResult<{ ok: string; role: string }>> {
+  return api.post<{ ok: string; role: string }>(`/v1/team/members/${userId}/role`, { role });
+}
+
+export async function removeMember(
+  userId: string,
+): Promise<ApiResult<{ ok: string }>> {
+  return api.post<{ ok: string }>(`/v1/team/members/${userId}/deactivate`, {});
 }
