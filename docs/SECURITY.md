@@ -25,11 +25,16 @@
 `app.org_id` (`set_org_guc`) и работает строго внутри арендатора.
 
 **Выбранная стратегия (вариант A):** кросс‑арендные операции выполняют
-`SET LOCAL row_security = off` **только** через единую точку входа в коде —
-`enter_privileged_rls_mode()` в [`apps/api/shiftops_api/infra/db/rls.py`](../apps/api/shiftops_api/infra/db/rls.py).
+`SET LOCAL ROLE shiftops_rls_bypass` (роль с атрибутом `BYPASSRLS`) **только**
+через единую точку входа в коде — `enter_privileged_rls_mode()` в
+[`apps/api/shiftops_api/infra/db/rls.py`](../apps/api/shiftops_api/infra/db/rls.py).
 Там же инкрементируется метрика `shiftops_privileged_rls_bypass_total{reason=...}`
 и пишется structlog‑событие `rls.privileged_enter`. Новый bypass в приложении
 **не** добавлять сырым SQL.
+
+> Почему не `row_security=off`? Для обычных ролей Postgres трактует
+> `row_security=off` как “**падай**, если запрос затронул бы RLS-политику”
+> (так делает `pg_dump`). Это **не** отключает политики.
 
 | Режим | Кто | Как |
 |--------|-----|-----|
@@ -39,7 +44,7 @@
 
 **Вариант B (на будущее):** отдельный пользователь БД с атрибутом `BYPASSRLS` и
 отдельный `DATABASE_URL` для воркера — если политика безопасности запретит
-`row_security=off` из роли приложения. Сейчас в репозитории один runtime URL
+`SET ROLE` из роли приложения. Сейчас в репозитории один runtime URL
 (`Settings.database_url`) для API и TaskIQ; миграции используют
 `DATABASE_URL_SYNC` / `ALEMBIC_DATABASE_URL` (см. [`settings.py`](../apps/api/shiftops_api/config/settings.py)).
 

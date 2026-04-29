@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { closeShift } from "@/lib/api/shifts";
+import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
@@ -192,7 +193,11 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         return;
       }
       notify("error");
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: localiseApiFailure(result, tErr),
+      });
     },
     [shift, setShift, onClosed, tErr],
   );

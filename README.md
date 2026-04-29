@@ -59,6 +59,21 @@ make fmt       # ruff format + prettier
 
 Без Docker (хост): `make install` — `uv sync` в `apps/api` и `pnpm install` в `apps/web`.
 
+#### Windows: pnpm setup (если `pnpm` не находится)
+
+PowerShell:
+
+```powershell
+.\scripts\dev\windows-setup.ps1
+```
+
+Скрипт установит `pnpm` через `npm i -g pnpm` и добавит npm-global bin в **User PATH**
+(если его нет). После этого перезапустите терминал и проверьте:
+
+```powershell
+pnpm -v
+```
+
 Новая миграция: `make revision m="краткое описание"`.
 
 ---

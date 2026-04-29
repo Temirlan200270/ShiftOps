@@ -23,6 +23,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.config import get_settings
@@ -49,6 +50,10 @@ def _validated_bypass_role(name: str) -> str:
     return name
 
 
+class PrivilegedRlsUnavailable(RuntimeError):
+    """Raised when the runtime DB user cannot assume the BYPASSRLS helper role."""
+
+
 async def enter_privileged_rls_mode(session: AsyncSession, *, reason: str) -> None:
     """Assume the BYPASSRLS role until end of transaction (``SET LOCAL ROLE``).
 
@@ -59,7 +64,21 @@ async def enter_privileged_rls_mode(session: AsyncSession, *, reason: str) -> No
     PRIVILEGED_RLS_BYPASS_TOTAL.labels(reason=reason).inc()
     _log.info("rls.privileged_enter", reason=reason)
     role = _validated_bypass_role(get_settings().database_rls_bypass_role)
-    await session.execute(text(f"SET LOCAL ROLE {role}"))
+    try:
+        await session.execute(text(f"SET LOCAL ROLE {role}"))
+    except DBAPIError as exc:
+        # Most common causes:
+        # - migration 0010 not applied (role doesn't exist)
+        # - missing GRANT shiftops_rls_bypass TO <runtime_user>
+        _log.error(
+            "rls.privileged_unavailable",
+            reason=reason,
+            role=role,
+            error=str(getattr(exc, "orig", exc)),
+        )
+        raise PrivilegedRlsUnavailable(
+            f"privileged_rls_unavailable: cannot SET LOCAL ROLE {role}"
+        ) from exc
 
 
 @asynccontextmanager
@@ -71,4 +90,9 @@ async def privileged_rls(session: AsyncSession, *, reason: str) -> AsyncIterator
     yield
 
 
-__all__ = ["enter_privileged_rls_mode", "privileged_rls", "set_org_guc"]
+__all__ = [
+    "PrivilegedRlsUnavailable",
+    "enter_privileged_rls_mode",
+    "privileged_rls",
+    "set_org_guc",
+]

@@ -1,0 +1,23 @@
+groups:
+  - name: shiftops-worker
+    rules:
+      - alert: ShiftOpsRecurringTickStalled
+        expr: changes(shiftops_recurring_tick_templates_visible[10m]) == 0
+        for: 10m
+        labels:
+          severity: page
+          component: worker
+        annotations:
+          summary: "Recurring tick stalled"
+          description: "The worker has not updated shiftops_recurring_tick_templates_visible for 10m. The scheduler/worker process may be down."
+
+      - alert: ShiftOpsRecurringTickSeesZeroTemplates
+        expr: shiftops_recurring_tick_templates_visible == 0
+        for: 5m
+        labels:
+          severity: page
+          component: worker
+        annotations:
+          summary: "Recurring tick sees 0 templates (RLS canary)"
+          description: "Worker sweep sees zero templates for 5m. Likely RLS bypass is broken (missing role/grant) or DB connectivity changed."
+

@@ -37,6 +37,28 @@ free-tier Upstash (10к команд/день), Vercel hobby — всё $0. Пл
    делают это автоматически; проверь в Supabase Studio после первой
    миграции.
 
+#### 1.1a Off-site backup (Nightly pg_dump) — обязательно для free tier
+
+На бесплатном Supabase нет PITR, поэтому **обязателен** внешний логический дамп.
+В репозитории есть GitHub Actions workflow `.github/workflows/nightly-pgdump.yml`,
+который каждый день делает `pg_dump` и сохраняет `.sql.gz` как artifact.
+
+1. В GitHub репозитории открыть: **Settings → Secrets and variables → Actions**.
+2. Добавить secret:
+   - **Name**: `DATABASE_URL_DUMP`
+   - **Value**: Supabase **Connection pooling → Session pooler** (порт **5432**),
+     схема **`postgres://`** (не `postgresql+psycopg://`), с логином/паролем.
+     Пример:
+     `postgres://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`
+3. Запустить workflow вручную (Actions → Nightly pg_dump → Run workflow) и
+   убедиться, что появился artifact `shiftops-YYYY-MM-DD-...sql.gz`.
+
+Восстановление в локальный Postgres (пример):
+
+```bash
+gunzip -c shiftops-2026-04-27.sql.gz | psql "$DATABASE_URL_SYNC"
+```
+
 > Почему пулер, а не прямой `db.<ref>.supabase.co:5432`?
 > На бесплатном проекте Supabase **прямой** хост часто доступен **только по IPv6**. Машины Fly
 > на shared-cpu **без IPv6-egress** до такого хоста не достучатся (пока не купить **IPv4 add-on** у

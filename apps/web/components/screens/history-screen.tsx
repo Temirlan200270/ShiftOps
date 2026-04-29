@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { fetchHistory, type HistoryItem, type HistoryPage } from "@/lib/api/shifts";
+import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { toast } from "@/lib/stores/toast-store";
 import { SCORE_WEIGHTS, type ScoreBreakdown } from "@/lib/types";
 
@@ -218,7 +219,11 @@ export function HistoryScreen({
     if (result.ok) {
       setPage(result.data);
     } else {
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: localiseApiFailure(result, tErr),
+      });
     }
     setLoading(false);
   }, [tErr, filterUserId, filterLocationId, filterFrom, filterTo]);
@@ -235,7 +240,11 @@ export function HistoryScreen({
     });
     setLoadingMore(false);
     if (!result.ok) {
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: localiseApiFailure(result, tErr),
+      });
       return;
     }
     setPage({

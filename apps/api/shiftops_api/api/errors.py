@@ -35,6 +35,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from shiftops_api.infra.db.rls import PrivilegedRlsUnavailable
+
 
 def _split_code_message_details(detail: Any) -> tuple[str, str, Any | None]:
     if isinstance(detail, str):
@@ -87,6 +89,18 @@ async def _unhandled_exception_handler(_: Request, exc: Exception) -> JSONRespon
     )
 
 
+async def _privileged_rls_unavailable_handler(_: Request, exc: PrivilegedRlsUnavailable) -> JSONResponse:
+    # Stable code for operator runbooks. Details are logged with structlog.
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "privileged_rls_unavailable",
+            "message": str(exc),
+            "details": None,
+        },
+    )
+
+
 def install_error_handlers(app: FastAPI) -> None:
     """Wire the standardised handlers onto a FastAPI app.
 
@@ -96,4 +110,5 @@ def install_error_handlers(app: FastAPI) -> None:
 
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
+    app.add_exception_handler(PrivilegedRlsUnavailable, _privileged_rls_unavailable_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

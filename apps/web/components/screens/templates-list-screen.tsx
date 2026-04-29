@@ -7,6 +7,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listTemplates, type TemplateListItem } from "@/lib/api/templates";
+import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { toast } from "@/lib/stores/toast-store";
 
 interface TemplatesListScreenProps {
@@ -34,7 +35,11 @@ export function TemplatesListScreen({ onBack, onOpen }: TemplatesListScreenProps
     if (result.ok) {
       setItems(result.data);
     } else {
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: localiseApiFailure(result, tErr),
+      });
     }
     setLoading(false);
   }, [tErr]);

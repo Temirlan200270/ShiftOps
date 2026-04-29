@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from shiftops_api.api.v1 import (
     analytics,
+    audit,
     auth,
     invites,
     locations,
@@ -32,6 +33,7 @@ api_v1_router.include_router(shifts.router, prefix="/shifts", tags=["shifts"])
 api_v1_router.include_router(schedule.router, prefix="/schedule", tags=["schedule"])
 api_v1_router.include_router(templates.router, prefix="/templates", tags=["templates"])
 api_v1_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+api_v1_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_v1_router.include_router(realtime.router, prefix="/realtime", tags=["realtime"])
 api_v1_router.include_router(media.router, prefix="/media", tags=["media"])
 api_v1_router.include_router(telegram.router, prefix="/telegram", tags=["telegram"])

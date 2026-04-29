@@ -48,6 +48,7 @@ import {
   type TemplateTaskInput,
 } from "@/lib/api/templates";
 import { fetchLocations, fetchTeamMembers, type LocationRow, type TeamMemberRow } from "@/lib/api/invites";
+import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
 import type { Criticality, UserRole } from "@/lib/types";
@@ -179,7 +180,11 @@ export function TemplateEditScreen({
         );
         setRecurrence(result.data.recurrence);
       } else {
-        toast({ variant: "critical", title: tErr("generic"), description: result.message });
+        toast({
+          variant: "critical",
+          title: tErr("generic"),
+          description: localiseApiFailure(result, tErr),
+        });
       }
       setLoading(false);
     })();

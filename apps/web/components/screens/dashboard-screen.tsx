@@ -8,6 +8,7 @@ import {
   History,
   PlayCircle,
   Radio,
+  ScrollText,
   Sparkles,
   Upload,
   Users,
@@ -16,6 +17,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { AnalyticsScreen } from "@/components/screens/analytics-screen";
+import { AuditScreen } from "@/components/screens/audit-screen";
 import { BusinessHoursScreen } from "@/components/screens/business-hours-screen";
 import { CsvImportScreen } from "@/components/screens/csv-import-screen";
 import { HistoryScreen, type HistoryFilters } from "@/components/screens/history-screen";
@@ -29,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { fetchMyShift, startShift } from "@/lib/api/shifts";
+import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
@@ -41,6 +44,7 @@ type View =
   | "history"
   | "templatesList"
   | "templateEdit"
+  | "audit"
   | "analytics"
   | "csvImport"
   | "businessHours"
@@ -63,6 +67,7 @@ export function DashboardScreen(): React.JSX.Element {
   const tOrgBh = useTranslations("orgBusinessHours");
   const tLive = useTranslations("live");
   const tTeam = useTranslations("team");
+  const tAudit = useTranslations("audit");
   const role = useAuthStore((s) => s.me?.role ?? "operator");
   const isAdmin = role === "admin" || role === "owner";
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
@@ -77,7 +82,11 @@ export function DashboardScreen(): React.JSX.Element {
       const now = Date.now();
       if (now - lastShiftToastAtRef.current >= 3800) {
         lastShiftToastAtRef.current = now;
-        toast({ variant: "critical", title: tErr("generic"), description: result.message });
+        toast({
+          variant: "critical",
+          title: tErr("generic"),
+          description: localiseApiFailure(result, tErr),
+        });
       }
     }
     setLoading(false);
@@ -104,7 +113,11 @@ export function DashboardScreen(): React.JSX.Element {
       setView("tasks");
     } else {
       notify("error");
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: localiseApiFailure(result, tErr),
+      });
     }
   }, [shift, setShift, tErr]);
 
@@ -133,6 +146,9 @@ export function DashboardScreen(): React.JSX.Element {
         onClearFilters={() => setHistoryFilters(null)}
       />
     );
+  }
+  if (view === "audit") {
+    return <AuditScreen onBack={() => setView("dashboard")} />;
   }
   if (view === "templatesList" && isAdmin) {
     return (
@@ -334,6 +350,15 @@ export function DashboardScreen(): React.JSX.Element {
           >
             <FileStack className="size-4" />
             {tTpl("openManageCta")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="block"
+            className="mt-2"
+            onClick={() => setView("audit")}
+          >
+            <ScrollText className="size-4" />
+            {tAudit("openCta")}
           </Button>
         </>
       ) : null}

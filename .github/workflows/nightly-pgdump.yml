@@ -41,6 +41,11 @@ jobs:
         run: |
           if [ -z "${DATABASE_URL_DUMP}" ]; then
             echo "DATABASE_URL_DUMP secret is not set — aborting before pg_dump." >&2
+            echo "" >&2
+            echo "Fix: GitHub → Settings → Secrets and variables → Actions → New repository secret" >&2
+            echo "Name: DATABASE_URL_DUMP" >&2
+            echo "Value: Supabase *session pooler* URI (port 5432), scheme postgres://, with credentials." >&2
+            echo "See docs/DEPLOY.md (section about backups) for the exact format." >&2
             exit 1
           fi
 

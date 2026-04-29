@@ -151,3 +151,11 @@ scrape_configs:
   10 минут подряд → пейджер.
 - Readiness-алерт: `up{job="shiftops-api"} == 0` или
   HTTP `/readyz` != 200 → немедленный пейджер.
+
+### Worker / recurring tick алерты (RLS canary)
+
+Файл с готовыми Prometheus rules лежит в `ops/alerts/shiftops-alerts.yml`:
+
+- `ShiftOpsRecurringTickStalled`: воркер не обновлял gauge 10 минут (scheduler/worker умер).
+- `ShiftOpsRecurringTickSeesZeroTemplates`: воркер 5 минут видит 0 шаблонов
+  (типичный симптом сломанного privileged RLS bypass / grants).
