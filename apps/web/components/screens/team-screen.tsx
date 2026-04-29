@@ -96,6 +96,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const tErr = useTranslations("errors");
   const me = useAuthStore((s) => s.me);
   const isOwner = me?.role === "owner";
+  const canToggleInactiveMembers = me?.role === "owner" || me?.role === "admin";
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
   const [members, setMembers] = React.useState<TeamMemberRow[] | null>(null);
   const [loadingLocs, setLoadingLocs] = React.useState(true);
@@ -109,6 +110,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const [copied, setCopied] = React.useState(false);
   const formRef = React.useRef<HTMLDivElement>(null);
   const [membersFetchError, setMembersFetchError] = React.useState<string | null>(null);
+  const [includeInactiveMembers, setIncludeInactiveMembers] = React.useState(false);
 
   // Action-menu / modals state
   const [actionMember, setActionMember] = React.useState<TeamMemberRow | null>(null);
@@ -193,11 +195,11 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const showEmpty = !loadingLocs && otherMembersCount !== null && alone;
 
   const reloadMembers = React.useCallback(async () => {
-    const memR = await fetchTeamMembers(false);
+    const memR = await fetchTeamMembers(includeInactiveMembers);
     if (memR.ok) {
       setMembers(memR.data);
     }
-  }, []);
+  }, [includeInactiveMembers]);
 
   const scrollToInviteForm = React.useCallback(() => {
     haptic("medium");
@@ -332,8 +334,28 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
       </header>
 
       <Card className="mb-6">
-        <CardHeader>
+        <CardHeader className="space-y-3">
           <CardTitle className="text-base">{t("membersTitle")}</CardTitle>
+          {canToggleInactiveMembers ? (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={includeInactiveMembers}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIncludeInactiveMembers(checked);
+                  void (async () => {
+                    const memR = await fetchTeamMembers(checked);
+                    if (memR.ok) {
+                      setMembers(memR.data);
+                    }
+                  })();
+                }}
+                className="size-4 rounded border-border accent-primary"
+              />
+              {t("showInactiveMembers")}
+            </label>
+          ) : null}
         </CardHeader>
         <CardContent className={members === null || loadingLocs ? "animate-pulse" : undefined}>
           {members === null || loadingLocs ? (
@@ -361,7 +383,11 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                 return (
                   <li
                     key={member.id}
-                    className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                    className={
+                      member.is_active
+                        ? "flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                        : "flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0 opacity-70"
+                    }
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-medium leading-snug break-words">
@@ -369,6 +395,11 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                         {isSelf ? (
                           <span className="text-muted-foreground font-normal text-xs ms-1.5">
                             {t("memberYou")}
+                          </span>
+                        ) : null}
+                        {!member.is_active ? (
+                          <span className="text-muted-foreground font-normal text-xs ms-1.5">
+                            ({t("memberInactive")})
                           </span>
                         ) : null}
                       </p>

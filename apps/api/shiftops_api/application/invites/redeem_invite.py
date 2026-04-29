@@ -44,13 +44,6 @@ class RedeemInviteUseCase:
     ) -> Result[RedeemOk, DomainError]:
         await self._session.execute(text("SET LOCAL row_security = off"))
 
-        # Existing account?
-        existing_tg = await self._session.get(TelegramAccount, tg.id)
-        if existing_tg is not None:
-            return Failure(
-                DomainError("telegram_already_linked", "this Telegram is already in ShiftOps")
-            )
-
         now = datetime.now(tz=UTC)
         row = (
             await self._session.execute(select(Invite).where(Invite.token == token).limit(1))
@@ -69,6 +62,53 @@ class RedeemInviteUseCase:
             )
 
         display = _display_name(tg)
+        existing_tg = await self._session.get(TelegramAccount, tg.id)
+        if existing_tg is not None:
+            user_model = await self._session.get(User, existing_tg.user_id)
+            if user_model is None:
+                await self._session.delete(existing_tg)
+                await self._session.flush()
+            else:
+                if user_model.organization_id != row.organization_id:
+                    return Failure(
+                        DomainError(
+                            "telegram_linked_other_org",
+                            "this Telegram is linked to another organization",
+                        )
+                    )
+                if user_model.is_active:
+                    return Failure(
+                        DomainError(
+                            "already_active_member",
+                            "already an active member of this organization",
+                        )
+                    )
+
+                user_model.is_active = True
+                user_model.role = row.role
+                user_model.full_name = display
+                user_model.locale = (tg.language_code or "ru")[:8]
+                existing_tg.tg_username = tg.username
+                existing_tg.tg_language_code = (tg.language_code or "")[:8] or None
+                row.used_at = now
+                row.used_by_user_id = user_model.id
+                await self._session.flush()
+
+                location_label: str | None = None
+                if row.location_id is not None:
+                    loc = await self._session.get(Location, row.location_id)
+                    if loc is not None:
+                        location_label = loc.name
+
+                return Success(
+                    RedeemOk(
+                        full_name=display,
+                        role=row.role,
+                        organization_name=org.name,
+                        location_label=location_label,
+                    )
+                )
+
         new_user = User(
             id=uuid.uuid4(),
             organization_id=row.organization_id,

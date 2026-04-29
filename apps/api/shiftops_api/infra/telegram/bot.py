@@ -96,12 +96,6 @@ async def handle_start(message: Message) -> None:
                     "Ссылка приглашения повреждена. Попросите новую у администратора."
                 )
                 return
-            if existing is not None:
-                await _push_slash_menu(message, existing[1])
-                await message.answer(
-                    "Ваш Telegram уже привязан к ShiftOps — откройте Web App, инвайт не нужен."
-                )
-                return
             use_case = RedeemInviteUseCase(session)
             result = await use_case.execute(token=token, tg=message.from_user)
             if isinstance(result, Failure):
@@ -110,11 +104,24 @@ async def handle_start(message: Message) -> None:
                     "invite_expired": "Срок ссылки истёк. Попросите новую у администратора.",
                     "invite_already_used": "Эта ссылка уже использована.",
                     "organization_inactive": "Организация не активна. Обратитесь в поддержку.",
+                    "telegram_linked_other_org": (
+                        "Этот Telegram уже привязан к другой организации в ShiftOps. "
+                        "Нужна отдельная учётная запись или обратитесь в поддержку."
+                    ),
+                    "already_active_member": (
+                        "Вы уже участник этой организации — откройте Web App, новая ссылка не нужна."
+                    ),
+                    "telegram_already_linked": (
+                        "Этот Telegram уже используется в ShiftOps в неожиданном состоянии. "
+                        "Обратитесь к администратору или в поддержку."
+                    ),
                 }
                 text = messages.get(
                     result.error.code,
                     "Не удалось принять приглашение. Попросите администратора выдать новую ссылку.",
                 )
+                if result.error.code == "already_active_member" and existing is not None:
+                    await _push_slash_menu(message, existing[1])
                 await message.answer(text)
                 await session.rollback()
                 return

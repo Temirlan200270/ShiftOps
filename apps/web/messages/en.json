@@ -153,6 +153,8 @@
     "emptyCta": "Invite the first teammate",
     "autoCopied": "Link copied to clipboard",
     "membersTitle": "Organization members",
+    "showInactiveMembers": "Show inactive (removed) members",
+    "memberInactive": "inactive",
     "membersLoading": "Loading roster…",
     "membersLoadFailed": "Could not load the member list. Try again later.",
     "memberYou": "(you)",

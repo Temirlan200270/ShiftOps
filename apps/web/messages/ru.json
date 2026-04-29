@@ -153,6 +153,8 @@
     "emptyCta": "Пригласить первого сотрудника",
     "autoCopied": "Ссылка скопирована",
     "membersTitle": "Участники организации",
+    "showInactiveMembers": "Показать неактивных (удалённых)",
+    "memberInactive": "неактивен",
     "membersLoading": "Загружаем список…",
     "membersLoadFailed": "Не удалось загрузить список участников. Повторите позже.",
     "memberYou": "(вы)",

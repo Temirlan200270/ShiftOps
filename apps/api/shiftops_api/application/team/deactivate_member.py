@@ -7,6 +7,10 @@ deactivate themselves; nobody can deactivate the platform super-admin.
 
 Owners may deactivate other owners (e.g. successor scenarios via
 ``/org_set_owner``); admins/operators have no such power.
+
+The Telegram link (``telegram_accounts``) is kept so the same person can be
+**reactivated** when they redeem a new invite for this organization
+(see :class:`~shiftops_api.application.invites.redeem_invite.RedeemInviteUseCase`).
 """
 
 from __future__ import annotations
