@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   ArrowUp,
   Camera,
+  ClipboardPaste,
   GripVertical,
   MessageSquare,
   Plus,
@@ -34,13 +35,19 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   createTemplate,
   deleteTemplate,
   getTemplate,
+  importTemplateApply,
+  importTemplateDryRun,
   updateTemplate,
+  type ImportPreview,
+  type RecurrenceConfig,
   type TemplateTaskInput,
 } from "@/lib/api/templates";
+import { fetchLocations, fetchTeamMembers, type LocationRow, type TeamMemberRow } from "@/lib/api/invites";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
 import type { Criticality, UserRole } from "@/lib/types";
@@ -82,7 +89,14 @@ interface TemplateEditScreenProps {
 type DraftTask = TemplateTaskInput & { localKey: string };
 
 const CRITICALITIES: ReadonlyArray<Criticality> = ["critical", "required", "optional"];
-const ROLE_TARGETS: ReadonlyArray<UserRole> = ["operator", "admin"];
+const ROLE_TARGETS: ReadonlyArray<UserRole> = ["operator", "admin", "bartender"];
+
+function memberAssignableForRoleTarget(roleTarget: UserRole, memberRole: string): boolean {
+  if (roleTarget === "admin") return memberRole === "admin" || memberRole === "owner";
+  if (roleTarget === "bartender")
+    return memberRole === "bartender" || memberRole === "admin" || memberRole === "owner";
+  return true;
+}
 
 function makeLocalKey(): string {
   return `local-${Math.random().toString(36).slice(2, 10)}`;
@@ -93,6 +107,7 @@ function emptyTask(): DraftTask {
     id: null,
     title: "",
     description: null,
+    section: null,
     criticality: "required",
     requiresPhoto: false,
     requiresComment: false,
@@ -114,6 +129,19 @@ export function TemplateEditScreen({
   const [loading, setLoading] = React.useState<boolean>(templateId !== null);
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+
+  // Bulk-import sheet state. Only shown when creating a brand-new template;
+  // editing an existing template uses the per-task editor below.
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [importContent, setImportContent] = React.useState("");
+  const [importBusy, setImportBusy] = React.useState<"idle" | "preview" | "apply">("idle");
+  const [importPreview, setImportPreview] = React.useState<ImportPreview | null>(null);
+  const [importError, setImportError] = React.useState<string | null>(null);
+
+  // Recurrence (auto-create daily shift) state.
+  const [recurrence, setRecurrence] = React.useState<RecurrenceConfig | null>(null);
+  const [locations, setLocations] = React.useState<LocationRow[]>([]);
+  const [members, setMembers] = React.useState<TeamMemberRow[]>([]);
 
   // PointerSensor with a small activation distance so a finger tap in
   // a text field doesn't accidentally start a drag. KeyboardSensor lets
@@ -142,12 +170,14 @@ export function TemplateEditScreen({
             id: t.id,
             title: t.title,
             description: t.description,
+            section: t.section,
             criticality: t.criticality,
             requiresPhoto: t.requiresPhoto,
             requiresComment: t.requiresComment,
             localKey: t.id,
           })),
         );
+        setRecurrence(result.data.recurrence);
       } else {
         toast({ variant: "critical", title: tErr("generic"), description: result.message });
       }
@@ -157,6 +187,25 @@ export function TemplateEditScreen({
       cancelled = true;
     };
   }, [templateId, tErr]);
+
+  // Locations + members are needed only by the recurrence block but the
+  // requests are cheap (org-scoped, ≤ a few hundred rows). Fetch once on
+  // mount; each subsequent open reuses the in-memory list.
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [locResult, memResult] = await Promise.all([
+        fetchLocations(),
+        fetchTeamMembers(false),
+      ]);
+      if (cancelled) return;
+      if (locResult.ok) setLocations(locResult.data);
+      if (memResult.ok) setMembers(memResult.data.filter((m) => m.is_active));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const updateTask = React.useCallback(
     (key: string, patch: Partial<DraftTask>) => {
@@ -230,10 +279,12 @@ export function TemplateEditScreen({
         id: t.id,
         title: t.title.trim(),
         description: t.description?.trim() ? t.description.trim() : null,
+        section: t.section?.trim() ? t.section.trim() : null,
         criticality: t.criticality,
         requiresPhoto: t.requiresPhoto,
         requiresComment: t.requiresComment,
       })),
+      recurrence,
     };
     const result =
       templateId === null
@@ -252,7 +303,69 @@ export function TemplateEditScreen({
     notify("success");
     toast({ variant: "success", title: tTpl("saved") });
     onSaved();
-  }, [name, roleTarget, tasks, templateId, validation, tTpl, onSaved]);
+  }, [name, roleTarget, tasks, recurrence, templateId, validation, tTpl, onSaved]);
+
+  const handleImportPreview = React.useCallback(async () => {
+    setImportError(null);
+    if (importContent.trim().length === 0) {
+      setImportError(tTpl("import.empty"));
+      return;
+    }
+    if (name.trim().length < 3) {
+      setImportError(tTpl("validation.nameLength"));
+      return;
+    }
+    setImportBusy("preview");
+    const result = await importTemplateDryRun({
+      name: name.trim(),
+      roleTarget,
+      content: importContent,
+    });
+    setImportBusy("idle");
+    if (!result.ok) {
+      setImportError(
+        result.code === "no_tasks_found" ? tTpl("import.noTasks") : result.message,
+      );
+      setImportPreview(null);
+      return;
+    }
+    setImportPreview(result.data);
+  }, [importContent, name, roleTarget, tTpl]);
+
+  const handleImportApply = React.useCallback(async () => {
+    setImportError(null);
+    if (importContent.trim().length === 0 || importPreview === null) {
+      setImportError(tTpl("import.previewFirst"));
+      return;
+    }
+    if (name.trim().length < 3) {
+      setImportError(tTpl("validation.nameLength"));
+      return;
+    }
+    setImportBusy("apply");
+    const result = await importTemplateApply({
+      name: name.trim(),
+      roleTarget,
+      content: importContent,
+    });
+    setImportBusy("idle");
+    if (!result.ok) {
+      setImportError(
+        result.code === "no_tasks_found" ? tTpl("import.noTasks") : result.message,
+      );
+      return;
+    }
+    notify("success");
+    toast({
+      variant: "success",
+      title: tTpl("saved"),
+      description: tTpl("import.applied", { count: result.data.taskCount }),
+    });
+    setImportOpen(false);
+    setImportContent("");
+    setImportPreview(null);
+    onSaved();
+  }, [importContent, importPreview, name, roleTarget, tTpl, onSaved]);
 
   const handleDelete = React.useCallback(async () => {
     if (templateId === null) return;
@@ -299,6 +412,17 @@ export function TemplateEditScreen({
         <h1 className="text-lg font-semibold flex-1">
           {isEdit ? tTpl("editTitle") : tTpl("createTitle")}
         </h1>
+        {!isEdit ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setImportOpen(true)}
+            aria-label={tTpl("import.openCta")}
+          >
+            <ClipboardPaste className="size-4" />
+            {tTpl("import.openCta")}
+          </Button>
+        ) : null}
       </header>
 
       <Card className="mb-4">
@@ -334,6 +458,15 @@ export function TemplateEditScreen({
           </label>
         </CardContent>
       </Card>
+
+      <RecurrenceBlock
+        value={recurrence}
+        onChange={setRecurrence}
+        locations={locations}
+        members={members}
+        roleTarget={roleTarget}
+        tTpl={tTpl}
+      />
 
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-medium text-muted-foreground">
@@ -397,6 +530,71 @@ export function TemplateEditScreen({
           {deleting ? tTpl("deleting") : tTpl("deleteCta")}
         </Button>
       ) : null}
+
+      <Sheet open={importOpen} onOpenChange={setImportOpen}>
+        <SheetContent title={tTpl("import.sheetTitle")} className="max-h-[90vh] overflow-y-auto">
+          <p className="text-xs text-muted-foreground mb-3">{tTpl("import.help")}</p>
+
+          <textarea
+            value={importContent}
+            onChange={(e) => {
+              setImportContent(e.target.value);
+              setImportPreview(null);
+            }}
+            placeholder={tTpl("import.placeholder")}
+            rows={10}
+            className="w-full rounded-md bg-elevated p-2 text-xs font-mono border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+            spellCheck={false}
+          />
+
+          {importError ? (
+            <div className="mt-2 rounded-md border border-critical/40 bg-critical/10 p-2 text-xs text-critical">
+              {importError}
+            </div>
+          ) : null}
+
+          <div className="mt-3 flex gap-2">
+            <Button
+              variant="secondary"
+              size="block"
+              onClick={handleImportPreview}
+              disabled={importBusy !== "idle"}
+            >
+              {importBusy === "preview" ? tTpl("import.previewing") : tTpl("import.previewCta")}
+            </Button>
+            <Button
+              size="block"
+              onClick={handleImportApply}
+              disabled={importBusy !== "idle" || importPreview === null}
+            >
+              {importBusy === "apply" ? tTpl("import.applying") : tTpl("import.applyCta")}
+            </Button>
+          </div>
+
+          {importPreview ? (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {tTpl("import.previewSummary", {
+                  sections: importPreview.sections.length,
+                  tasks: importPreview.tasks.length,
+                })}
+              </p>
+              <ul className="rounded-md border border-border bg-elevated text-xs divide-y divide-border max-h-64 overflow-y-auto">
+                {importPreview.tasks.map((t, idx) => (
+                  <li key={idx} className="p-2">
+                    {t.section ? (
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground mr-2">
+                        {t.section}
+                      </span>
+                    ) : null}
+                    <span>{t.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }
@@ -476,6 +674,20 @@ function SortableTaskRow({
               placeholder={tTpl("taskTitlePlaceholder")}
             />
           </div>
+
+          <input
+            type="text"
+            value={task.section ?? ""}
+            onChange={(e) =>
+              onChange(task.localKey, {
+                section: e.target.value === "" ? null : e.target.value,
+              })
+            }
+            maxLength={64}
+            className="w-full rounded-md bg-elevated p-2 text-xs border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder={tTpl("taskSectionPlaceholder")}
+            aria-label={tTpl("taskSectionLabel")}
+          />
 
           <textarea
             value={task.description ?? ""}
@@ -589,5 +801,229 @@ function Toggle({
       {icon}
       <span>{label}</span>
     </button>
+  );
+}
+
+const ALL_WEEKDAYS: ReadonlyArray<number> = [1, 2, 3, 4, 5, 6, 7];
+
+/**
+ * Editor for `Template.default_schedule`.
+ *
+ * Why a single block (instead of a separate page)
+ * -----------------------------------------------
+ * Recurrence and the task list are *one* contract from the owner's POV
+ * — "the kitchen morning checklist runs every day at 09:00 in the
+ * downtown bar". Splitting them across screens means the owner has to
+ * remember to set both, and we lose the single-save discoverability.
+ *
+ * Default values (when the toggle is first turned on) are picked to be
+ * obviously editable, not "smart": 09:00, 480-min duration, all
+ * weekdays, the first available location. Smart defaults invite
+ * surprises; explicit defaults invite review.
+ */
+function RecurrenceBlock({
+  value,
+  onChange,
+  locations,
+  members,
+  roleTarget,
+  tTpl,
+}: {
+  value: RecurrenceConfig | null;
+  onChange: (next: RecurrenceConfig | null) => void;
+  locations: LocationRow[];
+  members: TeamMemberRow[];
+  roleTarget: UserRole;
+  tTpl: Translator;
+}): React.JSX.Element {
+  const enabled = value !== null && value.autoCreate;
+
+  const enable = React.useCallback(() => {
+    if (value && value.autoCreate) return;
+    if (locations.length === 0) {
+      toast({ variant: "warning", title: tTpl("recurrence.noLocations") });
+      return;
+    }
+    const fallback: RecurrenceConfig = value ?? {
+      kind: "daily",
+      autoCreate: true,
+      timeOfDay: "09:00",
+      durationMin: 480,
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      timezone: locations[0]?.timezone ?? "UTC",
+      locationId: locations[0]?.id ?? "",
+      defaultAssigneeId: null,
+      leadTimeMin: 0,
+    };
+    onChange({ ...fallback, autoCreate: true });
+  }, [value, locations, onChange, tTpl]);
+
+  const disable = React.useCallback(() => {
+    if (value === null) return;
+    onChange({ ...value, autoCreate: false });
+  }, [value, onChange]);
+
+  const update = React.useCallback(
+    (patch: Partial<RecurrenceConfig>) => {
+      if (value === null) return;
+      onChange({ ...value, ...patch });
+    },
+    [value, onChange],
+  );
+
+  return (
+    <Card className="mb-4">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{tTpl("recurrence.title")}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tTpl("recurrence.subtitle")}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={enabled ? disable : enable}
+            className={[
+              "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+              enabled ? "bg-primary" : "bg-elevated border border-border",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                enabled ? "translate-x-6" : "translate-x-1",
+              ].join(" ")}
+            />
+          </button>
+        </div>
+
+        {enabled && value !== null ? (
+          <div className="space-y-3 pt-2 border-t border-border">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs text-muted-foreground">
+                  {tTpl("recurrence.timeLabel")}
+                </span>
+                <input
+                  type="time"
+                  value={value.timeOfDay}
+                  onChange={(e) => update({ timeOfDay: e.target.value })}
+                  className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-muted-foreground">
+                  {tTpl("recurrence.durationLabel")}
+                </span>
+                <input
+                  type="number"
+                  value={value.durationMin}
+                  min={15}
+                  max={24 * 60}
+                  step={15}
+                  onChange={(e) => update({ durationMin: Number(e.target.value) || 480 })}
+                  className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </label>
+            </div>
+
+            <div>
+              <span className="text-xs text-muted-foreground">
+                {tTpl("recurrence.weekdaysLabel")}
+              </span>
+              <div className="mt-1 flex gap-1 flex-wrap">
+                {ALL_WEEKDAYS.map((d) => {
+                  const active = value.weekdays.includes(d);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        const next = active
+                          ? value.weekdays.filter((x) => x !== d)
+                          : [...value.weekdays, d].sort((a, b) => a - b);
+                        update({ weekdays: next.length === 0 ? [d] : next });
+                      }}
+                      aria-pressed={active}
+                      className={[
+                        "px-2.5 py-1 rounded-full text-xs border transition-colors",
+                        active
+                          ? "bg-primary/10 border-primary/40 text-primary"
+                          : "bg-elevated border-border text-muted-foreground",
+                      ].join(" ")}
+                    >
+                      {tTpl(`recurrence.weekday.${d}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-xs text-muted-foreground">
+                {tTpl("recurrence.locationLabel")}
+              </span>
+              <select
+                value={value.locationId}
+                onChange={(e) => {
+                  const loc = locations.find((l) => l.id === e.target.value);
+                  update({
+                    locationId: e.target.value,
+                    timezone: loc?.timezone ?? value.timezone,
+                  });
+                }}
+                className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} · {loc.timezone}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs text-muted-foreground">
+                {tTpl("recurrence.assigneeLabel")}
+              </span>
+              <select
+                value={value.defaultAssigneeId ?? ""}
+                onChange={(e) =>
+                  update({ defaultAssigneeId: e.target.value === "" ? null : e.target.value })
+                }
+                className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">{tTpl("recurrence.assigneeAuto")}</option>
+                {members
+                  .filter((m) => memberAssignableForRoleTarget(roleTarget, m.role))
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name} · {m.role}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs text-muted-foreground">
+                {tTpl("recurrence.leadTimeLabel")}
+              </span>
+              <input
+                type="number"
+                value={value.leadTimeMin}
+                min={0}
+                max={12 * 60}
+                step={15}
+                onChange={(e) => update({ leadTimeMin: Number(e.target.value) || 0 })}
+                className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

@@ -22,6 +22,7 @@ dispatcher modular so we can add routers without touching this file.
 
 from __future__ import annotations
 
+import html
 import logging
 import uuid
 
@@ -33,7 +34,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import CallbackQuery, Message, Update
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser
@@ -49,7 +50,8 @@ from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_sessionmaker
-from shiftops_api.infra.db.models import TelegramAccount, User
+from shiftops_api.infra.db.models import Organization, TelegramAccount, User
+from shiftops_api.infra.telegram.bot_profile import SlashMenuProfile, push_slash_menu_for_private_chat
 
 _log = logging.getLogger(__name__)
 _router = Router(name="shiftops.bot")
@@ -92,6 +94,7 @@ async def handle_start(message: Message) -> None:
                 )
                 return
             if existing is not None:
+                await _push_slash_menu(message, existing[1])
                 await message.answer(
                     "Ваш Telegram уже привязан к ShiftOps — откройте Web App, инвайт не нужен."
                 )
@@ -125,10 +128,13 @@ async def handle_start(message: Message) -> None:
                 f"Теперь откройте Web App, чтобы начать."
             )
             await session.commit()
+            joined = await _existing_tg_user(session, message.from_user.id)
+            await _push_slash_menu(message, joined[1] if joined else None)
             return
 
         if existing is None:
             web_app_url = get_settings().web_public_url
+            await _push_slash_menu(message, None)
             await message.answer(
                 "👋 Добро пожаловать в <b>ShiftOps</b>.\n\n"
                 "Чтобы начать, попросите администратора пригласить вас ссылкой "
@@ -136,6 +142,7 @@ async def handle_start(message: Message) -> None:
             )
             return
         _, user = existing
+        await _push_slash_menu(message, user)
         await message.answer(
             f"С возвращением, {user.full_name}. Откройте Web App, чтобы начать смену."
         )
@@ -167,6 +174,10 @@ async def create_org_start(message: Message, state: FSMContext) -> None:
         return
     if not _is_super_admin(message.from_user.id):
         return
+    factory_co = get_sessionmaker()
+    async with factory_co() as session_co:
+        ex_co = await _existing_tg_user(session_co, message.from_user.id)
+    await _push_slash_menu(message, ex_co[1] if ex_co else None)
     await state.set_state(CreateOrgFSM.org_name)
     await message.answer(
         "Создаём новую организацию.\n"
@@ -199,12 +210,15 @@ async def create_org_name(message: Message, state: FSMContext) -> None:
         await session.commit()
         await state.clear()
         org_id = r.value.organization_id
+        safe_name = html.escape(r.value.name)
         await message.answer(
-            f"✅ Организация <b>{r.value.name}</b> создана.\n"
+            f"✅ Организация <b>{safe_name}</b> создана.\n"
             f"ID: <code>{org_id}</code>\n\n"
-            "Выдай инвайт владельцу/админу (без Telegram ID):\n"
-            f"<code>/org_invite {org_id} owner</code>\n"
-            f"<code>/org_invite {org_id} admin</code>"
+            "Выдай инвайт владельцу/админу (Telegram ID в команду не нужен):\n"
+            f"<code>/org_invite {safe_name} owner</code>\n"
+            f"<code>/org_invite {safe_name} admin</code>\n\n"
+            "Или по UUID:\n"
+            f"<code>/org_invite {org_id} owner</code>"
         )
 
 
@@ -215,38 +229,187 @@ def _parse_uuid(text: str) -> uuid.UUID | None:
         return None
 
 
+def _command_argv(message: Message) -> list[str]:
+    """Tokens after the command (``/foo bar`` → ``[\"bar\"]``)."""
+
+    t = (message.text or "").strip()
+    if not t:
+        return []
+    parts = t.split()
+    if len(parts) < 2:
+        return []
+    head = parts[0]
+    if "@" in head:
+        head = head.split("@", 1)[0]
+    if not head.startswith("/"):
+        return []
+    return parts[1:]
+
+
+_ORG_INVITE_ROLES = frozenset({"owner", "admin", "operator", "bartender"})
+_MAX_INVITE_HOURS = 168
+
+
+def _parse_org_invite_argv(
+    tokens: list[str],
+) -> tuple[str, str, int | None, int | None]:
+    """``org … role`` or ``org … role hours`` where hours must be 1..168.
+
+    Returns ``(org_spec, role, hours, stray_numeric_hint)`` — if the user
+    passes a Telegram user id in the last slot, ``hours`` is ``None`` and
+    ``stray_numeric_hint`` carries the number for the hint text.
+    """
+
+    if len(tokens) < 2:
+        raise ValueError("usage")
+    last = tokens[-1]
+    if last.lower() in _ORG_INVITE_ROLES:
+        org_spec = " ".join(tokens[:-1]).strip()
+        role = last.lower()
+        if not org_spec:
+            raise ValueError("usage")
+        return org_spec, role, None, None
+    if len(tokens) < 3:
+        raise ValueError("usage")
+    second_last = tokens[-2]
+    if second_last.lower() not in _ORG_INVITE_ROLES:
+        raise ValueError("usage")
+    if not last.isdigit():
+        raise ValueError("usage")
+    n = int(last)
+    org_spec = " ".join(tokens[:-2]).strip()
+    role = second_last.lower()
+    if not org_spec:
+        raise ValueError("usage")
+    if 1 <= n <= _MAX_INVITE_HOURS:
+        return org_spec, role, n, None
+    return org_spec, role, None, n
+
+
+def _parse_org_plus_trailing_tg(tokens: list[str]) -> tuple[str, int] | None:
+    if len(tokens) < 2 or not tokens[-1].isdigit():
+        return None
+    tg = int(tokens[-1])
+    if tg < 1:
+        return None
+    org_spec = " ".join(tokens[:-1]).strip()
+    if not org_spec:
+        return None
+    return org_spec, tg
+
+
+def _parse_org_tg_role(tokens: list[str]) -> tuple[str, int, str] | None:
+    if len(tokens) < 3:
+        return None
+    role = tokens[-1].lower()
+    if role not in {"admin", "operator", "bartender"}:
+        return None
+    if not tokens[-2].isdigit():
+        return None
+    tg = int(tokens[-2])
+    org_spec = " ".join(tokens[:-2]).strip()
+    if not org_spec:
+        return None
+    return org_spec, tg, role
+
+
+async def _resolve_org_spec_to_uuid(
+    session: AsyncSession,
+    org_spec: str,
+) -> tuple[uuid.UUID | None, str | None]:
+    """Resolve ``org_spec`` to ``organization_id`` (UUID or exact name).
+
+    Returns ``(id, None)`` on success, or ``(None, html_error)``.
+    """
+
+    await session.execute(text("SET LOCAL row_security = off"))
+    token = org_spec.strip().strip("'\"")
+    if not token:
+        return None, "Укажите <b>название</b> организации или её <b>UUID</b>."
+    uid = _parse_uuid(token)
+    if uid is not None:
+        org = await session.get(Organization, uid)
+        if org is None:
+            return None, "Организация с таким UUID не найдена."
+        return uid, None
+
+    rows = (
+        await session.execute(
+            select(Organization.id, Organization.name).where(
+                func.lower(Organization.name) == func.lower(token)
+            )
+        )
+    ).all()
+    if len(rows) == 1:
+        return rows[0][0], None
+    if len(rows) > 1:
+        lines = "\n".join(f"• <code>{r[0]}</code> — {html.escape(r[1])}" for r in rows)
+        return (
+            None,
+            "Несколько организаций с таким именем — укажите UUID:\n" + lines,
+        )
+
+    return (
+        None,
+        f"Организация «<b>{html.escape(token)}</b>» не найдена. "
+        "Проверьте название (как в ответе <code>/create_org</code>) или вставьте UUID.",
+    )
+
+
+async def _push_slash_menu(message: Message, user: User | None) -> None:
+    """Refresh Telegram slash hints for this private chat."""
+
+    if message.from_user is None or message.chat is None:
+        return
+    bot = message.bot
+    if bot is None:
+        return
+    chat_id = message.chat.id
+    if _is_super_admin(message.from_user.id):
+        profile = SlashMenuProfile.SUPER_ADMIN
+    elif user is None:
+        profile = SlashMenuProfile.GUEST
+    elif user.role == UserRole.OWNER.value:
+        profile = SlashMenuProfile.OWNER
+    elif user.role == UserRole.ADMIN.value:
+        profile = SlashMenuProfile.ADMIN
+    else:
+        profile = SlashMenuProfile.LINE
+    await push_slash_menu_for_private_chat(bot, chat_id=chat_id, profile=profile)
+
+
 @_router.message(Command("org_invite"))
 async def org_invite(message: Message) -> None:
-    """Super-admin: create an invite for owner/admin/operator without existing users."""
+    """Super-admin: create an invite for owner/admin/operator/bartender without existing users."""
     if message.from_user is None or not _is_super_admin(message.from_user.id):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 3:
+    tokens = _command_argv(message)
+    if not tokens:
         await message.answer(
             "Использование:\n"
-            "<code>/org_invite <org_uuid> <owner|admin|operator> [hours]</code>"
+            "<code>/org_invite &lt;название или UUID&gt; &lt;owner|admin|operator|bartender&gt; [1–168 ч]</code>\n\n"
+            "Примеры:\n"
+            "<code>/org_invite PlovХана owner</code>\n"
+            "<code>/org_invite The Rusty Anchor admin 72</code>"
         )
         return
-    org_id = _parse_uuid(parts[1])
-    if org_id is None:
-        await message.answer("org_uuid не распознан.")
+    try:
+        org_spec, role, hours, stray_num = _parse_org_invite_argv(tokens)
+    except ValueError:
+        await message.answer(
+            "Не разобрал аргументы.\n"
+            "<code>/org_invite &lt;название или UUID&gt; &lt;роль&gt; [часы 1–168]</code>\n\n"
+            "<i>Не добавляйте Telegram ID в эту команду</i> — только срок жизни ссылки (часы) "
+            "или ничего."
+        )
         return
-    role = parts[2].strip().lower()
-    hours: int | None = None
-    assumed_tg_id: int | None = None
-    if len(parts) >= 4:
-        try:
-            hours = int(parts[3])
-        except ValueError:
-            hours = None
-        # Common mistake: pass a Telegram user id as the 3rd arg. If the value is
-        # wildly out of invite TTL range, treat it as tg_id and keep default TTL.
-        if hours is not None and hours > 168 and hours >= 10_000:
-            assumed_tg_id = hours
-            hours = None
 
     factory = get_sessionmaker()
     async with factory() as session:
+        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        if org_id is None:
+            await message.answer(err or "Организация не найдена.")
+            return
         uc = CreateSystemInviteUseCase(session)
         r = await uc.execute(
             organization_id=org_id,
@@ -263,13 +426,13 @@ async def org_invite(message: Message) -> None:
         uname = settings.tg_bot_username.lstrip("@")
         deep = f"https://t.me/{uname}?start=inv_{r.value.token}"
         await session.commit()
-        hint = (
-            "\n\n<i>Похоже, вы передали Telegram ID третьим аргументом.</i>\n"
-            "Инвайт не требует ID: просто отправьте ссылку человеку (или нажмите сами).\n"
-            "Пример: <code>/org_invite &lt;org_uuid&gt; admin</code>"
-            if assumed_tg_id is not None
-            else ""
-        )
+        hint = ""
+        if stray_num is not None:
+            hint = (
+                "\n\n<i>В конце было число <code>"
+                f"{stray_num}</code> — это не срок ссылки (допустимо 1–{_MAX_INVITE_HOURS} часов).</i>\n"
+                "Инвайту не нужен Telegram ID получателя. Создана ссылка со стандартным сроком (48 ч)."
+            )
         await message.answer(
             "✅ Инвайт создан.\n"
             f"Роль: <b>{role}</b>\n"
@@ -289,22 +452,22 @@ async def org_set_owner(message: Message) -> None:
 
     if message.from_user is None or not _is_super_admin(message.from_user.id):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 3:
-        await message.answer("Использование:\n<code>/org_set_owner <org_uuid> <tg_user_id></code>")
+    tokens = _command_argv(message)
+    parsed = _parse_org_plus_trailing_tg(tokens)
+    if parsed is None:
+        await message.answer(
+            "Использование:\n"
+            "<code>/org_set_owner &lt;название или UUID&gt; &lt;tg_user_id&gt;</code>"
+        )
         return
-    org_id = _parse_uuid(parts[1])
-    if org_id is None:
-        await message.answer("org_uuid не распознан.")
-        return
-    try:
-        tg_id = int(parts[2])
-    except ValueError:
-        await message.answer("tg_user_id должен быть числом.")
-        return
+    org_spec, tg_id = parsed
 
     factory = get_sessionmaker()
     async with factory() as session:
+        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        if org_id is None:
+            await message.answer(err or "Организация не найдена.")
+            return
         await session.execute(text("SET LOCAL row_security = off"))
         row = (
             await session.execute(
@@ -340,18 +503,32 @@ async def cancel_fsm(message: Message, state: FSMContext) -> None:
 @_router.message(Command("help"))
 async def handle_help(message: Message) -> None:
     web_app_url = get_settings().web_public_url
+    user_for_menu: User | None = None
+    if message.from_user is not None:
+        factory_menu = get_sessionmaker()
+        async with factory_menu() as session_menu:
+            ex_menu = await _existing_tg_user(session_menu, message.from_user.id)
+        if ex_menu is not None:
+            user_for_menu = ex_menu[1]
+    await _push_slash_menu(message, user_for_menu)
+
     if message.from_user is not None and _is_super_admin(message.from_user.id):
         await message.answer(
             "<b>ShiftOps · Super admin</b>\n\n"
+            "Во всех командах ниже вместо UUID можно указать <b>точное название</b> организации "
+            "(как после <code>/create_org</code>). Несколько слов — подряд, без кавычек.\n"
+            "В <code>/org_invite</code> не передавайте Telegram ID: только роль и опционально "
+            f"срок ссылки в часах (1–{_MAX_INVITE_HOURS}).\n\n"
             "Организации:\n"
             "• <code>/create_org</code> — создать организацию (без владельца)\n"
-            "• <code>/org_invite &lt;org_uuid&gt; &lt;owner|admin|operator&gt; [hours]</code> — инвайт-ссылка\n"
-            "• <code>/org_set_owner &lt;org_uuid&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n"
-            "• <code>/org_set_role &lt;org_uuid&gt; &lt;tg_user_id&gt; &lt;admin|operator&gt;</code> — сменить роль участника любой org\n"
-            "• <code>/org_remove_member &lt;org_uuid&gt; &lt;tg_user_id&gt;</code> — деактивировать участника\n\n"
+            "• <code>/org_invite &lt;название|UUID&gt; &lt;owner|admin|operator|bartender&gt; [часы]</code> — инвайт-ссылка\n"
+            "• <code>/org_set_owner &lt;название|UUID&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n"
+            "• <code>/org_set_role &lt;название|UUID&gt; &lt;tg_user_id&gt; &lt;admin|operator|bartender&gt;</code> — сменить роль участника\n"
+            "• <code>/org_remove_member &lt;название|UUID&gt; &lt;tg_user_id&gt;</code> — деактивировать участника\n\n"
             "Сервис:\n"
             "• <code>/cancel</code> — отменить текущий сценарий\n"
             "• <code>/start</code> — обычный старт\n\n"
+            "Подсказки команд при вводе <code>/</code> обновляются после <code>/start</code> и <code>/help</code>.\n\n"
             f"Web App: {web_app_url}"
         )
         return
@@ -384,7 +561,7 @@ async def handle_help(message: Message) -> None:
             f"Web App: {web_app_url}\n\n"
             "Команда:\n"
             "• <code>/team_list</code> — список участников + кнопки «изменить роль/удалить»\n"
-            "• <code>/set_role &lt;@username|tg_id&gt; &lt;admin|operator&gt;</code> — сменить роль\n"
+            "• <code>/set_role &lt;@username|tg_id&gt; &lt;admin|operator|bartender&gt;</code> — сменить роль\n"
             "• <code>/remove_member &lt;@username|tg_id&gt;</code> — удалить (деактивировать) участника\n\n"
             "Действия:\n"
             "• Управление точками/шаблонами/командой — в Web App\n"
@@ -496,7 +673,7 @@ _TEAM_ERR_MESSAGES: dict[str, str] = {
     "insufficient_role": "Недостаточно прав. Только владелец или супер-админ.",
     "cannot_change_owner_role": "Роль владельца меняется только через /org_set_owner.",
     "already_inactive": "Пользователь уже деактивирован.",
-    "invalid_target_role": "Допустимые роли: admin, operator.",
+    "invalid_target_role": "Допустимые роли: admin, operator, bartender.",
 }
 
 
@@ -511,7 +688,7 @@ async def team_list_for_owner(message: Message) -> None:
     if _is_super_admin(message.from_user.id):
         await message.answer(
             "Используйте <code>/org_set_role</code> или <code>/org_remove_member</code> "
-            "с указанием <code>org_uuid</code>."
+            "с указанием организации (название или UUID)."
         )
         return
     factory = get_sessionmaker()
@@ -541,7 +718,7 @@ async def team_list_for_owner(message: Message) -> None:
         handle = f"@{tg_username}" if tg_username else (str(tg_id) if tg_id else "—")
         lines.append(f"• <b>{u.full_name}</b> · {u.role} · {handle}")
     lines.append(
-        "\n<i>Чтобы изменить роль:</i> <code>/set_role &lt;@username|tg_id&gt; &lt;admin|operator&gt;</code>"
+        "\n<i>Чтобы изменить роль:</i> <code>/set_role &lt;@username|tg_id&gt; &lt;admin|operator|bartender&gt;</code>"
     )
     lines.append("<i>Чтобы удалить:</i> <code>/remove_member &lt;@username|tg_id&gt;</code>")
     await message.answer("\n".join(lines))
@@ -554,12 +731,12 @@ async def set_role_for_owner(message: Message) -> None:
     parts = (message.text or "").split()
     if len(parts) < 3:
         await message.answer(
-            "Использование:\n<code>/set_role &lt;@username|tg_user_id&gt; &lt;admin|operator&gt;</code>"
+            "Использование:\n<code>/set_role &lt;@username|tg_user_id&gt; &lt;admin|operator|bartender&gt;</code>"
         )
         return
     raw_target, raw_role = parts[1], parts[2].lower()
-    if raw_role not in {"admin", "operator"}:
-        await message.answer("Допустимые роли: <b>admin</b>, <b>operator</b>.")
+    if raw_role not in {"admin", "operator", "bartender"}:
+        await message.answer("Допустимые роли: <b>admin</b>, <b>operator</b>, <b>bartender</b>.")
         return
 
     factory = get_sessionmaker()
@@ -631,29 +808,25 @@ async def remove_member_for_owner(message: Message) -> None:
 async def org_set_role_for_super_admin(message: Message) -> None:
     if message.from_user is None or not _is_super_admin(message.from_user.id):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 4:
+    tokens = _command_argv(message)
+    parsed = _parse_org_tg_role(tokens)
+    if parsed is None:
         await message.answer(
             "Использование:\n"
-            "<code>/org_set_role &lt;org_uuid&gt; &lt;tg_user_id&gt; &lt;admin|operator&gt;</code>"
+            "<code>/org_set_role &lt;название или UUID&gt; &lt;tg_user_id&gt; &lt;admin|operator|bartender&gt;</code>"
         )
         return
-    org_id = _parse_uuid(parts[1])
-    if org_id is None:
-        await message.answer("org_uuid не распознан.")
-        return
-    try:
-        tg_id = int(parts[2])
-    except ValueError:
-        await message.answer("tg_user_id должен быть числом.")
-        return
-    raw_role = parts[3].lower()
-    if raw_role not in {"admin", "operator"}:
-        await message.answer("Допустимые роли: <b>admin</b>, <b>operator</b>.")
+    org_spec, tg_id, raw_role = parsed
+    if raw_role not in {"admin", "operator", "bartender"}:
+        await message.answer("Допустимые роли: <b>admin</b>, <b>operator</b>, <b>bartender</b>.")
         return
 
     factory = get_sessionmaker()
     async with factory() as session:
+        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        if org_id is None:
+            await message.answer(err or "Организация не найдена.")
+            return
         await session.execute(text("SET LOCAL row_security = off"))
         target = await _resolve_target_user(
             session, organization_id=org_id, raw=str(tg_id)
@@ -687,24 +860,22 @@ async def org_set_role_for_super_admin(message: Message) -> None:
 async def org_remove_member_for_super_admin(message: Message) -> None:
     if message.from_user is None or not _is_super_admin(message.from_user.id):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 3:
+    tokens = _command_argv(message)
+    parsed = _parse_org_plus_trailing_tg(tokens)
+    if parsed is None:
         await message.answer(
-            "Использование:\n<code>/org_remove_member &lt;org_uuid&gt; &lt;tg_user_id&gt;</code>"
+            "Использование:\n"
+            "<code>/org_remove_member &lt;название или UUID&gt; &lt;tg_user_id&gt;</code>"
         )
         return
-    org_id = _parse_uuid(parts[1])
-    if org_id is None:
-        await message.answer("org_uuid не распознан.")
-        return
-    try:
-        tg_id = int(parts[2])
-    except ValueError:
-        await message.answer("tg_user_id должен быть числом.")
-        return
+    org_spec, tg_id = parsed
 
     factory = get_sessionmaker()
     async with factory() as session:
+        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        if org_id is None:
+            await message.answer(err or "Организация не найдена.")
+            return
         await session.execute(text("SET LOCAL row_security = off"))
         target = await _resolve_target_user(
             session, organization_id=org_id, raw=str(tg_id)

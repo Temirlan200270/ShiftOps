@@ -15,8 +15,8 @@ class Template(UuidPkMixin, TimestampMixin, Base):
     __tablename__ = "templates"
     __table_args__ = (
         CheckConstraint(
-            "role_target IN ('owner','admin','operator')",
-            name="role_target_allowed",
+            "role_target IN ('owner','admin','operator','bartender')",
+            name="ck_templates_role_target_allowed",
         ),
     )
 

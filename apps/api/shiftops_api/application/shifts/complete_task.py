@@ -27,6 +27,7 @@ from shiftops_api.domain.enums import (
     ShiftStatus,
     TaskStatus,
     UserRole,
+    is_line_staff,
 )
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.antifake.phash import compute_phash, find_similar
@@ -82,7 +83,7 @@ class CompleteTaskUseCase:
 
         task, template_task, shift = row
 
-        if user.role == UserRole.OPERATOR and shift.operator_user_id != user.id:
+        if is_line_staff(user.role) and shift.operator_user_id != user.id:
             return Failure(DomainError("not_your_shift"))
 
         if shift.status != ShiftStatus.ACTIVE:

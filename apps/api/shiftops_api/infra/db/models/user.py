@@ -14,8 +14,8 @@ class User(UuidPkMixin, TimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('owner','admin','operator')",
-            name="role_allowed",
+            "role IN ('owner','admin','operator','bartender')",
+            name="ck_users_role_allowed",
         ),
     )
 

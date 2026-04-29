@@ -100,7 +100,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const [members, setMembers] = React.useState<TeamMemberRow[] | null>(null);
   const [loadingLocs, setLoadingLocs] = React.useState(true);
   const [otherMembersCount, setOtherMembersCount] = React.useState<number | null>(null);
-  const [role, setRole] = React.useState<"admin" | "operator">("operator");
+  const [role, setRole] = React.useState<ManageableRole>("operator");
   const [locationId, setLocationId] = React.useState<string>("");
   const [expiresH, setExpiresH] = React.useState(48);
   const [generating, setGenerating] = React.useState(false);
@@ -265,7 +265,8 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
 
   const openRoleEditor = React.useCallback((m: TeamMemberRow) => {
     setActionMember(null);
-    const initial: ManageableRole = m.role === "admin" ? "admin" : "operator";
+    const initial: ManageableRole =
+      m.role === "admin" ? "admin" : m.role === "bartender" ? "bartender" : "operator";
     setPendingRole(initial);
     setRoleSheet(m);
   }, []);
@@ -342,7 +343,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
           ) : (
             <ul className="space-y-0 divide-y divide-border/60" aria-label={t("membersTitle")}>
               {members.map((member) => {
-                const roleKey = member.role as "owner" | "admin" | "operator";
+                const roleKey = member.role as "owner" | "admin" | "operator" | "bartender";
                 const badge =
                   roleKey === "owner"
                     ? t("roleOwner")
@@ -350,7 +351,9 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                       ? t("roleAdmin")
                       : roleKey === "operator"
                         ? t("roleOperator")
-                        : member.role;
+                        : roleKey === "bartender"
+                          ? t("roleBartender")
+                          : member.role;
                 const isSelf = member.id === me?.id;
                 const showActions = rowHasTeamActions(member, me);
                 return (
@@ -454,9 +457,43 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                     />
                     {t("roleOperator")}
                   </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="role"
+                      checked={role === "bartender"}
+                      onChange={() => {
+                        setRole("bartender");
+                      }}
+                    />
+                    {t("roleBartender")}
+                  </label>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">{t("roleOperator")}</p>
+                <>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="role"
+                      checked={role === "operator"}
+                      onChange={() => {
+                        setRole("operator");
+                      }}
+                    />
+                    {t("roleOperator")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="role"
+                      checked={role === "bartender"}
+                      onChange={() => {
+                        setRole("bartender");
+                      }}
+                    />
+                    {t("roleBartender")}
+                  </label>
+                </>
               )}
             </div>
 
@@ -634,6 +671,17 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                     }}
                   />
                   {t("changeRole.selectOperator")}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="member-role"
+                    checked={pendingRole === "bartender"}
+                    onChange={() => {
+                      setPendingRole("bartender");
+                    }}
+                  />
+                  {t("changeRole.selectBartender")}
                 </label>
               </div>
               <Button

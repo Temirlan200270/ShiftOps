@@ -23,6 +23,7 @@ erDiagram
         text plan
         bool is_active
         timestamptz trial_ends_at
+        jsonb business_hours
         timestamptz created_at
     }
     locations {
@@ -63,6 +64,7 @@ erDiagram
         uuid template_id FK
         text title
         text description
+        text section
         text criticality
         bool requires_photo
         bool requires_comment
@@ -122,14 +124,57 @@ erDiagram
     }
 ```
 
+## `template_tasks.section`
+
+Свободный человекочитаемый ярлык секции внутри шаблона
+(«Кухня», «Зал», «Бар»). `NULL` для шаблонов без группировки —
+рендер падает обратно на плоский список. Длина ≤ 64 символов; индекс
+не строим, потому что секции читаются только в составе одного
+шаблона (`template_id` уже проиндексирован).
+
+## `templates.default_schedule`
+
+JSONB-блоб, описывающий ежедневное автосоздание смен. Формат
+сериализуется из [`RecurrenceConfig`](../apps/api/shiftops_api/application/templates/recurrence.py):
+
+```json
+{
+  "kind": "daily",
+  "auto_create": true,
+  "time_of_day": "09:00",
+  "duration_min": 480,
+  "weekdays": [1, 2, 3, 4, 5, 6, 7],
+  "timezone": "Asia/Almaty",
+  "location_id": "<uuid>",
+  "default_assignee_id": "<uuid|null>",
+  "lead_time_min": 30
+}
+```
+
+`recurring_shifts_tick` (TaskIQ, каждую минуту) сканирует все
+шаблоны с `auto_create=true`, проверяет окно
+`time_of_day - lead_time_min ≤ now_local ≤ time_of_day + 5 мин` и
+идемпотентно создаёт смену + `task_instances`. Идемпотентность —
+advisory-lock на `(template_id, location_id, local_day)` плюс
+повторный existence-check после захвата лока.
+
+## `organizations.business_hours`
+
+JSONB с графиком работы заведения для справки владельца/админа (не
+двигает автоматически смены). Схема
+[`BusinessHoursConfig`](../apps/api/shiftops_api/application/organizations/business_hours_config.py):
+`regular[]` (недельные окна: `weekdays`, `opens`, `closes`), `dated[]`
+(разовые даты: `on`, `opens`, `closes`, опционально `note`), опционально
+`timezone` как подпись. API: `GET/PUT /v1/organization/business-hours`.
+
 ## Перечисления
 
 - `criticality`: `critical | required | optional`.
 - `shift_status`: `scheduled | active | closed_clean | closed_with_violations | aborted`.
 - `task_status`: `pending | done | skipped | waived | waiver_pending | waiver_rejected`.
-- `user_role`: `owner | admin | operator`.
+- `user_role`: `owner | admin | operator | bartender`.
 - `storage_provider_kind`: `telegram | r2`.
-- `invite` (роль в ссылке, не `owner`): `admin | operator` — только эти роли выдаются через `invites`.
+- `invite` (роль в ссылке, не `owner`): `admin | operator | bartender` — выдаются через `invites` (плюс `owner` для системных инвайтов).
 - `invites.location_id` — опционально: текст в боте («точка …») и задел под привязку оператора к локации; в `users` поля пока нет.
 
 Хранятся как `text` с `CHECK`-ограничениями (нативные enum-типы Postgres

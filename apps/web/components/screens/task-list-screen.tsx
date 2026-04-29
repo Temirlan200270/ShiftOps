@@ -44,6 +44,39 @@ function sortTasks(tasks: TaskCard[]): TaskCard[] {
   });
 }
 
+interface TaskGroup {
+  section: string | null;
+  tasks: TaskCard[];
+}
+
+/**
+ * Group tasks by their section while preserving the order in which
+ * sections first appear. Tasks without a section bubble up under a
+ * `null` group rendered without a heading. Inside each group we keep
+ * the same status/criticality sort the list used before — the visual
+ * layering is identical to a flat list when no template uses sections.
+ */
+function groupTasks(tasks: TaskCard[]): TaskGroup[] {
+  const groups = new Map<string | null, TaskCard[]>();
+  for (const task of tasks) {
+    const key = task.section ?? null;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(task);
+    } else {
+      groups.set(key, [task]);
+    }
+  }
+  return Array.from(groups.entries()).map(([section, items]) => ({
+    section,
+    tasks: sortTasks(items),
+  }));
+}
+
+function isDoneStatus(status: TaskStatus): boolean {
+  return status === "done" || status === "waived";
+}
+
 function TaskRow({
   task,
   onOpen,
@@ -110,21 +143,20 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const tClose = useTranslations("close");
   const tErr = useTranslations("errors");
 
-  const tasks = React.useMemo(() => sortTasks(shift?.tasks ?? []), [shift?.tasks]);
-  const total = tasks.length;
-  const done = tasks.filter((t) => t.status === "done" || t.status === "waived").length;
+  const allTasks = React.useMemo(() => sortTasks(shift?.tasks ?? []), [shift?.tasks]);
+  const groups = React.useMemo(() => groupTasks(shift?.tasks ?? []), [shift?.tasks]);
+  const hasSections = React.useMemo(
+    () => groups.some((g) => g.section !== null),
+    [groups],
+  );
+  const total = allTasks.length;
+  const done = allTasks.filter((t) => isDoneStatus(t.status)).length;
   const progress = total === 0 ? 0 : Math.round((done / total) * 100);
-  const criticalRemaining = tasks.filter(
-    (t) =>
-      t.criticality === "critical" &&
-      t.status !== "done" &&
-      t.status !== "waived",
+  const criticalRemaining = allTasks.filter(
+    (t) => t.criticality === "critical" && !isDoneStatus(t.status),
   ).length;
-  const requiredMissing = tasks.filter(
-    (t) =>
-      t.criticality === "required" &&
-      t.status !== "done" &&
-      t.status !== "waived",
+  const requiredMissing = allTasks.filter(
+    (t) => t.criticality === "required" && !isDoneStatus(t.status),
   ).length;
 
   const handleClose = React.useCallback(
@@ -184,9 +216,17 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
 
       <Progress value={progress} className="mb-4" />
 
-      {tasks.map((task) => (
-        <TaskRow key={task.id} task={task} onOpen={setActiveTaskId} />
-      ))}
+      {hasSections
+        ? groups.map((group) => (
+            <SectionGroup
+              key={group.section ?? "__no_section__"}
+              group={group}
+              onOpen={setActiveTaskId}
+            />
+          ))
+        : allTasks.map((task) => (
+            <TaskRow key={task.id} task={task} onOpen={setActiveTaskId} />
+          ))}
 
       <div className="fixed inset-x-0 bottom-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-background/95 backdrop-blur border-t border-border">
         <div className="mx-auto max-w-md">
@@ -242,5 +282,56 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         onClose={() => setActiveTaskId(null)}
       />
     </main>
+  );
+}
+
+/**
+ * One section worth of tasks. Header shows the human label, completion
+ * counter, and a tiny dot when the section still has critical tasks
+ * pending. We deliberately do not collapse sections by default — the
+ * operator wants every group at-a-glance and we already have a global
+ * progress bar at the top.
+ */
+function SectionGroup({
+  group,
+  onOpen,
+}: {
+  group: TaskGroup;
+  onOpen: (id: string) => void;
+}): React.JSX.Element {
+  const total = group.tasks.length;
+  const done = group.tasks.filter((t) => isDoneStatus(t.status)).length;
+  const criticalLeft = group.tasks.filter(
+    (t) => t.criticality === "critical" && !isDoneStatus(t.status),
+  ).length;
+  const ratio = total === 0 ? 0 : done / total;
+
+  return (
+    <section className="mb-4">
+      {group.section !== null ? (
+        <header className="flex items-center justify-between mb-2 px-1">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {group.section}
+          </h2>
+          <span className="text-[11px] text-muted-foreground tabular-nums">
+            {done}/{total}
+            {criticalLeft > 0 ? <span className="text-critical ml-2">●</span> : null}
+          </span>
+        </header>
+      ) : null}
+      <div
+        className="h-1 mb-2 rounded-full bg-elevated overflow-hidden"
+        aria-hidden
+        style={{ display: group.section === null ? "none" : "block" }}
+      >
+        <div
+          className="h-full bg-primary"
+          style={{ width: `${Math.round(ratio * 100)}%` }}
+        />
+      </div>
+      {group.tasks.map((task) => (
+        <TaskRow key={task.id} task={task} onOpen={onOpen} />
+      ))}
+    </section>
   );
 }

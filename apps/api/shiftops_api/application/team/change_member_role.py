@@ -1,6 +1,7 @@
 """Use case: change a member's role inside the current tenant.
 
-Only role transitions ``admin <-> operator`` are allowed here:
+Only role transitions between ``admin``, ``operator``, and ``bartender`` are
+allowed here (not ``owner``):
 
 - Promotion to / demotion of ``owner`` is a separate flow (single owner per
   org, see ``CreateOrganizationUseCase`` and bot's ``/org_set_owner``). This
@@ -25,8 +26,10 @@ from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import TelegramAccount, User
 
-ManageableRole = Literal["admin", "operator"]
-_ALLOWED_NEW_ROLES: frozenset[str] = frozenset({UserRole.ADMIN.value, UserRole.OPERATOR.value})
+ManageableRole = Literal["admin", "operator", "bartender"]
+_ALLOWED_NEW_ROLES: frozenset[str] = frozenset(
+    {UserRole.ADMIN.value, UserRole.OPERATOR.value, UserRole.BARTENDER.value}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +55,7 @@ class ChangeMemberRoleUseCase:
             return Failure(
                 DomainError(
                     "invalid_target_role",
-                    "role must be one of: admin, operator",
+                    "role must be one of: admin, operator, bartender",
                 )
             )
 

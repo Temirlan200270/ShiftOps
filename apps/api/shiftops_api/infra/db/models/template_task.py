@@ -27,6 +27,9 @@ class TemplateTask(UuidPkMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    # Optional human-readable group label ("Кухня", "Зал", "Бар"). NULL when
+    # the template has no sections — the renderer falls back to a flat list.
+    section: Mapped[str | None] = mapped_column(String(64), nullable=True)
     criticality: Mapped[str] = mapped_column(String(16), nullable=False, default="required")
     requires_photo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     requires_comment: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

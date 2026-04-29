@@ -28,7 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser
-from shiftops_api.domain.enums import ShiftStatus, TaskStatus, UserRole
+from shiftops_api.domain.enums import ShiftStatus, TaskStatus, UserRole, is_line_staff
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.domain.score import (
     ShiftScoreInputs,
@@ -91,7 +91,7 @@ class ListHistoryUseCase:
         # / owners may pass an explicit ``target_user_id``; if they don't,
         # they see their own. We deliberately don't 403 a manager looking
         # at their own dashboard.
-        if user.role == UserRole.OPERATOR and target_user_id and target_user_id != user.id:
+        if is_line_staff(user.role) and target_user_id and target_user_id != user.id:
             return Failure(DomainError("forbidden"))
         operator_id = target_user_id or user.id
 

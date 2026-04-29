@@ -133,10 +133,14 @@ class SaveTemplateUseCase:
 
         for index, task in enumerate(payload.tasks):
             description = task.description.strip() if task.description else None
+            section = task.section.strip() if task.section else None
+            if section == "":
+                section = None
             if task.id is not None and task.id in existing_by_id:
                 row = existing_by_id[task.id]
                 row.title = task.title.strip()
                 row.description = description
+                row.section = section
                 row.criticality = task.criticality.value
                 row.requires_photo = task.requires_photo
                 row.requires_comment = task.requires_comment
@@ -147,6 +151,7 @@ class SaveTemplateUseCase:
                         template_id=template.id,
                         title=task.title.strip(),
                         description=description,
+                        section=section,
                         criticality=task.criticality.value,
                         requires_photo=task.requires_photo,
                         requires_comment=task.requires_comment,

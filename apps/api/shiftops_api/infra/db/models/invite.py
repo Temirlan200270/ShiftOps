@@ -17,7 +17,7 @@ class Invite(UuidPkMixin, TimestampMixin, Base):
     __tablename__ = "invites"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('owner','admin','operator')",
+            "role IN ('owner','admin','operator','bartender')",
             name="ck_invites_role_invitable_only",
         ),
     )

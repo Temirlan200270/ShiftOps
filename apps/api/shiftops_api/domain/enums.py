@@ -13,6 +13,15 @@ class UserRole(StrEnum):
     OWNER = "owner"
     ADMIN = "admin"
     OPERATOR = "operator"
+    BARTENDER = "bartender"
+
+
+# Roles that execute assigned shifts (checklists) like operators.
+LINE_STAFF_ROLES: frozenset[UserRole] = frozenset((UserRole.OPERATOR, UserRole.BARTENDER))
+
+
+def is_line_staff(role: UserRole) -> bool:
+    return role in LINE_STAFF_ROLES
 
 
 class Criticality(StrEnum):

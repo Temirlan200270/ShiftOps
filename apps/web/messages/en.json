@@ -26,7 +26,8 @@
     "summaryCta": "Open report",
     "completed": "Done",
     "remaining": "left",
-    "criticalLeft": "{count, plural, one {# critical task} other {# critical tasks}}"
+    "criticalLeft": "{count, plural, one {# critical task} other {# critical tasks}}",
+    "openBusinessHoursCta": "Opening hours"
   },
   "tasks": {
     "criticality": {
@@ -91,6 +92,41 @@
     "generic": "Something went wrong. Please try again.",
     "criticalBlocked": "Close critical tasks to continue."
   },
+  "orgBusinessHours": {
+    "openCta": "Opening hours",
+    "title": "Opening hours",
+    "subtitle": "Recurring weekly hours plus one-off dates. Saved for your whole organization.",
+    "timezoneTitle": "Display timezone (optional)",
+    "timezonePlaceholder": "e.g. Asia/Almaty",
+    "timezoneHint": "Shown next to times in admin tools. Shift times still follow each location’s timezone.",
+    "regularTitle": "Weekly schedule",
+    "regularEmpty": "No weekly rows yet — add one for regular opening hours.",
+    "regularRowLabel": "Weekly window",
+    "datedTitle": "Specific dates",
+    "datedEmpty": "No dated overrides — use this for holidays or special events.",
+    "datedRowLabel": "One-off day",
+    "weekdaysLabel": "Weekdays",
+    "weekday": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
+    },
+    "opens": "Opens",
+    "closes": "Closes",
+    "dateLabel": "Date",
+    "noteLabel": "Note",
+    "notePlaceholder": "e.g. Public holiday",
+    "addRegular": "Add weekly row",
+    "addDated": "Add date",
+    "removeRow": "Remove",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Opening hours saved"
+  },
   "team": {
     "title": "Team",
     "subtitle": "Invite staff with a Telegram link",
@@ -98,6 +134,7 @@
     "roleOwner": "Owner",
     "roleAdmin": "Administrator",
     "roleOperator": "Operator",
+    "roleBartender": "Bartender",
     "locationLabel": "Location (optional)",
     "locationAny": "Whole organization",
     "expiresLabel": "Link valid for (hours)",
@@ -128,6 +165,7 @@
       "description": "Pick a new role. Owner can only be assigned via the bot.",
       "selectAdmin": "Administrator",
       "selectOperator": "Operator",
+      "selectBartender": "Bartender",
       "save": "Save",
       "saving": "Saving…",
       "saved": "Role updated",
@@ -192,7 +230,8 @@
     "role": {
       "owner": "Owner",
       "admin": "Admin",
-      "operator": "Operator"
+      "operator": "Operator",
+      "bartender": "Bartender"
     },
     "createTitle": "New template",
     "editTitle": "Edit template",
@@ -202,6 +241,8 @@
     "tasksHeading": "Tasks ({count})",
     "addTaskCta": "Add task",
     "taskTitlePlaceholder": "Task title",
+    "taskSectionPlaceholder": "Section (optional): Kitchen / Floor / Bar",
+    "taskSectionLabel": "Task section",
     "taskDescriptionPlaceholder": "Description (optional)",
     "criticalityLabel": "Criticality",
     "criticality": {
@@ -229,6 +270,42 @@
       "nameLength": "Template name must be 3–128 characters.",
       "minTasks": "Add at least one task.",
       "taskTitle": "Each task title must be 3–255 characters."
+    },
+    "recurrence": {
+      "title": "Auto-create shift",
+      "subtitle": "Every day / on chosen weekdays a shift is materialised from this template.",
+      "timeLabel": "Start time",
+      "durationLabel": "Duration, min",
+      "weekdaysLabel": "Weekdays",
+      "weekday": {
+        "1": "Mon",
+        "2": "Tue",
+        "3": "Wed",
+        "4": "Thu",
+        "5": "Fri",
+        "6": "Sat",
+        "7": "Sun"
+      },
+      "locationLabel": "Location",
+      "assigneeLabel": "Default operator",
+      "assigneeAuto": "Auto-pick by role",
+      "leadTimeLabel": "Create N min before start",
+      "noLocations": "Add at least one location first."
+    },
+    "import": {
+      "openCta": "Import from text",
+      "sheetTitle": "Import checklist from text",
+      "help": "Paste a checklist as-is. Lines like “1. Kitchen” become sections; lines starting with ☐ or - [ ] become tasks. Hit Preview, then Apply.",
+      "placeholder": "1. OPEN RESTAURANT\n☐ Unlock the front door\n☐ Turn on the lights\n\n2. KITCHEN CHECK\n☐ Stock pantry",
+      "previewCta": "Preview",
+      "previewing": "Parsing…",
+      "applyCta": "Apply",
+      "applying": "Creating…",
+      "previewSummary": "Found {sections} sections and {tasks} tasks",
+      "applied": "{count} tasks created",
+      "previewFirst": "Run Preview first.",
+      "empty": "Paste the checklist text.",
+      "noTasks": "We couldn't find any ☐ or - [ ] lines. Check the format."
     }
   },
   "analytics": {
@@ -285,7 +362,8 @@
     "pickFile": "Choose CSV",
     "selectedFile": "Selected: {name}",
     "noFile": "No file chosen",
-    "dryRunCta": "Validate (dry run)",
+    "dryRunCta": "Validate",
+    "dryRunHint": "Dry run — nothing is written to the database.",
     "applyCta": "Import for real",
     "applying": "Importing…",
     "validating": "Validating…",

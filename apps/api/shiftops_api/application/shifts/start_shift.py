@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.audit import write_audit
 from shiftops_api.application.auth.deps import CurrentUser
-from shiftops_api.domain.enums import ShiftStatus, UserRole
+from shiftops_api.domain.enums import ShiftStatus, UserRole, is_line_staff
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Shift
 
@@ -43,7 +43,7 @@ class StartShiftUseCase:
         if shift is None:
             return Failure(DomainError("shift_not_found"))
 
-        if user.role == UserRole.OPERATOR and shift.operator_user_id != user.id:
+        if is_line_staff(user.role) and shift.operator_user_id != user.id:
             return Failure(DomainError("not_your_shift"))
 
         if shift.status != ShiftStatus.SCHEDULED:

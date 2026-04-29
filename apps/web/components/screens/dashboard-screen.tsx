@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  CalendarDays,
   Clock3,
   FileStack,
   History,
@@ -15,6 +16,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { AnalyticsScreen } from "@/components/screens/analytics-screen";
+import { BusinessHoursScreen } from "@/components/screens/business-hours-screen";
 import { CsvImportScreen } from "@/components/screens/csv-import-screen";
 import { HistoryScreen } from "@/components/screens/history-screen";
 import { LiveMonitorScreen } from "@/components/screens/live-monitor-screen";
@@ -41,6 +43,7 @@ type View =
   | "templateEdit"
   | "analytics"
   | "csvImport"
+  | "businessHours"
   | "liveMonitor"
   | "team";
 
@@ -57,6 +60,7 @@ export function DashboardScreen(): React.JSX.Element {
   const tTpl = useTranslations("templates");
   const tA = useTranslations("analytics");
   const tCsv = useTranslations("csvImport");
+  const tOrgBh = useTranslations("orgBusinessHours");
   const tLive = useTranslations("live");
   const tTeam = useTranslations("team");
   const role = useAuthStore((s) => s.me?.role ?? "operator");
@@ -148,6 +152,9 @@ export function DashboardScreen(): React.JSX.Element {
   }
   if (view === "csvImport" && isAdmin) {
     return <CsvImportScreen onBack={() => setView("dashboard")} />;
+  }
+  if (view === "businessHours" && isAdmin) {
+    return <BusinessHoursScreen onBack={() => setView("dashboard")} />;
   }
   if (view === "liveMonitor" && isAdmin) {
     return <LiveMonitorScreen onBack={() => setView("dashboard")} />;
@@ -279,6 +286,15 @@ export function DashboardScreen(): React.JSX.Element {
           >
             <BarChart3 className="size-4" />
             {tA("openCta")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="block"
+            className="mt-2"
+            onClick={() => setView("businessHours")}
+          >
+            <CalendarDays className="size-4" />
+            {tOrgBh("openCta")}
           </Button>
           <Button
             variant="ghost"

@@ -20,7 +20,7 @@ export interface TeamSummary {
   org_total_members: number;
 }
 
-export type ManageableRole = "admin" | "operator";
+export type ManageableRole = "admin" | "operator" | "bartender";
 
 export interface TeamMemberRow {
   id: string;
@@ -49,7 +49,7 @@ export async function fetchTeamMembers(includeInactive?: boolean): Promise<ApiRe
 }
 
 export async function createInvite(payload: {
-  role: "admin" | "operator";
+  role: "admin" | "operator" | "bartender";
   location_id: string | null;
   expires_in_hours: number;
 }): Promise<ApiResult<CreateInviteResult>> {

@@ -58,6 +58,24 @@
 >   criticality / photo / comment, drag-and-drop через
 >   `@dnd-kit/sortable` и кнопочный fallback ↑/↓.
 
+## V0.5 — Чек-листы Пловханы
+
+- ~~Секции в `template_tasks` (`section: VARCHAR(64)`).~~ ✅ Готово:
+  Alembic-ревизия `0006_template_section`, проброс через DTO/Pydantic/
+  фронт. Экран смены группирует задачи по секциям с прогрессом и
+  индикатором critical-pending.
+- ~~Bulk-импорт чек-листа из текста (`POST /v1/templates/import`).~~ ✅
+  Готово: парсер `bulk_parser.py` (`☐ ... / `## раздел`), dry-run-превью,
+  юнит-тесты на текст Пловханы.
+- ~~Авто-создание ежедневных смен через `default_schedule`.~~ ✅ Готово:
+  `RecurrenceConfig`, валидация в `POST/PUT /v1/templates`, TaskIQ-периодик
+  `recurring_shifts_tick` (каждую минуту), advisory-lock-идемпотентность,
+  блок «Автосоздание смены» в редакторе шаблона.
+- ~~Seed-скрипт `seed_plovkhana_templates.py`.~~ ✅ Готово:
+  `make seed-plovkhana ORG="PlovХана"` создаёт шаблоны
+  «Открытие ресторана» / «Закрытие ресторана» с критическими пунктами и
+  recurrence на 09:00 / 23:00.
+
 ## V2 — Коммерциализация (недели 11–16)
 
 - Биллинг: ЮKassa + Stripe, тарифы (Free, Pro, Business), trial 14

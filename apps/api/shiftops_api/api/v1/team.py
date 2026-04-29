@@ -71,7 +71,7 @@ class TeamMemberOut(BaseModel):
 
 
 class ChangeMemberRoleIn(BaseModel):
-    role: Literal["admin", "operator"]
+    role: Literal["admin", "operator", "bartender"]
 
 
 @router.get(

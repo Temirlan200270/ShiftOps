@@ -1,4 +1,4 @@
-export type UserRole = "owner" | "admin" | "operator";
+export type UserRole = "owner" | "admin" | "operator" | "bartender";
 
 export type Criticality = "critical" | "required" | "optional";
 
@@ -21,6 +21,7 @@ export interface TaskCard {
   id: string;
   title: string;
   description: string | null;
+  section: string | null;
   criticality: Criticality;
   status: TaskStatus;
   requiresPhoto: boolean;

@@ -34,6 +34,10 @@ class TemplateTaskInputDTO:
     requires_photo: bool
     requires_comment: bool
     description: str | None = None
+    # Free-form group label (e.g. "Кухня", "Зал"). Optional. Whitespace-only
+    # strings are normalised to None by the use case so an accidental
+    # padding does not create an empty group on the UI.
+    section: str | None = None
     # Set to an existing template_tasks.id to preserve provenance through
     # an edit; leave None to create a fresh row.
     id: uuid.UUID | None = None
@@ -51,6 +55,7 @@ class TemplateTaskDTO:
     id: uuid.UUID
     title: str
     description: str | None
+    section: str | None
     criticality: str
     requires_photo: bool
     requires_comment: bool

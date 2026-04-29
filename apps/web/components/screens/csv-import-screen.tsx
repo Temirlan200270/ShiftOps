@@ -165,7 +165,7 @@ export function CsvImportScreen({ onBack }: CsvImportScreenProps): React.JSX.Ele
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-2 mb-2">
         <Button
           variant="secondary"
           onClick={() => void validate()}
@@ -182,6 +182,7 @@ export function CsvImportScreen({ onBack }: CsvImportScreenProps): React.JSX.Ele
           {busy === "applying" ? tCsv("applying") : tCsv("applyCta")}
         </Button>
       </div>
+      <p className="text-[11px] text-muted-foreground mb-4">{tCsv("dryRunHint")}</p>
 
       {!report && file ? (
         <p className="text-xs text-muted-foreground">{tCsv("needValidationFirst")}</p>

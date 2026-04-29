@@ -54,7 +54,9 @@ class CreateSystemInviteUseCase:
     ) -> Result[SystemInviteCreated, DomainError]:
         target = _coerce_role(role)
         if target is None:
-            return Failure(DomainError("invalid_invite_role", "role must be owner/admin/operator"))
+            return Failure(
+                DomainError("invalid_invite_role", "role must be owner/admin/operator/bartender")
+            )
 
         hours = _DEFAULT_HOURS if expires_in_hours is None else expires_in_hours
         if hours < 1 or hours > _MAX_HOURS:

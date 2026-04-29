@@ -20,6 +20,7 @@ interface TaskCardDTO {
   id: string;
   title: string;
   description: string | null;
+  section: string | null;
   criticality: TaskCard["criticality"];
   requires_photo: boolean;
   requires_comment: boolean;
@@ -77,6 +78,7 @@ function fromCurrentShift(dto: CurrentShiftDTO): ShiftSummary {
       id: t.id,
       title: t.title,
       description: t.description,
+      section: t.section ?? null,
       criticality: t.criticality,
       status: t.status,
       requiresPhoto: t.requires_photo,

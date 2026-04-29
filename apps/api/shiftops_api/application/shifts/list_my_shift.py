@@ -29,6 +29,7 @@ class TaskCardDTO:
     id: uuid.UUID
     title: str
     description: str | None
+    section: str | None
     criticality: str
     requires_photo: bool
     requires_comment: bool
@@ -121,6 +122,7 @@ class ListMyShiftUseCase:
                     id=task.id,
                     title=tt.title,
                     description=tt.description,
+                    section=tt.section,
                     criticality=tt.criticality,
                     requires_photo=tt.requires_photo,
                     requires_comment=tt.requires_comment,

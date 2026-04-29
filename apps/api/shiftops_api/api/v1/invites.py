@@ -24,8 +24,8 @@ _inviter = require_role(UserRole.ADMIN, UserRole.OWNER)
 class CreateInviteIn(BaseModel):
     role: str = Field(
         min_length=5,
-        max_length=8,
-        description="admin or operator",
+        max_length=16,
+        description="admin, operator, or bartender",
     )
     location_id: uuid.UUID | None = None
     expires_in_hours: int | None = Field(default=None, ge=1, le=168)

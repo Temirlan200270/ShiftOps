@@ -46,6 +46,7 @@ class TaskCard(BaseModel):
     id: UUID
     title: str
     description: str | None
+    section: str | None = None
     criticality: str
     requires_photo: bool
     requires_comment: bool

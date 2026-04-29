@@ -24,6 +24,7 @@ scheduler = TaskiqScheduler(broker=broker, sources=[LabelScheduleSource(broker)]
 def import_tasks() -> None:
     """Trigger task module imports so they register with the broker."""
     from shiftops_api.infra.notifications import tasks as _notif_tasks  # noqa: F401
+    from shiftops_api.infra.scheduling import tasks as _sched_tasks  # noqa: F401
 
 
 import_tasks()

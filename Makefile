@@ -4,7 +4,7 @@
 
 COMPOSE := docker compose -f infra/docker-compose.yml --env-file .env
 
-.PHONY: help dev up down logs ps restart api web seed migrate revision \
+.PHONY: help dev up down logs ps restart api web seed seed-plovkhana migrate revision \
         test test-api test-web lint lint-api lint-web fmt clean install
 
 help: ## Show this help.
@@ -34,6 +34,10 @@ web: ## Open a shell inside the web container.
 
 seed: ## Seed demo organization, locations, users, templates.
 	$(COMPOSE) exec api python -m scripts.seed
+
+# Usage: make seed-plovkhana ORG="PlovХана"
+seed-plovkhana: ## Seed Открытие/Закрытие templates for a real org by name.
+	$(COMPOSE) exec api python -m scripts.seed_plovkhana_templates --org-name "$(ORG)"
 
 migrate: ## Apply latest Alembic migrations.
 	$(COMPOSE) exec api alembic upgrade head

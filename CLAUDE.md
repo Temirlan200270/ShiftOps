@@ -94,6 +94,9 @@ API доступен на `http://localhost:8000/docs`, TWA — на `http://loc
 - `send_telegram_media_group` — пакет до 10 вложений при закрытии смены
 - `shift_reminders_tick` — каждую минуту, напоминания T-30/T+15/T-60
 - `daily_digest_tick` — 09:00 по timezone каждой локации
+- `recurring_shifts_tick` — каждую минуту, материализует смены из
+  `templates.default_schedule` (см. `infra/scheduling/tasks.py` и
+  `application/templates/recurring_shifts_tick.py`)
 
 ### Anti-fake
 Серверный timestamp (клиентские часы игнорируются) + pHash (16×16 DCT) каждого вложения. Сравнение по Хэммингу с историей `(template_task_id, location_id)`. Порог и глубина истории — `ANTIFAKE_PHASH_THRESHOLD` / `ANTIFAKE_HISTORY_LOOKBACK`.

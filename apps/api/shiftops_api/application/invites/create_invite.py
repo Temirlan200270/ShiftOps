@@ -35,7 +35,7 @@ def _coerce_role(role: str) -> UserRole | None:
         return None
     if u in (UserRole.OWNER,):
         return None
-    if u in (UserRole.ADMIN, UserRole.OPERATOR):
+    if u in (UserRole.ADMIN, UserRole.OPERATOR, UserRole.BARTENDER):
         return u
     return None
 
@@ -55,7 +55,7 @@ class CreateInviteUseCase:
         target = _coerce_role(role)
         if target is None:
             return Failure(
-                DomainError("invalid_invite_role", "role must be admin or operator")
+                DomainError("invalid_invite_role", "role must be admin, operator, or bartender")
             )
 
         if user.role == UserRole.ADMIN and target == UserRole.ADMIN:
@@ -83,8 +83,8 @@ class CreateInviteUseCase:
             loc = await self._session.get(Location, location_id)
             if loc is None or loc.organization_id != user.organization_id:
                 return Failure(DomainError("location_not_found", "unknown location for org"))
-        elif target == UserRole.OPERATOR:
-            # Admins/owners can still invite an operator org-wide; location is optional
+        elif target in (UserRole.OPERATOR, UserRole.BARTENDER):
+            # Admins/owners can still invite line staff org-wide; location is optional
             # metadata. If you require a location, enforce non-null here.
             pass
 

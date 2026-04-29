@@ -49,6 +49,7 @@ class GetTemplateUseCase:
                         id=t.id,
                         title=t.title,
                         description=t.description,
+                        section=t.section,
                         criticality=t.criticality,
                         requires_photo=t.requires_photo,
                         requires_comment=t.requires_comment,
