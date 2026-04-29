@@ -305,7 +305,13 @@
       "assigneeLabel": "Default operator",
       "assigneeAuto": "Auto-pick by role",
       "leadTimeLabel": "Create N min before start",
-      "noLocations": "Add at least one location first."
+      "noLocations": "Add at least one location first.",
+      "assigneeReset": "The selected operator is no longer available. Switched back to auto-pick.",
+      "error": {
+        "locationNotFound": "The selected location was not found. Pick a location again.",
+        "assigneeNotFound": "The default operator was not found or is inactive. Pick again, or leave it on auto-pick.",
+        "assigneeRoleMismatch": "The selected operator's role cannot run this template."
+      }
     },
     "import": {
       "openCta": "Import from text",

@@ -207,6 +207,31 @@ export function TemplateEditScreen({
     };
   }, []);
 
+  // Defensive normalisation: the DB can store a defaultAssigneeId that no
+  // longer exists / is inactive / is now incompatible with the roleTarget.
+  // The UI dropdown would show "Auto" but we'd still POST the stale UUID and
+  // the backend rejects with recurrence_assignee_not_found.
+  React.useEffect(() => {
+    if (recurrence === null || recurrence.defaultAssigneeId === null) return;
+    if (members.length === 0) return;
+
+    const allowedIds = new Set(
+      members
+        .filter((m) => m.is_active)
+        .filter((m) => memberAssignableForRoleTarget(roleTarget, m.role))
+        .map((m) => m.id),
+    );
+    if (allowedIds.has(recurrence.defaultAssigneeId)) return;
+
+    setRecurrence((prev) => {
+      if (prev === null) return prev;
+      if (prev.defaultAssigneeId === null) return prev;
+      if (allowedIds.has(prev.defaultAssigneeId)) return prev;
+      return { ...prev, defaultAssigneeId: null };
+    });
+    toast({ variant: "warning", title: tTpl("recurrence.assigneeReset") });
+  }, [members, recurrence, roleTarget, tTpl]);
+
   const updateTask = React.useCallback(
     (key: string, patch: Partial<DraftTask>) => {
       setTasks((prev) => prev.map((t) => (t.localKey === key ? { ...t, ...patch } : t)));
@@ -292,10 +317,18 @@ export function TemplateEditScreen({
         : await updateTemplate(templateId, payload);
     setSaving(false);
     if (!result.ok) {
+      const description =
+        result.code === "recurrence_location_not_found"
+          ? tTpl("recurrence.error.locationNotFound")
+          : result.code === "recurrence_assignee_not_found"
+            ? tTpl("recurrence.error.assigneeNotFound")
+            : result.code === "recurrence_assignee_role_mismatch"
+              ? tTpl("recurrence.error.assigneeRoleMismatch")
+              : result.message;
       toast({
         variant: "critical",
         title: tTpl("saveError"),
-        description: result.message,
+        description,
       });
       notify("error");
       return;
@@ -924,7 +957,11 @@ function RecurrenceBlock({
                   min={15}
                   max={24 * 60}
                   step={15}
-                  onChange={(e) => update({ durationMin: Number(e.target.value) || 480 })}
+                  onChange={(e) => {
+                    const n = e.currentTarget.valueAsNumber;
+                    if (Number.isNaN(n)) return;
+                    update({ durationMin: n });
+                  }}
                   className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </label>
@@ -1017,7 +1054,11 @@ function RecurrenceBlock({
                 min={0}
                 max={12 * 60}
                 step={15}
-                onChange={(e) => update({ leadTimeMin: Number(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const n = e.currentTarget.valueAsNumber;
+                  if (Number.isNaN(n)) return;
+                  update({ leadTimeMin: n });
+                }}
                 className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </label>
