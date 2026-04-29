@@ -11,8 +11,8 @@ sequenceDiagram
 
     TG->>TWA: запуск Web App с initData
     TWA->>TWA: читаем window.Telegram.WebApp.initData
-    TWA->>API: POST /api/v1/auth/telegram { init_data }
-    API->>API: HMAC-SHA256 validate(init_data, BOT_TOKEN)
+    TWA->>API: POST /api/v1/auth/exchange { init_data }
+    API->>API: HMAC-SHA256 validate(init_data, TG_BOT_TOKEN)
     API->>API: парсим, проверяем auth_date < 24ч
     API->>DB: SELECT user FROM telegram_accounts WHERE tg_user_id = ?
     alt пользователь найден
@@ -34,7 +34,7 @@ sequenceDiagram
 1. Владелец или админ в TWA вызывает `POST /api/v1/invites` — в ответе `deep_link` вида `https://t.me/<bot>?start=inv_<token>`.
 2. Сотрудник открывает ссылку: бот получает `/start` с payload `inv_<token>`.
 3. `RedeemInviteUseCase` (модуль `shiftops_api.application.invites.redeem_invite`) в одной транзакции, после `SET LOCAL row_security = off` (тот же приём, что в `ExchangeInitDataUseCase`), создаёт строки `users` и `telegram_accounts` и помечает строку `invites` как использованную.
-4. Дальше TWA: тот же `POST /api/v1/auth/exchange` с `initData` — пользователь уже в базе, JWT выдаётся штатно.
+4. Дальше TWA: снова `POST /api/v1/auth/exchange` с тем же `initData` — пользователь уже в базе, JWT выдаётся штатно.
 
 ## Валидация initData
 
@@ -44,7 +44,7 @@ sequenceDiagram
 2. Извлечь поле `hash`.
 3. Отсортировать оставшиеся пары по ключу.
 4. Собрать `data_check_string`, склеив пары `key=value` через `\n`.
-5. Посчитать `secret_key = HMAC_SHA256(b"WebAppData", BOT_TOKEN)`.
+5. Посчитать `secret_key = HMAC_SHA256(b"WebAppData", TG_BOT_TOKEN)`.
 6. Посчитать `our_hash = hex(HMAC_SHA256(secret_key, data_check_string))`.
 7. Сравнить `our_hash` с извлечённым `hash` constant-time-сравнением.
 8. Проверить, что `auth_date` в пределах 24 часов от часов сервера —

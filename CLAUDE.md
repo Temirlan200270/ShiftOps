@@ -78,8 +78,8 @@ API доступен на `http://localhost:8000/docs`, TWA — на `http://loc
 Каждая бизнес-таблица имеет `organization_id`. FastAPI-зависимость `with_tenant_session` ставит `SET LOCAL app.org_id = '<из JWT>'` перед каждым запросом. Привилегированные use case'ы используют `set_role('app_admin')`.
 
 ### Auth flow
-1. TWA → `Telegram.WebApp.initData` → POST `/api/v1/auth/telegram`
-2. Бэкенд HMAC-валидирует initData с `BOT_TOKEN`, ищет/создаёт пользователя
+1. TWA → `Telegram.WebApp.initData` → POST `/api/v1/auth/exchange` с телом `{ "init_data": "..." }`
+2. Бэкенд HMAC-валидирует initData с `TG_BOT_TOKEN`, ищет/создаёт пользователя
 3. Выпускает JWT (access 15 мин, refresh 7 дней в `httpOnly` cookie)
 
 ### Хранилище медиа
@@ -122,7 +122,7 @@ git push origin v0.1.0
 Миграции выполняются автоматически через `release_command` в `fly.toml` до переключения трафика.
 
 ### Ключевые env-переменные API (Fly secrets)
-`APP_ENV`, `API_PUBLIC_URL`, `API_CORS_ORIGINS`, `DATABASE_URL` (asyncpg, pooler), `DATABASE_URL_SYNC` (psycopg, pooler), `REDIS_URL`, `JWT_SECRET`, `TG_BOT_TOKEN`, `TG_BOT_USERNAME`, `TG_WEBHOOK_SECRET`, `TG_ARCHIVE_CHAT_ID`, `STORAGE_PROVIDER`, `SENTRY_DSN`
+`APP_ENV`, `API_PUBLIC_URL`, `API_CORS_ORIGINS`, `DATABASE_URL` (asyncpg, pooler), `DATABASE_URL_SYNC` (psycopg, pooler), `REDIS_URL`, `JWT_SECRET`, `TG_BOT_TOKEN`, `TG_BOT_USERNAME`, `TG_WEBHOOK_SECRET`, `TG_ARCHIVE_CHAT_ID`, `SUPER_ADMIN_TG_ID` (опц., платформенный super-admin), `STORAGE_PROVIDER`, `SENTRY_DSN`, `DB_DISABLE_ASYNCPG_STATEMENT_CACHE` (опц., при DuplicatePreparedStatement на pooler)
 
 ### Ключевые env-переменные фронтенда (Vercel)
 `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TG_BOT_USERNAME`

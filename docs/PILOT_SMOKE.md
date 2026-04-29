@@ -1,10 +1,10 @@
 # Smoke-чеклист пилота — V0
 
-Прогоняем перед каждой установкой пилота (Hetzner staging или первый
-платящий клиент), чтобы убедиться: end-to-end-флоу работает в живом
+Прогоняем перед каждой установкой пилота (**staging / Fly preview** или
+первый платящий клиент), чтобы убедиться: end-to-end-флоу работает в живом
 Telegram-клиенте.
 
-Автоматическая половина живёт в `apps/api/scripts/smoke_pilot.py` —
+Автоматическая половина живёт в [`apps/api/scripts/smoke_pilot.py`](../apps/api/scripts/smoke_pilot.py) —
 дёргает API так, будто оно зовётся из TWA. Ручная половина ловит всё,
 что API не может доказать (UX TWA, реальная доставка Telegram,
 haptics, съёмка фото).
@@ -14,7 +14,7 @@ haptics, съёмка фото).
 - [ ] `docker compose ps` показывает `postgres`, `redis`, `api`,
       `worker`, `web` — все в состоянии healthy.
 - [ ] `alembic current` совпадает с последней ревизией.
-- [ ] `python scripts/seed.py` завершился без ошибок.
+- [ ] `make seed` (или `docker compose … exec api python -m scripts.seed`) завершился без ошибок.
 - [ ] Telegram-webhook зарегистрирован: `getWebhookInfo` возвращает
       URL API и `pending_update_count == 0`.
 - [ ] Системный бот добавлен в demo-группу админов с правами **send
@@ -22,15 +22,16 @@ haptics, съёмка фото).
 
 ## 1. Автоматический API-smoke (`scripts/smoke_pilot.py`)
 
-```
-docker compose exec api python scripts/smoke_pilot.py
+```bash
+# из корня репозитория, тот же compose, что и у `make dev`:
+docker compose -f infra/docker-compose.yml --env-file .env exec api python scripts/smoke_pilot.py
 ```
 
 Скрипт сделает:
 
 1. POST `/v1/auth/exchange` с синтетическим `initData`, подписанным
    `TG_BOT_TOKEN`, → получить JWT оператора.
-2. GET `/v1/shifts/my` → проверить, что засеянная утренняя смена есть.
+2. GET `/v1/shifts/me` → проверить, что засеянная утренняя смена есть.
 3. POST `/v1/shifts/{id}/start`.
 4. Пройти 5 засеянных задач: фото для 2 critical+photo, без фото для
    остальных.
@@ -46,7 +47,7 @@ docker compose exec api python scripts/smoke_pilot.py
 Для каждого:
 
 - [ ] Открыть бота, тапнуть **menu-кнопку** → TWA загружается за <2 с.
-- [ ] Splash показывает индикатор загрузки, затем дашборд.
+- [ ] Splash показывает индикатор загрузки; при первом запуске — короткий онбординг TWA, затем дашборд.
 - [ ] Дашборд показывает засеянную «Morning Shift» с `Скоро начало`.
 - [ ] Нажать **Начать смену** — хаптика срабатывает, дашборд переходит
       в active.

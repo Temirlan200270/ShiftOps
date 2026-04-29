@@ -2,7 +2,7 @@
 
 ## Аутентификация
 
-- Telegram `initData` валидируется HMAC-SHA256 c `BOT_TOKEN` (см.
+- Telegram `initData` валидируется HMAC-SHA256 c `TG_BOT_TOKEN` (см.
   [AUTH_FLOW.md](AUTH_FLOW.md)).
 - Окно `auth_date`: 24 часа. Replay'и за пределами отклоняются.
 - JWT HS256, `JWT_SECRET` ≥ 32 байт (контролируется в настройках через
@@ -40,7 +40,7 @@
 
 ## Rate-limit
 
-- Per-IP: Nginx `limit_req` на `/api/v1/auth/telegram` (10/мин) —
+- Per-IP: Nginx `limit_req` на `/api/v1/auth/exchange` (10/мин) —
   замедляет брутфорс HMAC.
 - Per-user: token bucket TaskIQ `send_telegram_message` на чат
   (1/сек) — защита от случайных spam-петель.

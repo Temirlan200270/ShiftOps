@@ -52,6 +52,45 @@ function extractErrorCode(raw: string | null | undefined): string | null {
   return head || raw;
 }
 
+/** Whether to show the per-row ⋯ menu (change role / remove). */
+function rowHasTeamActions(
+  member: TeamMemberRow,
+  me: { id: string; role: string } | null | undefined,
+): boolean {
+  const isSelf = member.id === me?.id;
+  if (member.can_change_role === true || member.can_deactivate === true) {
+    return true;
+  }
+  const serverSentFlags =
+    typeof member.can_change_role === "boolean" ||
+    typeof member.can_deactivate === "boolean";
+  if (serverSentFlags) {
+    return false;
+  }
+  // Старый API без полей can_*: иначе `undefined || undefined` скрывает меню.
+  // Сервер всё равно проверит права на POST; здесь только подсказка UI для owner.
+  return me?.role === "owner" && !isSelf;
+}
+
+function sheetCanRemoveMember(
+  member: TeamMemberRow,
+  me: { id: string; role: string } | null | undefined,
+): boolean {
+  if (member.can_deactivate === true) return true;
+  if (typeof member.can_deactivate === "boolean") return false;
+  return me?.role === "owner" && member.id !== me?.id;
+}
+
+function sheetCanChangeRoleMember(
+  member: TeamMemberRow,
+  me: { id: string; role: string } | null | undefined,
+): boolean {
+  if (member.can_change_role === true) return true;
+  if (typeof member.can_change_role === "boolean") return false;
+  if (member.role === "owner") return false;
+  return me?.role === "owner" && member.id !== me?.id;
+}
+
 export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const t = useTranslations("team");
   const tErr = useTranslations("errors");
@@ -313,7 +352,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                         ? t("roleOperator")
                         : member.role;
                 const isSelf = member.id === me?.id;
-                const showActions = member.can_change_role || member.can_deactivate;
+                const showActions = rowHasTeamActions(member, me);
                 return (
                   <li
                     key={member.id}
@@ -517,18 +556,21 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                 type="button"
                 variant="secondary"
                 size="block"
-                disabled={!actionMember.can_change_role}
+                disabled={!sheetCanChangeRoleMember(actionMember, me)}
                 onClick={() => {
-                  if (actionMember.can_change_role) openRoleEditor(actionMember);
+                  if (sheetCanChangeRoleMember(actionMember, me)) openRoleEditor(actionMember);
                 }}
               >
                 <UserCog className="size-4" />
                 {t("actions.changeRole")}
               </Button>
-              {!actionMember.can_change_role && actionMember.cannot_change_role_reason ? (
+              {!sheetCanChangeRoleMember(actionMember, me) &&
+              (actionMember.cannot_change_role_reason ||
+                (actionMember.role === "owner" &&
+                  typeof actionMember.can_change_role !== "boolean")) ? (
                 <p className="text-xs text-muted-foreground -mt-1">
                   {translateManageError(
-                    actionMember.cannot_change_role_reason,
+                    actionMember.cannot_change_role_reason ?? "cannot_change_owner_role",
                     null,
                   )}
                 </p>
@@ -538,15 +580,15 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                 type="button"
                 variant="danger"
                 size="block"
-                disabled={!actionMember.can_deactivate}
+                disabled={!sheetCanRemoveMember(actionMember, me)}
                 onClick={() => {
-                  if (actionMember.can_deactivate) openRemoveConfirm(actionMember);
+                  if (sheetCanRemoveMember(actionMember, me)) openRemoveConfirm(actionMember);
                 }}
               >
                 <Trash2 className="size-4" />
                 {t("actions.remove")}
               </Button>
-              {!actionMember.can_deactivate && actionMember.cannot_deactivate_reason ? (
+              {!sheetCanRemoveMember(actionMember, me) && actionMember.cannot_deactivate_reason ? (
                 <p className="text-xs text-muted-foreground -mt-1">
                   {translateManageError(
                     actionMember.cannot_deactivate_reason,
