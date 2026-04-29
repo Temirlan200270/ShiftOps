@@ -51,7 +51,10 @@ from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import Organization, TelegramAccount, User
-from shiftops_api.infra.telegram.bot_profile import SlashMenuProfile, push_slash_menu_for_private_chat
+from shiftops_api.infra.telegram.bot_profile import (
+    SlashMenuProfile,
+    push_slash_menu_for_private_chat,
+)
 
 _log = logging.getLogger(__name__)
 _router = Router(name="shiftops.bot")

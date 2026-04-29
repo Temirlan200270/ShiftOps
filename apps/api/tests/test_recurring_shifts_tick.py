@@ -118,7 +118,7 @@ def test_lead_time_widens_open_side(lead_time_min: int) -> None:
     assert is_window_open(cfg, location_tz_name="Asia/Almaty", now_utc=boundary_utc)
 
 
-def _minutes(n: int) -> "datetime.timedelta":  # quoted: simple helper, defer import
+def _minutes(n: int) -> datetime.timedelta:  # quoted: simple helper, defer import
     from datetime import timedelta
 
     return timedelta(minutes=n)

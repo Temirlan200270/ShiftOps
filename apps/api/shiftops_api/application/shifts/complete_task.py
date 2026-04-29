@@ -26,7 +26,6 @@ from shiftops_api.domain.enums import (
     Criticality,
     ShiftStatus,
     TaskStatus,
-    UserRole,
     is_line_staff,
 )
 from shiftops_api.domain.result import DomainError, Failure, Result, Success

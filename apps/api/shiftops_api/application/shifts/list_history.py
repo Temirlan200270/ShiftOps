@@ -28,7 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser
-from shiftops_api.domain.enums import ShiftStatus, TaskStatus, UserRole, is_line_staff
+from shiftops_api.domain.enums import ShiftStatus, TaskStatus, is_line_staff
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.domain.score import (
     ShiftScoreInputs,

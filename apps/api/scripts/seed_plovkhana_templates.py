@@ -39,9 +39,9 @@ import asyncio
 import logging
 import sys
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import time
-from typing import Sequence
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession

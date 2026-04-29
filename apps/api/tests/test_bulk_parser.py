@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from shiftops_api.application.templates.bulk_parser import (
     parse_bulk_text,
+    to_template_input,
 )
 from shiftops_api.domain.enums import Criticality, UserRole
-from shiftops_api.application.templates.bulk_parser import to_template_input
 
 OPENING_TEXT = """\
 ЧЕК-ЛИСТ АДМИНИСТРАТОРА

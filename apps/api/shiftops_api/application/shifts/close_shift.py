@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.audit import write_audit
 from shiftops_api.application.auth.deps import CurrentUser
-from shiftops_api.domain.enums import Criticality, ShiftStatus, TaskStatus, UserRole, is_line_staff
+from shiftops_api.domain.enums import Criticality, ShiftStatus, TaskStatus, is_line_staff
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.domain.score import (
     ShiftScoreBreakdown,

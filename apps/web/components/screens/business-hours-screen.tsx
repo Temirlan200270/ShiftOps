@@ -52,12 +52,15 @@ function toDto(tz: string, regular: LocalRegular[], dated: LocalDated[]): Busine
   return {
     timezone: tz.trim() === "" ? null : tz.trim(),
     regular: regular.map(({ weekdays, opens, closes }) => ({ weekdays, opens, closes })),
-    dated: dated.map(({ on, opens, closes, note }) => ({
-      on,
-      opens,
-      closes,
-      note: note.trim() === "" ? null : note.trim(),
-    })),
+    dated: dated.map(({ on, opens, closes, note }) => {
+      const n = (note ?? "").trim();
+      return {
+        on,
+        opens,
+        closes,
+        note: n === "" ? null : n,
+      };
+    }),
   };
 }
 
