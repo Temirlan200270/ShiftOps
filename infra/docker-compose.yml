@@ -69,6 +69,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: ../.env
+    # Telegram WebApp / phone browser: NEXT_PUBLIC_API_URL must be a host the *device* can reach
+    # (e.g. http://192.168.x.x:8000), not http://localhost:8000. Add that origin to API_CORS_ORIGINS.
     depends_on:
       - api
     ports:

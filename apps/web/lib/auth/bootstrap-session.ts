@@ -16,7 +16,7 @@
 import { HandshakeError, performHandshake } from "@/lib/auth/handshake";
 import { refreshAccessToken } from "@/lib/auth/refresh-access";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { waitForTelegramWebApp } from "@/lib/telegram/init";
+import { getInitDataUserId, waitForTelegramWebApp } from "@/lib/telegram/init";
 
 let bootstrapFlight: Promise<void> | null = null;
 
@@ -50,6 +50,20 @@ export async function runBootstrapAuthSession(): Promise<void> {
     }
 
     await waitForPersistHydrated();
+
+    // Telegram Desktop shares WebView storage across accounts: a token from A
+    // would otherwise short-circuit bootstrap when opening the WebApp as B.
+    // If initData.user.id does not match persisted me.tgUserId, drop session
+    // (direct setState — avoid clear() flipping authBootstrapComplete early).
+    const currentTgId = getInitDataUserId();
+    const stored = useAuthStore.getState();
+    if (
+      currentTgId !== null &&
+      stored.me?.tgUserId != null &&
+      stored.me.tgUserId !== currentTgId
+    ) {
+      useAuthStore.setState({ accessToken: null, refreshToken: null, me: null });
+    }
 
     try {
       const state = useAuthStore.getState();

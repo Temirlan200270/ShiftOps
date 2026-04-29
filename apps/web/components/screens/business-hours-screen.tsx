@@ -32,7 +32,79 @@ function newKey(): string {
 
 type TimeFieldKind = "open" | "close";
 
-/** API expects exactly ``HH:MM``; browsers may emit ``HH:MM:SS`` from ``<input type="time">``. */
+const HOUR_VALUES: ReadonlyArray<number> = Array.from({ length: 24 }, (_, i) => i);
+const MINUTE_VALUES: ReadonlyArray<number> = Array.from({ length: 60 }, (_, i) => i);
+
+function parseHmParts(raw: string): { h: number; m: number } {
+  const parts = raw.trim().split(":");
+  const h = Math.min(23, Math.max(0, Number.parseInt(parts[0] ?? "0", 10) || 0));
+  const m = Math.min(59, Math.max(0, Number.parseInt(parts[1] ?? "0", 10) || 0));
+  return { h, m };
+}
+
+function formatHm(h: number, m: number): string {
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * Hour + minute dropdowns avoid the native ``<input type="time">`` picker on
+ * Android WebView/Telegram, where long Russian action labels (e.g. «Установить»)
+ * are clipped in the system dialog.
+ */
+function TimeHmSelects({
+  value,
+  onChange,
+  fieldLabel,
+  tHour,
+  tMinute,
+}: {
+  value: string;
+  onChange: (hhmm: string) => void;
+  fieldLabel: string;
+  tHour: string;
+  tMinute: string;
+}): React.JSX.Element {
+  const { h, m } = parseHmParts(value);
+  const selectClass =
+    "min-w-0 flex-1 rounded-md bg-elevated py-2 ps-2 pe-1 text-sm border border-border max-w-[50%]";
+  return (
+    <div className="mt-1 flex min-w-0 items-center gap-1.5">
+      <select
+        aria-label={`${fieldLabel}, ${tHour}`}
+        value={h}
+        onChange={(e) => {
+          onChange(formatHm(Number(e.target.value), m));
+        }}
+        className={selectClass}
+      >
+        {HOUR_VALUES.map((hour) => (
+          <option key={hour} value={hour}>
+            {String(hour).padStart(2, "0")}
+          </option>
+        ))}
+      </select>
+      <span className="shrink-0 text-sm text-muted-foreground" aria-hidden>
+        :
+      </span>
+      <select
+        aria-label={`${fieldLabel}, ${tMinute}`}
+        value={m}
+        onChange={(e) => {
+          onChange(formatHm(h, Number(e.target.value)));
+        }}
+        className={selectClass}
+      >
+        {MINUTE_VALUES.map((minute) => (
+          <option key={minute} value={minute}>
+            {String(minute).padStart(2, "0")}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** API expects exactly ``HH:MM``; browsers may emit ``HH:MM:SS`` from legacy time inputs. */
 function toApiTime(raw: string, kind: TimeFieldKind): string {
   const t = raw.trim();
   const parts = t.split(":");
@@ -328,28 +400,30 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="block">
+                      <div className="min-w-0">
                         <span className="text-xs text-muted-foreground">{t("opens")}</span>
-                        <input
-                          type="time"
+                        <TimeHmSelects
                           value={row.opens}
-                          onChange={(e) => {
-                            patchRegular(row.localKey, { opens: e.target.value });
+                          onChange={(hhmm) => {
+                            patchRegular(row.localKey, { opens: hhmm });
                           }}
-                          className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border"
+                          fieldLabel={t("opens")}
+                          tHour={t("timeHour")}
+                          tMinute={t("timeMinute")}
                         />
-                      </label>
-                      <label className="block">
+                      </div>
+                      <div className="min-w-0">
                         <span className="text-xs text-muted-foreground">{t("closes")}</span>
-                        <input
-                          type="time"
+                        <TimeHmSelects
                           value={row.closes}
-                          onChange={(e) => {
-                            patchRegular(row.localKey, { closes: e.target.value });
+                          onChange={(hhmm) => {
+                            patchRegular(row.localKey, { closes: hhmm });
                           }}
-                          className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border"
+                          fieldLabel={t("closes")}
+                          tHour={t("timeHour")}
+                          tMinute={t("timeMinute")}
                         />
-                      </label>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -401,28 +475,30 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
                       />
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="block">
+                      <div className="min-w-0">
                         <span className="text-xs text-muted-foreground">{t("opens")}</span>
-                        <input
-                          type="time"
+                        <TimeHmSelects
                           value={row.opens}
-                          onChange={(e) => {
-                            patchDated(row.localKey, { opens: e.target.value });
+                          onChange={(hhmm) => {
+                            patchDated(row.localKey, { opens: hhmm });
                           }}
-                          className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border"
+                          fieldLabel={t("opens")}
+                          tHour={t("timeHour")}
+                          tMinute={t("timeMinute")}
                         />
-                      </label>
-                      <label className="block">
+                      </div>
+                      <div className="min-w-0">
                         <span className="text-xs text-muted-foreground">{t("closes")}</span>
-                        <input
-                          type="time"
+                        <TimeHmSelects
                           value={row.closes}
-                          onChange={(e) => {
-                            patchDated(row.localKey, { closes: e.target.value });
+                          onChange={(hhmm) => {
+                            patchDated(row.localKey, { closes: hhmm });
                           }}
-                          className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border"
+                          fieldLabel={t("closes")}
+                          tHour={t("timeHour")}
+                          tMinute={t("timeMinute")}
                         />
-                      </label>
+                      </div>
                     </div>
                     <label className="block">
                       <span className="text-xs text-muted-foreground">{t("noteLabel")}</span>

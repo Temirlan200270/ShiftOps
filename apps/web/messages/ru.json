@@ -114,6 +114,8 @@
     },
     "opens": "Открытие",
     "closes": "Закрытие",
+    "timeHour": "Час",
+    "timeMinute": "Минута",
     "dateLabel": "Дата",
     "noteLabel": "Комментарий",
     "notePlaceholder": "например Праздник",
@@ -128,7 +130,7 @@
     "saveErrorNoteTooLong": "Комментарий не длиннее 256 символов.",
     "saveErrorWeekdays": "В каждой недельной строке должен быть хотя бы один день недели.",
     "saveErrorTooManyRows": "Слишком много строк за один запрос (недельных не больше 24, по датам — 366).",
-    "apiNotFoundHint": "Обычно это 404: запрос попал не на сервер API (например, на сам сайт Next.js). Задайте NEXT_PUBLIC_API_URL на origin FastAPI, как в .env.example (локально часто http://localhost:8000), пересоберите фронт и откройте снова."
+    "apiNotFoundHint": "Обычно это 404: запрос попал не на сервер API (например, на сам сайт Next.js). Задайте NEXT_PUBLIC_API_URL на origin FastAPI, как в .env.example. С ПК в браузере часто http://localhost:8000; с телефона или Telegram — URL вашего компьютера в сети, например http://192.168.x.x:8000 (и тот же хост в CORS). Пересоберите фронт и откройте снова."
   },
   "team": {
     "title": "Команда",

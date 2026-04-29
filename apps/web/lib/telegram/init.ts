@@ -13,7 +13,7 @@
 
 interface TelegramWebApp {
   initData: string;
-  initDataUnsafe: { user?: { language_code?: string } };
+  initDataUnsafe: { user?: { id?: number; language_code?: string } };
   ready: () => void;
   expand: () => void;
   /** https://core.telegram.org/bots/webapps#events-available-for-web-apps */
@@ -123,6 +123,12 @@ export function waitForTelegramWebApp(
 
 export function getInitDataRaw(): string | null {
   return getTelegramWebApp()?.initData ?? null;
+}
+
+/** Telegram user id from initData (null outside TWA or if SDK omits it). */
+export function getInitDataUserId(): number | null {
+  const id = getTelegramWebApp()?.initDataUnsafe?.user?.id;
+  return typeof id === "number" ? id : null;
 }
 
 export function getTelegramLanguage(): "ru" | "en" {
