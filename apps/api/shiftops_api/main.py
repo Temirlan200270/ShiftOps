@@ -21,6 +21,7 @@ from shiftops_api import __version__
 from shiftops_api.api.errors import install_error_handlers
 from shiftops_api.api.v1.router import api_v1_router
 from shiftops_api.config import Settings, get_settings
+from shiftops_api.config.production_guard import assert_production_secrets_configured
 from shiftops_api.infra.db.engine import dispose_engine, get_sessionmaker
 from shiftops_api.infra.logging import configure_logging
 from shiftops_api.infra.queue import broker
@@ -55,6 +56,7 @@ def _init_sentry() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging()
+    assert_production_secrets_configured(get_settings())
     _init_sentry()
     log = structlog.get_logger("shiftops.lifespan")
     log.info("api.startup", version=__version__, env=get_settings().app_env)

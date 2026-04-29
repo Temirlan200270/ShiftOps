@@ -6,6 +6,8 @@ verifies the secret header and dispatches to aiogram's `Dispatcher`.
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from shiftops_api.config import get_settings
@@ -18,7 +20,17 @@ def _verify_secret(
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ) -> None:
     expected = get_settings().tg_webhook_secret.get_secret_value()
-    if not expected or x_telegram_bot_api_secret_token != expected:
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid telegram webhook secret",
+        )
+    if x_telegram_bot_api_secret_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid telegram webhook secret",
+        )
+    if not hmac.compare_digest(x_telegram_bot_api_secret_token, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid telegram webhook secret",
