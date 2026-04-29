@@ -67,3 +67,5 @@ docker-data/
 
 # Local dev artefacts
 *.local
+.vercel
+.env*.local
