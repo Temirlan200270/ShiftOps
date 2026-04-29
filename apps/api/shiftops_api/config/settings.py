@@ -89,6 +89,13 @@ class Settings(BaseSettings):
     antifake_phash_threshold: int = 5
     antifake_history_lookback: int = 50
 
+    # SLA threshold for the analytics dashboard's "late start" tile.
+    # A shift counts as "late" when ``actual_start - scheduled_start`` is
+    # greater than this many minutes. Aligned with the operator-side T-30
+    # reminder cron: anything bigger than 15 minutes past the scheduled
+    # start is a real lateness, not a clock-skew false positive.
+    analytics_sla_late_start_min: int = 15
+
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.1
 

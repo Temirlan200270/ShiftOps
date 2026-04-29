@@ -84,6 +84,9 @@ class ListHistoryUseCase:
         cursor: datetime | None = None,
         limit: int = DEFAULT_PAGE_SIZE,
         target_user_id: uuid.UUID | None = None,
+        location_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> Result[HistoryPageDTO, DomainError]:
         limit = min(max(limit, 1), MAX_PAGE_SIZE)
 
@@ -94,6 +97,11 @@ class ListHistoryUseCase:
         if is_line_staff(user.role) and target_user_id and target_user_id != user.id:
             return Failure(DomainError("forbidden"))
         operator_id = target_user_id or user.id
+
+        # Reject windows that are obviously a typo (to before from). We
+        # don't try to fix it — the caller almost certainly has a bug.
+        if date_from is not None and date_to is not None and date_to < date_from:
+            return Failure(DomainError("invalid_range"))
 
         stmt = (
             select(Shift, Template)
@@ -113,6 +121,12 @@ class ListHistoryUseCase:
         )
         if cursor is not None:
             stmt = stmt.where(Shift.scheduled_start < cursor)
+        if location_id is not None:
+            stmt = stmt.where(Shift.location_id == location_id)
+        if date_from is not None:
+            stmt = stmt.where(Shift.scheduled_start >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(Shift.scheduled_start <= date_to)
 
         rows = (await self._session.execute(stmt)).all()
         has_more = len(rows) > limit

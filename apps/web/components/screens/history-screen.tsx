@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ShieldAlert,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -19,8 +20,22 @@ import { fetchHistory, type HistoryItem, type HistoryPage } from "@/lib/api/shif
 import { toast } from "@/lib/stores/toast-store";
 import { SCORE_WEIGHTS, type ScoreBreakdown } from "@/lib/types";
 
+export interface HistoryFilters {
+  userId?: string | null;
+  userName?: string | null;
+  locationId?: string | null;
+  locationName?: string | null;
+  /** ISO date YYYY-MM-DD. */
+  from?: string | null;
+  /** ISO date YYYY-MM-DD. */
+  to?: string | null;
+}
+
 interface HistoryScreenProps {
   onBack: () => void;
+  filters?: HistoryFilters;
+  /** Called when the user clears the filter chips at the top. */
+  onClearFilters?: () => void;
 }
 
 /**
@@ -156,7 +171,11 @@ function HistoryRow({
   );
 }
 
-export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element {
+export function HistoryScreen({
+  onBack,
+  filters,
+  onClearFilters,
+}: HistoryScreenProps): React.JSX.Element {
   const tHist = useTranslations("history");
   const tErr = useTranslations("errors");
 
@@ -165,21 +184,43 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
+  // Snapshot the filter values into stable primitives so the effect
+  // dependency array doesn't re-run on every parent render (an inline
+  // object identity changes each time even when the values don't).
+  const filterUserId = filters?.userId ?? null;
+  const filterLocationId = filters?.locationId ?? null;
+  const filterFrom = filters?.from ?? null;
+  const filterTo = filters?.to ?? null;
+  const filtersActive = Boolean(
+    filterUserId ?? filterLocationId ?? filterFrom ?? filterTo,
+  );
+
   const loadFirstPage = React.useCallback(async () => {
     setLoading(true);
-    const result = await fetchHistory({});
+    const result = await fetchHistory({
+      userId: filterUserId,
+      locationId: filterLocationId,
+      from: filterFrom,
+      to: filterTo,
+    });
     if (result.ok) {
       setPage(result.data);
     } else {
       toast({ variant: "critical", title: tErr("generic"), description: result.message });
     }
     setLoading(false);
-  }, [tErr]);
+  }, [tErr, filterUserId, filterLocationId, filterFrom, filterTo]);
 
   const loadMore = React.useCallback(async () => {
     if (!page?.nextCursor || loadingMore) return;
     setLoadingMore(true);
-    const result = await fetchHistory({ cursor: page.nextCursor });
+    const result = await fetchHistory({
+      cursor: page.nextCursor,
+      userId: filterUserId,
+      locationId: filterLocationId,
+      from: filterFrom,
+      to: filterTo,
+    });
     setLoadingMore(false);
     if (!result.ok) {
       toast({ variant: "critical", title: tErr("generic"), description: result.message });
@@ -189,7 +230,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
       items: [...page.items, ...result.data.items],
       nextCursor: result.data.nextCursor,
     });
-  }, [page, loadingMore, tErr]);
+  }, [page, loadingMore, tErr, filterUserId, filterLocationId, filterFrom, filterTo]);
 
   React.useEffect(() => {
     void loadFirstPage();
@@ -218,10 +259,38 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
         <div className="flex-1">
           <h1 className="text-lg font-semibold">{tHist("title")}</h1>
           <p className="text-xs text-muted-foreground">
-            {tHist("subtitle", { count: items.length })}
+            {filtersActive
+              ? tHist("subtitleFiltered", { count: items.length })
+              : tHist("subtitle", { count: items.length })}
           </p>
         </div>
       </header>
+
+      {filtersActive ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {filters?.userName ? (
+            <FilterChip label={tHist("filterUserChip", { name: filters.userName })} />
+          ) : null}
+          {filters?.locationName ? (
+            <FilterChip label={tHist("filterLocationChip", { name: filters.locationName })} />
+          ) : null}
+          {filterFrom && filterTo ? (
+            <FilterChip
+              label={tHist("filterDateChip", { from: filterFrom, to: filterTo })}
+            />
+          ) : null}
+          {onClearFilters ? (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3" />
+              {tHist("clearFilters")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {loading ? (
         <Card className="animate-pulse">
@@ -232,7 +301,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarDays className="size-5 text-muted-foreground" />
-              {tHist("empty")}
+              {filtersActive ? tHist("emptyFiltered") : tHist("empty")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -280,11 +349,6 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
             </Button>
           ) : null}
 
-          {/*
-            Visual key so operators can read the chips at a glance. Inline
-            rather than a separate legend screen — this is one of those rare
-            screens where extra ink earns its keep.
-          */}
           <div className="mt-6 flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1">
               <CheckCircle2 className="size-3 text-success" />
@@ -302,5 +366,13 @@ export function HistoryScreen({ onBack }: HistoryScreenProps): React.JSX.Element
         </>
       )}
     </main>
+  );
+}
+
+function FilterChip({ label }: { label: string }): React.JSX.Element {
+  return (
+    <span className="inline-flex items-center rounded-full border border-border bg-elevated/60 px-2.5 py-1 text-[11px] text-foreground">
+      {label}
+    </span>
   );
 }

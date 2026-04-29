@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, date, datetime, time
 from typing import Annotated
 from uuid import UUID
 
@@ -22,6 +22,7 @@ from shiftops_api.application.shifts.list_my_shift import ListMyShiftUseCase
 from shiftops_api.application.shifts.request_waiver import RequestWaiverUseCase
 from shiftops_api.application.shifts.start_shift import StartShiftUseCase
 from shiftops_api.config import get_settings
+from shiftops_api.domain.enums import is_line_staff
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_session
 from shiftops_api.infra.storage.provider import get_storage_provider
@@ -115,7 +116,7 @@ class HistoryResponse(BaseModel):
 @router.get(
     "/history",
     response_model=HistoryResponse,
-    summary="Closed-shift history for the current operator",
+    summary="Closed-shift history for the current operator (or a target user when admin/owner)",
 )
 async def list_history(
     cursor: Annotated[
@@ -126,13 +127,53 @@ async def list_history(
         int,
         Query(ge=1, le=MAX_PAGE_SIZE, description=f"Max {MAX_PAGE_SIZE}"),
     ] = DEFAULT_PAGE_SIZE,
+    user_id: Annotated[
+        UUID | None,
+        Query(description="Admin/owner only: scope to a specific operator."),
+    ] = None,
+    location_id: Annotated[
+        UUID | None,
+        Query(description="Filter by location."),
+    ] = None,
+    date_from: Annotated[
+        date | None,
+        Query(alias="from", description="Inclusive start date (UTC)."),
+    ] = None,
+    date_to: Annotated[
+        date | None,
+        Query(alias="to", description="Inclusive end date (UTC)."),
+    ] = None,
     user: CurrentUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> HistoryResponse:
+    # RBAC at the edge: line staff cannot peek at a teammate's history
+    # via ?user_id=. The use case enforces the same rule, but rejecting
+    # at the boundary keeps the audit trail honest (no DB roundtrip on
+    # forbidden queries).
+    if user_id is not None and is_line_staff(user.role) and user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+    rf_dt: datetime | None = (
+        datetime.combine(date_from, time.min, tzinfo=UTC) if date_from is not None else None
+    )
+    rt_dt: datetime | None = (
+        datetime.combine(date_to, time.max, tzinfo=UTC) if date_to is not None else None
+    )
+
     use_case = ListHistoryUseCase(session=session)
-    result = await use_case.execute(user=user, cursor=cursor, limit=limit)
+    result = await use_case.execute(
+        user=user,
+        cursor=cursor,
+        limit=limit,
+        target_user_id=user_id,
+        location_id=location_id,
+        date_from=rf_dt,
+        date_to=rt_dt,
+    )
     if isinstance(result, Failure):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=result.error.code)
+        if result.error.code == "forbidden":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.error.code)
     assert isinstance(result, Success)
     page = result.value
     return HistoryResponse(

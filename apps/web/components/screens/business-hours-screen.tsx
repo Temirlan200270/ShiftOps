@@ -29,35 +29,50 @@ function newKey(): string {
   return crypto.randomUUID();
 }
 
-function mapFromDto(dto: BusinessHoursDTO): { tz: string; regular: LocalRegular[]; dated: LocalDated[] } {
+/** API expects exactly ``HH:MM``; browsers may emit ``HH:MM:SS`` from ``<input type="time">``. */
+function toApiTime(raw: string): string {
+  const t = raw.trim();
+  const parts = t.split(":");
+  if (parts.length < 2) {
+    return "00:00";
+  }
+  const h = Math.min(23, Math.max(0, Number.parseInt(parts[0] ?? "0", 10) || 0));
+  const m = Math.min(59, Math.max(0, Number.parseInt(parts[1] ?? "0", 10) || 0));
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function mapFromDto(dto: BusinessHoursDTO): { regular: LocalRegular[]; dated: LocalDated[] } {
   return {
-    tz: dto.timezone ?? "",
     regular: dto.regular.map((r) => ({
       localKey: newKey(),
       weekdays: [...r.weekdays].sort((a, b) => a - b),
-      opens: r.opens,
-      closes: r.closes,
+      opens: toApiTime(r.opens),
+      closes: toApiTime(r.closes),
     })),
     dated: dto.dated.map((d) => ({
       localKey: newKey(),
       on: d.on,
-      opens: d.opens,
-      closes: d.closes,
+      opens: toApiTime(d.opens),
+      closes: toApiTime(d.closes),
       note: d.note ?? "",
     })),
   };
 }
 
-function toDto(tz: string, regular: LocalRegular[], dated: LocalDated[]): BusinessHoursDTO {
+function toDto(regular: LocalRegular[], dated: LocalDated[]): BusinessHoursDTO {
   return {
-    timezone: tz.trim() === "" ? null : tz.trim(),
-    regular: regular.map(({ weekdays, opens, closes }) => ({ weekdays, opens, closes })),
+    timezone: null,
+    regular: regular.map(({ weekdays, opens, closes }) => ({
+      weekdays,
+      opens: toApiTime(opens),
+      closes: toApiTime(closes),
+    })),
     dated: dated.map(({ on, opens, closes, note }) => {
       const n = (note ?? "").trim();
       return {
         on,
-        opens,
-        closes,
+        opens: toApiTime(opens),
+        closes: toApiTime(closes),
         note: n === "" ? null : n,
       };
     }),
@@ -70,7 +85,6 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
 
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [tz, setTz] = React.useState("");
   const [regular, setRegular] = React.useState<LocalRegular[]>([]);
   const [dated, setDated] = React.useState<LocalDated[]>([]);
 
@@ -84,7 +98,6 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
         return;
       }
       const m = mapFromDto(r.data);
-      setTz(m.tz);
       setRegular(m.regular);
       setDated(m.dated);
     })();
@@ -146,7 +159,7 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
   const handleSave = async (): Promise<void> => {
     haptic("medium");
     setSaving(true);
-    const body = toDto(tz, regular, dated);
+    const body = toDto(regular, dated);
     const r = await saveBusinessHours(body);
     setSaving(false);
     if (!r.ok) {
@@ -154,7 +167,6 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
       return;
     }
     const m = mapFromDto(r.data);
-    setTz(m.tz);
     setRegular(m.regular);
     setDated(m.dated);
     toast({ variant: "success", title: t("saved"), duration: 2500 });
@@ -178,24 +190,6 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
         </Card>
       ) : (
         <>
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="text-base">{t("timezoneTitle")}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <input
-                type="text"
-                value={tz}
-                onChange={(e) => {
-                  setTz(e.target.value);
-                }}
-                placeholder={t("timezonePlaceholder")}
-                className="w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <p className="text-[11px] text-muted-foreground mt-2">{t("timezoneHint")}</p>
-            </CardContent>
-          </Card>
-
           <Card className="mb-4">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">{t("regularTitle")}</CardTitle>

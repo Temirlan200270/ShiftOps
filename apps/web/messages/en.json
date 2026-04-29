@@ -95,10 +95,7 @@
   "orgBusinessHours": {
     "openCta": "Opening hours",
     "title": "Opening hours",
-    "subtitle": "Recurring weekly hours plus one-off dates. Saved for your whole organization.",
-    "timezoneTitle": "Display timezone (optional)",
-    "timezonePlaceholder": "e.g. Asia/Almaty",
-    "timezoneHint": "Shown next to times in admin tools. Shift times still follow each location’s timezone.",
+    "subtitle": "Recurring weekly hours plus one-off dates. Saved for your whole organization. Shift times use each location’s timezone.",
     "regularTitle": "Weekly schedule",
     "regularEmpty": "No weekly rows yet — add one for regular opening hours.",
     "regularRowLabel": "Weekly window",
@@ -209,14 +206,20 @@
   "history": {
     "title": "Shift history",
     "subtitle": "Your last {count, plural, one {# shift} other {# shifts}}",
+    "subtitleFiltered": "Filtered: {count, plural, one {# shift} other {# shifts}}",
     "empty": "No closed shifts yet.",
     "emptyHint": "Once you close your first shift it'll appear here.",
+    "emptyFiltered": "No shifts match this filter.",
     "loadMore": "Load more",
     "loading": "Loading…",
     "trend7d": "Last 7 shifts",
     "averageScore": "Average",
     "tasksDone": "{done} / {total} tasks",
-    "openHistoryCta": "View past shifts"
+    "openHistoryCta": "View past shifts",
+    "filterUserChip": "Operator: {name}",
+    "filterLocationChip": "Location: {name}",
+    "filterDateChip": "{from} – {to}",
+    "clearFilters": "Clear filters"
   },
   "templates": {
     "openManageCta": "Manage templates",
@@ -312,6 +315,7 @@
     "openCta": "Owner analytics",
     "title": "Owner analytics",
     "subtitleDays": "Last {days} days",
+    "subtitleRange": "{from} – {to}",
     "kpis": {
       "shiftsClosed": "Closed shifts",
       "shiftsClean": "Clean",
@@ -322,7 +326,28 @@
     "ranges": {
       "7": "7 days",
       "30": "30 days",
-      "90": "90 days"
+      "90": "90 days",
+      "custom": "Custom range"
+    },
+    "customRange": {
+      "title": "Pick a date range",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "invalid": "End date cannot be before start.",
+      "tooLong": "Range is too long. Pick at most 365 days."
+    },
+    "compare": {
+      "label": "Compare with previous period",
+      "previousLabel": "Previous",
+      "delta": "{value}",
+      "deltaUp": "▲ {value}",
+      "deltaDown": "▼ {value}"
+    },
+    "filters": {
+      "locationLabel": "Location",
+      "locationAll": "All locations"
     },
     "heatmap": {
       "title": "Performance heatmap",
@@ -340,7 +365,7 @@
     },
     "violators": {
       "title": "Top violators",
-      "help": "Operators ranked by shifts closed with violations.",
+      "help": "Operators ranked by shifts closed with violations. Tap a row for details.",
       "empty": "Nobody has violations in this range. Nice.",
       "shiftsTotal": "{count, plural, one {# shift} other {# shifts}}",
       "violations": "{count, plural, one {# violation} other {# violations}}"
@@ -351,9 +376,81 @@
       "shifts": "{count, plural, one {# shift} other {# shifts}}",
       "violations": "{count, plural, one {# violation} other {# violations}}"
     },
+    "templates": {
+      "title": "By template",
+      "help": "Average score and violations grouped by checklist template.",
+      "empty": "No template data in range.",
+      "shifts": "{count, plural, one {# shift} other {# shifts}}",
+      "violationsRate": "{rate}% with violations"
+    },
+    "criticality": {
+      "title": "By task criticality",
+      "help": "Critical tasks hard-block close, so any miss here is a process gap.",
+      "labels": {
+        "critical": "Critical",
+        "required": "Required",
+        "optional": "Optional"
+      },
+      "done": "{count} done",
+      "skipped": "{count} skipped",
+      "rejected": "{count} rejected",
+      "suspicious": "{count} suspicious"
+    },
+    "antifake": {
+      "title": "Anti-fake",
+      "help": "Photos that perceptually match a previous attachment are flagged suspicious.",
+      "totalAttachments": "{count} attachments",
+      "suspicious": "{count} suspicious",
+      "rate": "{rate}% suspicious",
+      "openMonitor": "Open in live monitor",
+      "empty": "No photos uploaded yet."
+    },
+    "sla": {
+      "title": "SLA: late start",
+      "help": "Shifts that started more than {threshold} min after schedule.",
+      "lateRate": "{rate}% late",
+      "lateCount": "{count, plural, one {# late shift} other {# late shifts}}",
+      "avgLate": "Average lateness {value} min",
+      "empty": "No timestamped starts in range."
+    },
+    "roleSplit": {
+      "title": "Operators vs bartenders",
+      "help": "Same KPIs, split by the role of the shift's operator.",
+      "operator": "Operators",
+      "bartender": "Bartenders",
+      "noBartenders": "No bartender shifts in range.",
+      "noOperators": "No operator shifts in range."
+    },
+    "lowData": {
+      "kpis": "Few closed shifts — KPIs may swing wildly.",
+      "heatmap": "Heatmap is sparse. With more shifts the pattern stabilises.",
+      "violators": "Few operators with enough shifts to rank.",
+      "templates": "Only a couple of templates — comparison may be unfair."
+    },
     "loading": "Loading analytics…",
     "empty": "No closed shifts in this range.",
     "emptyHint": "Once shifts close, the dashboard fills with insight."
+  },
+  "operatorSheet": {
+    "title": "Operator profile",
+    "close": "Close",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "operator": "Operator",
+      "bartender": "Bartender"
+    },
+    "kpiShifts": "Shifts in range",
+    "kpiViolations": "Violations",
+    "kpiViolationsRate": "{rate}% with violations",
+    "kpiSuspicious": "{rate}% suspicious photos",
+    "kpiAvgScore": "Average score",
+    "kpiAvgLate": "Avg start delay {value} min",
+    "trend": "Recent shift scores",
+    "openInHistory": "Open in shift history",
+    "loading": "Loading profile…",
+    "empty": "No shifts to summarise yet.",
+    "loadFailed": "Could not load operator profile."
   },
   "csvImport": {
     "openCta": "Import schedule",

@@ -197,10 +197,21 @@ interface HistoryResponseDTO {
 export async function fetchHistory(input: {
   cursor?: string | null;
   limit?: number;
+  /** Admin/owner only: scope history to a specific operator. */
+  userId?: string | null;
+  locationId?: string | null;
+  /** ISO date (YYYY-MM-DD). */
+  from?: string | null;
+  /** ISO date (YYYY-MM-DD). */
+  to?: string | null;
 } = {}): Promise<ApiResult<HistoryPage>> {
   const params = new URLSearchParams();
   if (input.cursor) params.set("cursor", input.cursor);
   if (input.limit) params.set("limit", String(input.limit));
+  if (input.userId) params.set("user_id", input.userId);
+  if (input.locationId) params.set("location_id", input.locationId);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
   const qs = params.toString();
   const path = `/v1/shifts/history${qs ? `?${qs}` : ""}`;
   const result = await api.get<HistoryResponseDTO>(path);

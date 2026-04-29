@@ -18,7 +18,7 @@ import * as React from "react";
 import { AnalyticsScreen } from "@/components/screens/analytics-screen";
 import { BusinessHoursScreen } from "@/components/screens/business-hours-screen";
 import { CsvImportScreen } from "@/components/screens/csv-import-screen";
-import { HistoryScreen } from "@/components/screens/history-screen";
+import { HistoryScreen, type HistoryFilters } from "@/components/screens/history-screen";
 import { LiveMonitorScreen } from "@/components/screens/live-monitor-screen";
 import { TaskListScreen } from "@/components/screens/task-list-screen";
 import { SummaryScreen } from "@/components/screens/summary-screen";
@@ -66,6 +66,7 @@ export function DashboardScreen(): React.JSX.Element {
   const role = useAuthStore((s) => s.me?.role ?? "operator");
   const isAdmin = role === "admin" || role === "owner";
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
+  const [historyFilters, setHistoryFilters] = React.useState<HistoryFilters | null>(null);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -122,7 +123,16 @@ export function DashboardScreen(): React.JSX.Element {
     return <SummaryScreen onBack={() => setView("dashboard")} />;
   }
   if (view === "history") {
-    return <HistoryScreen onBack={() => setView("dashboard")} />;
+    return (
+      <HistoryScreen
+        onBack={() => {
+          setHistoryFilters(null);
+          setView("dashboard");
+        }}
+        filters={historyFilters ?? undefined}
+        onClearFilters={() => setHistoryFilters(null)}
+      />
+    );
   }
   if (view === "templatesList" && isAdmin) {
     return (
@@ -148,7 +158,15 @@ export function DashboardScreen(): React.JSX.Element {
     );
   }
   if (view === "analytics" && isAdmin) {
-    return <AnalyticsScreen onBack={() => setView("dashboard")} />;
+    return (
+      <AnalyticsScreen
+        onBack={() => setView("dashboard")}
+        onOpenInHistory={(filters) => {
+          setHistoryFilters(filters);
+          setView("history");
+        }}
+      />
+    );
   }
   if (view === "csvImport" && isAdmin) {
     return <CsvImportScreen onBack={() => setView("dashboard")} />;
