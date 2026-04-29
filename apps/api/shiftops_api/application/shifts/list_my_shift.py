@@ -97,6 +97,7 @@ class ListMyShiftUseCase:
             select(TaskInstance, TemplateTask)
             .join(TemplateTask, TemplateTask.id == TaskInstance.template_task_id)
             .where(TaskInstance.shift_id == shift.id)
+            .where(TaskInstance.status != TaskStatus.OBSOLETE.value)
             .order_by(TemplateTask.order_index.asc())
         )
         task_rows = (await self._session.execute(tasks_stmt)).all()

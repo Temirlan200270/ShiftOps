@@ -34,9 +34,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shiftops_api.application.audit import write_audit
 from shiftops_api.application.auth.deps import CurrentUser
 from shiftops_api.application.templates.dtos import TemplateInputDTO
-from shiftops_api.domain.enums import UserRole
+from shiftops_api.domain.enums import ShiftStatus, TaskStatus, UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
-from shiftops_api.infra.db.models import TaskInstance, Template, TemplateTask
+from shiftops_api.infra.db.models import Shift, TaskInstance, Template, TemplateTask
 
 MIN_TASKS = 1
 MAX_TASKS = 200
@@ -177,6 +177,11 @@ class SaveTemplateUseCase:
                     )
                 )
 
+        # Make running/scheduled checklists adapt to the new template:
+        # - add new tasks as pending;
+        # - mark removed tasks as obsolete (hidden) instead of deleting.
+        await _sync_open_shifts_with_template(self._session, template_id=template.id)
+
         await write_audit(
             session=self._session,
             organization_id=user.organization_id,
@@ -193,6 +198,71 @@ class SaveTemplateUseCase:
 
         await self._session.commit()
         return Success(SavedTemplate(template_id=template.id))
+
+
+async def _sync_open_shifts_with_template(session: AsyncSession, *, template_id: uuid.UUID) -> None:
+    """Best-effort sync of scheduled/active shifts for a template update.
+
+    We keep Shift snapshots immutable enough for audit:
+    - never delete TaskInstance rows while a shift is open;
+    - deleted template tasks become `obsolete` tasks on the shift (hidden in UI);
+    - newly added template tasks become new TaskInstances in `pending`.
+    """
+
+    shifts = (
+        await session.execute(
+            select(Shift.id)
+            .where(Shift.template_id == template_id)
+            .where(Shift.status.in_([ShiftStatus.SCHEDULED.value, ShiftStatus.ACTIVE.value]))
+        )
+    ).scalars().all()
+    if not shifts:
+        return
+
+    current_task_ids = (
+        await session.execute(
+            select(TemplateTask.id).where(TemplateTask.template_id == template_id)
+        )
+    ).scalars().all()
+    current_set = set(current_task_ids)
+
+    rows = (
+        await session.execute(
+            select(TaskInstance.id, TaskInstance.shift_id, TaskInstance.template_task_id, TaskInstance.status)
+            .where(TaskInstance.shift_id.in_(list(shifts)))
+        )
+    ).all()
+
+    # Per shift: which template_task_ids are already present.
+    present: dict[uuid.UUID, set[uuid.UUID]] = {sid: set() for sid in shifts}
+    to_obsolete: list[uuid.UUID] = []
+    for task_id, shift_id, template_task_id, status in rows:
+        present.setdefault(shift_id, set()).add(template_task_id)
+        if template_task_id not in current_set and status in {
+            TaskStatus.PENDING.value,
+            TaskStatus.WAIVER_PENDING.value,
+            TaskStatus.WAIVER_REJECTED.value,
+        }:
+            to_obsolete.append(task_id)
+
+    if to_obsolete:
+        await session.execute(
+            TaskInstance.__table__.update()
+            .where(TaskInstance.id.in_(to_obsolete))
+            .values(status=TaskStatus.OBSOLETE.value)
+        )
+
+    # Add new template tasks to each open shift.
+    for sid in shifts:
+        missing = current_set - present.get(sid, set())
+        for tt_id in missing:
+            session.add(
+                TaskInstance(
+                    shift_id=sid,
+                    template_task_id=tt_id,
+                    status=TaskStatus.PENDING.value,
+                )
+            )
 
 
 def _validate(payload: TemplateInputDTO) -> DomainError | None:

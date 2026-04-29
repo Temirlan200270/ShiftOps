@@ -72,7 +72,9 @@ class CloseShiftUseCase:
             await self._session.execute(
                 select(TaskInstance, TemplateTask).join(
                     TemplateTask, TemplateTask.id == TaskInstance.template_task_id
-                ).where(TaskInstance.shift_id == shift_id)
+                )
+                .where(TaskInstance.shift_id == shift_id)
+                .where(TaskInstance.status != TaskStatus.OBSOLETE.value)
             )
         ).all()
         if not rows:
@@ -188,6 +190,16 @@ class CloseShiftUseCase:
         from shiftops_api.infra.notifications.dispatcher import dispatch_shift_closed
 
         await dispatch_shift_closed(shift_id=shift.id, final_status=final_status.value)
+
+        # Cleanup: drop obsolete tasks (they were hidden anyway). This keeps
+        # the shift checklist tidy and reduces future FK conflicts when the
+        # org edits templates again.
+        await self._session.execute(
+            TaskInstance.__table__.delete()
+            .where(TaskInstance.shift_id == shift_id)
+            .where(TaskInstance.status == TaskStatus.OBSOLETE.value)
+        )
+        await self._session.commit()
 
         return Success(
             ClosedShift(

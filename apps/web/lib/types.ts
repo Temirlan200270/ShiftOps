@@ -8,7 +8,8 @@ export type TaskStatus =
   | "skipped"
   | "waiver_pending"
   | "waived"
-  | "waiver_rejected";
+  | "waiver_rejected"
+  | "obsolete";
 
 export type ShiftStatus =
   | "scheduled"

@@ -15,7 +15,7 @@ class TaskInstance(UuidPkMixin, TimestampMixin, Base):
     __tablename__ = "task_instances"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending','done','skipped','waived','waiver_pending','waiver_rejected')",
+            "status IN ('pending','done','skipped','waived','waiver_pending','waiver_rejected','obsolete')",
             name="status_allowed",
         ),
     )

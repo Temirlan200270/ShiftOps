@@ -45,6 +45,7 @@ class TaskStatus(StrEnum):
     WAIVED = "waived"
     WAIVER_PENDING = "waiver_pending"
     WAIVER_REJECTED = "waiver_rejected"
+    OBSOLETE = "obsolete"
 
 
 class StorageKind(StrEnum):

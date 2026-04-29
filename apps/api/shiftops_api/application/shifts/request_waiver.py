@@ -56,6 +56,9 @@ class RequestWaiverUseCase:
         if shift.status != ShiftStatus.ACTIVE:
             return Failure(DomainError("shift_not_active"))
 
+        if TaskStatus(task.status) == TaskStatus.OBSOLETE:
+            return Failure(DomainError("task_obsolete"))
+
         if task.status != TaskStatus.PENDING:
             return Failure(DomainError("task_not_pending"))
 

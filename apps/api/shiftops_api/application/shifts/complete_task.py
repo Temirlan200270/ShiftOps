@@ -88,6 +88,9 @@ class CompleteTaskUseCase:
         if shift.status != ShiftStatus.ACTIVE:
             return Failure(DomainError("shift_not_active"))
 
+        if task.status == TaskStatus.OBSOLETE:
+            return Failure(DomainError("task_obsolete"))
+
         if task.status not in (TaskStatus.PENDING, TaskStatus.WAIVER_REJECTED):
             return Failure(DomainError("task_not_in_pending_state"))
 

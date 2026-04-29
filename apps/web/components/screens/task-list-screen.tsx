@@ -30,9 +30,10 @@ const statusOrder: Record<TaskStatus, number> = {
   pending: 0,
   waiver_pending: 1,
   waiver_rejected: 2,
-  done: 3,
-  waived: 4,
-  skipped: 5,
+  obsolete: 3,
+  done: 4,
+  waived: 5,
+  skipped: 6,
 };
 
 function sortTasks(tasks: TaskCard[]): TaskCard[] {
