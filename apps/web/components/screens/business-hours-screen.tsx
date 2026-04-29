@@ -73,6 +73,24 @@ function formatApiFailureDescription(r: ApiFailure): string {
   return msg || code || "";
 }
 
+function isNotFoundApiFailure(r: ApiFailure): boolean {
+  if (r.status === 404) {
+    return true;
+  }
+  if (r.code === "http_404") {
+    return true;
+  }
+  return /\bnot found\b/i.test(r.message);
+}
+
+function formatBusinessHoursFailureDescription(r: ApiFailure, notFoundHint: string): string {
+  const base = formatApiFailureDescription(r);
+  if (isNotFoundApiFailure(r)) {
+    return `${base}\n\n${notFoundHint}`;
+  }
+  return base;
+}
+
 function toDto(regular: LocalRegular[], dated: LocalDated[]): BusinessHoursDTO {
   return {
     timezone: null,
@@ -111,7 +129,7 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
         toast({
           variant: "critical",
           title: tErr("generic"),
-          description: formatApiFailureDescription(r),
+          description: formatBusinessHoursFailureDescription(r, t("apiNotFoundHint")),
         });
         return;
       }
@@ -119,7 +137,7 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
       setRegular(m.regular);
       setDated(m.dated);
     })();
-  }, [tErr]);
+  }, [t, tErr]);
 
   const addRegular = (): void => {
     haptic("light");
@@ -223,7 +241,7 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
       toast({
         variant: "critical",
         title: tErr("generic"),
-        description: formatApiFailureDescription(r),
+        description: formatBusinessHoursFailureDescription(r, t("apiNotFoundHint")),
       });
       return;
     }

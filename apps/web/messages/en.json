@@ -127,7 +127,8 @@
     "saveErrorEmptyDate": "Pick a calendar date for every dated row.",
     "saveErrorNoteTooLong": "Note must be at most 256 characters.",
     "saveErrorWeekdays": "Each weekly row must include at least one weekday.",
-    "saveErrorTooManyRows": "Too many rows for one request (weekly max 24, dated max 366)."
+    "saveErrorTooManyRows": "Too many rows for one request (weekly max 24, dated max 366).",
+    "apiNotFoundHint": "This is usually HTTP 404: the request did not reach the ShiftOps API (e.g. it hit the Next.js host instead). Set NEXT_PUBLIC_API_URL to your FastAPI origin as in .env.example (often http://localhost:8000 locally), rebuild the web app, and try again."
   },
   "team": {
     "title": "Team",
