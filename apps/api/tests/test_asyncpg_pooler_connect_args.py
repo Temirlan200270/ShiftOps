@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from shiftops_api.config.settings import get_settings
 from shiftops_api.infra.db import engine as engine_module
 
 
@@ -18,3 +19,14 @@ def test_statement_cache_disabled_when_host_contains_pooler() -> None:
 def test_empty_connect_args_for_direct_postgres() -> None:
     url = "postgresql+asyncpg://shiftops:shiftops@postgres:5432/shiftops"
     assert engine_module._asyncpg_connect_args(url) == {}
+
+
+def test_statement_cache_disabled_when_env_override(monkeypatch) -> None:
+    monkeypatch.setenv("DB_DISABLE_ASYNCPG_STATEMENT_CACHE", "true")
+    get_settings.cache_clear()
+    try:
+        url = "postgresql+asyncpg://shiftops:shiftops@postgres:5432/shiftops"
+        assert engine_module._asyncpg_connect_args(url) == {"statement_cache_size": 0}
+    finally:
+        monkeypatch.delenv("DB_DISABLE_ASYNCPG_STATEMENT_CACHE", raising=False)
+        get_settings.cache_clear()

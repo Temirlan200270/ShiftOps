@@ -60,6 +60,13 @@ jobs:
             --wait-timeout 300 \
             --image-label ${{ github.ref_name }}
 
+      # Rolling deploy can briefly leave >1 machine; scale again so the LB
+      # does not round-robin an old image (Team / locations 500 + "CORS").
+      - name: Reconcile machine count to 1 (post-deploy)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl scale count 1 --yes --app shiftops-api
+
       - name: Show machines (post-deploy)
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     db_pool_size: int = 5
     db_pool_max_overflow: int = 10
     db_pool_recycle_seconds: int = 1800
+    # When True, asyncpg always uses ``statement_cache_size=0`` (required for
+    # PgBouncer transaction pooler). Auto-detection from ``database_url``
+    # (port 6543 / host contains ``pooler``) is the default; set this if your
+    # DSN still hits DuplicatePreparedStatementError on Fly/Supabase.
+    db_disable_asyncpg_statement_cache: bool = False
 
     redis_url: str = "redis://redis:6379/0"
 

@@ -36,11 +36,18 @@ def _asyncpg_connect_args(database_url: str) -> dict[str, object]:
     Direct Postgres (local Docker, port 5432) keeps the default cache.
     """
 
+    settings = get_settings()
+    if settings.db_disable_asyncpg_statement_cache:
+        return {"statement_cache_size": 0}
+
     try:
         parsed = make_url(database_url)
     except Exception:
         return {}
     host = (parsed.host or "").lower()
+    # Transaction pooler is almost always :6543; host often contains "pooler"
+    # (e.g. *.pooler.supabase.com). Some providers use 6543 without "pooler" in
+    # the hostname — port check alone covers that.
     if parsed.port == 6543 or "pooler" in host:
         return {"statement_cache_size": 0}
     return {}
