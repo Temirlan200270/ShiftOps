@@ -5,10 +5,9 @@ import { api, type ApiResult } from "@/lib/api/client";
 export interface AuditEventRow {
   id: string;
   createdAt: string;
-  eventType: string;
   actorUserId: string | null;
   actorName: string | null;
-  payload: Record<string, unknown>;
+  message: string;
 }
 
 export interface AuditPage {
@@ -19,10 +18,9 @@ export interface AuditPage {
 interface AuditEventDTO {
   id: string;
   created_at: string;
-  event_type: string;
   actor_user_id: string | null;
   actor_name: string | null;
-  payload: Record<string, unknown>;
+  message: string;
 }
 
 interface AuditPageDTO {
@@ -34,10 +32,9 @@ function fromDto(dto: AuditEventDTO): AuditEventRow {
   return {
     id: dto.id,
     createdAt: dto.created_at,
-    eventType: dto.event_type,
     actorUserId: dto.actor_user_id,
     actorName: dto.actor_name,
-    payload: dto.payload ?? {},
+    message: dto.message,
   };
 }
 

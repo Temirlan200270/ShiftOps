@@ -100,18 +100,13 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium break-words">{ev.eventType}</p>
+                    <p className="text-sm font-medium break-words">{ev.message}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {ev.actorName ? t("by", { name: ev.actorName }) : t("bySystem")} ·{" "}
                       {formatTs(ev.createdAt)}
                     </p>
                   </div>
                 </div>
-                {Object.keys(ev.payload ?? {}).length > 0 ? (
-                  <pre className="mt-2 rounded-md bg-elevated border border-border p-2 text-[10px] overflow-x-auto">
-                    {JSON.stringify(ev.payload, null, 2)}
-                  </pre>
-                ) : null}
               </CardContent>
             </Card>
           ))}
