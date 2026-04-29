@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +60,17 @@ from shiftops_api.infra.notifications.tasks import (
 from shiftops_api.infra.realtime import publish_event
 
 _log = logging.getLogger(__name__)
+
+
+def _fmt_local_hhmm(dt: datetime | None, tz_name: str | None) -> str:
+    """Format UTC timestamp in a location timezone for Telegram copy."""
+    if dt is None:
+        return "?"
+    try:
+        tz = ZoneInfo(tz_name or "UTC")
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+    return dt.astimezone(tz).strftime("%H:%M")
 
 
 def _open_session() -> AsyncSession:
@@ -169,7 +182,7 @@ async def dispatch_shift_opened(*, shift_id: uuid.UUID) -> None:
         shift, location, template, operator = row
         text = (
             f"🟢 [{location.name}] {operator.full_name} начал «{template.name}» в "
-            f"{shift.actual_start.strftime('%H:%M') if shift.actual_start else '?'}"
+            f"{_fmt_local_hhmm(shift.actual_start, location.timezone)}"
         )
         admin_chat_id = location.tg_admin_chat_id
         owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)

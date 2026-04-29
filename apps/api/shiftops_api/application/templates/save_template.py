@@ -36,7 +36,7 @@ from shiftops_api.application.auth.deps import CurrentUser
 from shiftops_api.application.templates.dtos import TemplateInputDTO
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
-from shiftops_api.infra.db.models import Template, TemplateTask
+from shiftops_api.infra.db.models import TaskInstance, Template, TemplateTask
 
 MIN_TASKS = 1
 MAX_TASKS = 200
@@ -127,6 +127,24 @@ class SaveTemplateUseCase:
                 return Failure(DomainError("task_id_belongs_to_other_template"))
 
         existing_by_id = {t.id: t for t in existing}
+        ids_to_delete = [old.id for old in existing if old.id not in retained_ids]
+        if ids_to_delete:
+            # Historical shifts keep FK references to their template tasks.
+            # Deleting such tasks would violate FK and crash with 500.
+            in_use = (
+                await self._session.execute(
+                    select(TaskInstance.template_task_id).where(
+                        TaskInstance.template_task_id.in_(ids_to_delete)
+                    )
+                )
+            ).first()
+            if in_use is not None:
+                return Failure(
+                    DomainError(
+                        "task_in_use_cannot_delete",
+                        "cannot delete tasks already used in historical shifts",
+                    )
+                )
         for old in existing:
             if old.id not in retained_ids:
                 await self._session.delete(old)
