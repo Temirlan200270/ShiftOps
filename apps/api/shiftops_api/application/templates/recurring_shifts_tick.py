@@ -52,6 +52,7 @@ from shiftops_api.infra.db.models import (
     TemplateTask,
     User,
 )
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 
 _log = logging.getLogger(__name__)
 TRAILING_TOLERANCE_MIN = 5
@@ -103,7 +104,7 @@ class CreateRecurringShiftsTickUseCase:
     GUC (the worker is not bound to a tenant). RLS still applies to
     queries — with ``FORCE ROW LEVEL SECURITY`` enabled, connecting as
     the DB owner is *not* enough. We explicitly bypass RLS via
-    ``SET LOCAL row_security = off`` in the sweep transaction.
+    :func:`enter_privileged_rls_mode` for this sweep.
     """
 
     def __init__(self, *, session: AsyncSession, now: datetime | None = None) -> None:
@@ -113,7 +114,7 @@ class CreateRecurringShiftsTickUseCase:
     async def execute(self) -> TickReport:
         # Worker is not bound to a tenant; it must see all orgs' templates.
         # With FORCE RLS enabled this requires an explicit bypass.
-        await self._session.execute(text("SET LOCAL row_security = off"))
+        await enter_privileged_rls_mode(self._session, reason="recurring_shifts_tick")
 
         # 1. Load all templates with a non-null default_schedule. We
         #    intentionally pull the full set (small, ~50 rows even at
@@ -121,10 +122,14 @@ class CreateRecurringShiftsTickUseCase:
         #    lives inside the JSONB blob and adding a generated column
         #    just for this filter is not worth the migration.
         rows = (
-            await self._session.execute(
-                select(Template).where(Template.default_schedule.is_not(None))
+            (
+                await self._session.execute(
+                    select(Template).where(Template.default_schedule.is_not(None))
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         inspected = 0
         created = 0
@@ -140,9 +145,12 @@ class CreateRecurringShiftsTickUseCase:
             try:
                 made = await self._materialize_for(template, cfg)
             except Exception:  # noqa: BLE001 — must not crash the sweep
-                _log.exception("recurring.tick.template_failed", extra={
-                    "template_id": str(template.id),
-                })
+                _log.exception(
+                    "recurring.tick.template_failed",
+                    extra={
+                        "template_id": str(template.id),
+                    },
+                )
                 skipped += 1
                 continue
 
@@ -161,10 +169,13 @@ class CreateRecurringShiftsTickUseCase:
     ) -> bool:
         location = await self._session.get(Location, cfg.location_id)
         if location is None:
-            _log.warning("recurring.tick.location_missing", extra={
-                "template_id": str(template.id),
-                "location_id": str(cfg.location_id),
-            })
+            _log.warning(
+                "recurring.tick.location_missing",
+                extra={
+                    "template_id": str(template.id),
+                    "location_id": str(cfg.location_id),
+                },
+            )
             return False
 
         if not is_window_open(
@@ -190,10 +201,13 @@ class CreateRecurringShiftsTickUseCase:
 
         operator_id = await self._resolve_operator(template, cfg)
         if operator_id is None:
-            _log.warning("recurring.tick.no_operator", extra={
-                "template_id": str(template.id),
-                "organization_id": str(template.organization_id),
-            })
+            _log.warning(
+                "recurring.tick.no_operator",
+                extra={
+                    "template_id": str(template.id),
+                    "organization_id": str(template.organization_id),
+                },
+            )
             return False
 
         # Advisory lock keyed by template + location + day so two ticks
@@ -225,12 +239,16 @@ class CreateRecurringShiftsTickUseCase:
         )
 
         tt_rows = (
-            await self._session.execute(
-                select(TemplateTask)
-                .where(TemplateTask.template_id == template.id)
-                .order_by(TemplateTask.order_index.asc())
+            (
+                await self._session.execute(
+                    select(TemplateTask)
+                    .where(TemplateTask.template_id == template.id)
+                    .order_by(TemplateTask.order_index.asc())
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for tt in tt_rows:
             self._session.add(
                 TaskInstance(
@@ -240,12 +258,15 @@ class CreateRecurringShiftsTickUseCase:
                 )
             )
 
-        _log.info("recurring.tick.created", extra={
-            "template_id": str(template.id),
-            "location_id": str(location.id),
-            "shift_id": str(shift_id),
-            "scheduled_start": scheduled_start_utc.isoformat(),
-        })
+        _log.info(
+            "recurring.tick.created",
+            extra={
+                "template_id": str(template.id),
+                "location_id": str(location.id),
+                "shift_id": str(shift_id),
+                "scheduled_start": scheduled_start_utc.isoformat(),
+            },
+        )
         return True
 
     async def _already_exists(

@@ -175,8 +175,9 @@ class ImportScheduleCsvUseCase:
                         message=f"limit is {MAX_ROWS} rows per upload",
                     )
                 )
-            normalized_raw = {key: (raw.get(actual, "") or "").strip()
-                              for key, actual in normalized.items()}
+            normalized_raw = {
+                key: (raw.get(actual, "") or "").strip() for key, actual in normalized.items()
+            }
             if not any(normalized_raw.values()):
                 continue  # blank line — ignore silently
             rows.append(_ParsedRow(line_no=offset, raw=normalized_raw))
@@ -251,9 +252,7 @@ class ImportScheduleCsvUseCase:
                 tzinfo = UTC
 
             start_local = datetime.combine(row.date, row.time_start, tzinfo=tzinfo)
-            end_date = (
-                row.date if row.time_end > row.time_start else row.date + timedelta(days=1)
-            )
+            end_date = row.date if row.time_end > row.time_start else row.date + timedelta(days=1)
             end_local = datetime.combine(end_date, row.time_end, tzinfo=tzinfo)
 
             row.scheduled_start = start_local.astimezone(UTC)
@@ -367,9 +366,7 @@ class ImportScheduleCsvUseCase:
             )
         )
 
-    async def _index_locations(
-        self, org_id: uuid.UUID
-    ) -> dict[str, tuple[uuid.UUID, str]]:
+    async def _index_locations(self, org_id: uuid.UUID) -> dict[str, tuple[uuid.UUID, str]]:
         rows = (
             await self._session.execute(
                 select(Location.id, Location.name, Location.timezone).where(
@@ -382,9 +379,7 @@ class ImportScheduleCsvUseCase:
     async def _index_templates(self, org_id: uuid.UUID) -> dict[str, uuid.UUID]:
         rows = (
             await self._session.execute(
-                select(Template.id, Template.name).where(
-                    Template.organization_id == org_id
-                )
+                select(Template.id, Template.name).where(Template.organization_id == org_id)
             )
         ).all()
         return {name.lower(): row_id for row_id, name in rows}
@@ -451,12 +446,16 @@ class ImportScheduleCsvUseCase:
         if not template_ids:
             return {}
         rows = (
-            await self._session.execute(
-                select(TemplateTask)
-                .where(TemplateTask.template_id.in_(template_ids))
-                .order_by(TemplateTask.template_id, TemplateTask.order_index)
+            (
+                await self._session.execute(
+                    select(TemplateTask)
+                    .where(TemplateTask.template_id.in_(template_ids))
+                    .order_by(TemplateTask.template_id, TemplateTask.order_index)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         out: dict[uuid.UUID, list[TemplateTask]] = {tid: [] for tid in template_ids}
         for tt in rows:
             out.setdefault(tt.template_id, []).append(tt)
@@ -522,9 +521,7 @@ def _parse_time(value: str) -> time:
     return time(h, m, s)
 
 
-def _drop_errored(
-    rows: list[_ParsedRow], errors: list[ImportRowError]
-) -> list[_ParsedRow]:
+def _drop_errored(rows: list[_ParsedRow], errors: list[ImportRowError]) -> list[_ParsedRow]:
     bad_lines = {e.line_no for e in errors}
     return [r for r in rows if r.line_no not in bad_lines]
 

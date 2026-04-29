@@ -47,8 +47,8 @@ def _split_code_message_details(detail: Any) -> tuple[str, str, Any | None]:
         return (
             "validation_error",
             "; ".join(
-            str(item.get("msg", item)) if isinstance(item, dict) else str(item)
-            for item in detail
+                str(item.get("msg", item)) if isinstance(item, dict) else str(item)
+                for item in detail
             ),
             detail,
         )
@@ -69,9 +69,7 @@ async def _http_exception_handler(_: Request, exc: StarletteHTTPException) -> JS
     )
 
 
-async def _validation_exception_handler(
-    _: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def _validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
     code, message, details = _split_code_message_details(exc.errors())
     return JSONResponse(
         status_code=422,

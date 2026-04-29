@@ -43,9 +43,7 @@ _SECTION_NUMBERED = re.compile(r"^\s*\d+\s*[.)]\s+(?P<title>.+?)\s*$")
 # Markdown-ish heading: "## Кухня", "### Кухня".
 _SECTION_HASH = re.compile(r"^\s*#{2,6}\s+(?P<title>.+?)\s*$")
 # A task line: "☐ Открыть дверь", "- [ ] Открыть дверь", "* [ ] Открыть".
-_TASK_BOX = re.compile(
-    r"^\s*(?:[*\-]\s*)?(?:☐|☑|☒|\[ \]|\[x\]|\[X\])\s+(?P<title>.+?)\s*$"
-)
+_TASK_BOX = re.compile(r"^\s*(?:[*\-]\s*)?(?:☐|☑|☒|\[ \]|\[x\]|\[X\])\s+(?P<title>.+?)\s*$")
 # Some users write "- Открыть дверь" without a checkbox. We also accept
 # bullet lines ONLY when we are inside a section, otherwise we'd swallow
 # the document title. Numbered lines like "1. Open" are NOT tasks here —
@@ -160,10 +158,7 @@ def parse_bulk_text(content: str) -> tuple[ParsedTemplate, list[BulkParseError]]
             # don't want both a task "Foo:" *and* a synthesised
             # composite "Проверить: foo" — collapse to the latter so
             # the operator sees one row, not two.
-            if (
-                title.rstrip().endswith(":")
-                and current_section is not None
-            ):
+            if title.rstrip().endswith(":") and current_section is not None:
                 pending_list_title = title.rstrip().rstrip(":").strip()
                 pending_list_items = []
                 continue
@@ -192,7 +187,9 @@ def parse_bulk_text(content: str) -> tuple[ParsedTemplate, list[BulkParseError]]
     flush_pending_list()
 
     if not tasks:
-        errors.append(BulkParseError(code="no_tasks_found", message="parser found no checkbox lines"))
+        errors.append(
+            BulkParseError(code="no_tasks_found", message="parser found no checkbox lines")
+        )
     elif len(tasks) > _MAX_TASKS:
         errors.append(
             BulkParseError(

@@ -178,7 +178,9 @@ async def deactivate_member(
     result = await uc.execute(actor=current, target_user_id=user_id)
     if isinstance(result, Failure):
         code = result.error.code
-        raise HTTPException(status_code=_http_for_code(code), detail=f"{code}: {result.error.message}")
+        raise HTTPException(
+            status_code=_http_for_code(code), detail=f"{code}: {result.error.message}"
+        )
     assert isinstance(result, Success)
     await session.commit()
     return {"ok": "true"}
@@ -202,7 +204,9 @@ async def change_member_role(
     )
     if isinstance(result, Failure):
         code = result.error.code
-        raise HTTPException(status_code=_http_for_code(code), detail=f"{code}: {result.error.message}")
+        raise HTTPException(
+            status_code=_http_for_code(code), detail=f"{code}: {result.error.message}"
+        )
     assert isinstance(result, Success)
     await session.commit()
     return {"ok": "true", "role": result.value.role}

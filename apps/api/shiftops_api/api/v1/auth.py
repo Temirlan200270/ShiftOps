@@ -122,5 +122,3 @@ async def refresh_access_token(
         access_token=result.access_token,
         expires_in=result.expires_in,
     )
-
-

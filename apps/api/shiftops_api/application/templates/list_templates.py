@@ -15,9 +15,7 @@ class ListTemplatesUseCase:
     def __init__(self, *, session: AsyncSession) -> None:
         self._session = session
 
-    async def execute(
-        self, *, user: CurrentUser
-    ) -> Result[list[TemplateListItemDTO], DomainError]:
+    async def execute(self, *, user: CurrentUser) -> Result[list[TemplateListItemDTO], DomainError]:
         # RLS already filters templates to the caller's org via the GUC,
         # so we don't add a redundant WHERE on organization_id here. That
         # keeps this query identical for owners and admins.

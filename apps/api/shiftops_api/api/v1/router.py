@@ -26,9 +26,7 @@ api_v1_router = APIRouter()
 api_v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_v1_router.include_router(invites.router, prefix="/invites", tags=["invites"])
 api_v1_router.include_router(locations.router, prefix="/locations", tags=["locations"])
-api_v1_router.include_router(
-    organization.router, prefix="/organization", tags=["organization"]
-)
+api_v1_router.include_router(organization.router, prefix="/organization", tags=["organization"])
 api_v1_router.include_router(team.router, prefix="/team", tags=["team"])
 api_v1_router.include_router(shifts.router, prefix="/shifts", tags=["shifts"])
 api_v1_router.include_router(schedule.router, prefix="/schedule", tags=["schedule"])

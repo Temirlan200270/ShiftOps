@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from aiogram import types
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Invite, Location, Organization, TelegramAccount, User
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +43,7 @@ class RedeemInviteUseCase:
         token: str,
         tg: types.User,
     ) -> Result[RedeemOk, DomainError]:
-        await self._session.execute(text("SET LOCAL row_security = off"))
+        await enter_privileged_rls_mode(self._session, reason="redeem_invite")
 
         now = datetime.now(tz=UTC)
         row = (

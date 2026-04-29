@@ -204,9 +204,7 @@ async def dispatch_shift_opened(*, shift_id: uuid.UUID) -> None:
                 "operator_name": operator.full_name,
                 "scheduled_start": shift.scheduled_start.isoformat(),
                 "scheduled_end": shift.scheduled_end.isoformat(),
-                "actual_start": (
-                    shift.actual_start.isoformat() if shift.actual_start else None
-                ),
+                "actual_start": (shift.actual_start.isoformat() if shift.actual_start else None),
             },
         )
 
@@ -452,9 +450,7 @@ async def dispatch_waiver_decision(
         # Mirror the decision into the lifecycle counter so the funnel
         # `requests_total{status="open"}` → `{status="approved"|"rejected"}`
         # is computable from a single metric in dashboards.
-        request_status = (
-            WAIVER_STATUS_APPROVED if decision == "approve" else WAIVER_STATUS_REJECTED
-        )
+        request_status = WAIVER_STATUS_APPROVED if decision == "approve" else WAIVER_STATUS_REJECTED
         WAIVER_REQUESTS_TOTAL.labels(status=request_status).inc()
         _ = decided_by
     finally:
@@ -523,17 +519,13 @@ async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> No
             },
         )
 
-        SHIFTS_CLOSED_TOTAL.labels(
-            location_id=str(location.id), status=final_status
-        ).inc()
+        SHIFTS_CLOSED_TOTAL.labels(location_id=str(location.id), status=final_status).inc()
 
         # Per-violation breakdown. The CloseShiftUseCase has already
         # marked missed required tasks as `skipped` and persisted
         # `actual_end`, so we can read the final state authoritatively
         # off the same row.
-        await _emit_violation_metrics(
-            session=session, shift=shift, location_id=str(location.id)
-        )
+        await _emit_violation_metrics(session=session, shift=shift, location_id=str(location.id))
 
         for batch_start in range(0, len(attachments), 10):
             chunk = attachments[batch_start : batch_start + 10]

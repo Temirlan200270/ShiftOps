@@ -60,7 +60,10 @@ class GetMediaUrlUseCase:
 
         # Telegram-specific: if the storage refreshed the ref via forward,
         # persist the new file_id so the next view skips the round trip.
-        if isinstance(self._storage, TelegramStorage) and attachment.storage_provider == StorageKind.TELEGRAM:
+        if (
+            isinstance(self._storage, TelegramStorage)
+            and attachment.storage_provider == StorageKind.TELEGRAM
+        ):
             url, refreshed = await self._storage.get_url_with_refresh(ref)
             if refreshed.tg_file_id != ref.tg_file_id:
                 attachment.tg_file_id = refreshed.tg_file_id

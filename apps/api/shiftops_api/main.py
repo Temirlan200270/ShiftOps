@@ -33,7 +33,17 @@ from shiftops_api.infra.telegram.bot_profile import configure_bot_profile
 # library buckets are too coarse around the 50–250 ms region where we
 # live in steady state.
 _HTTP_LATENCY_BUCKETS: tuple[float, ...] = (
-    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
 )
 
 
@@ -75,11 +85,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # contexts (worker, tests) and on missing token to keep startup green.
     settings = get_settings()
     token = settings.tg_bot_token.get_secret_value()
-    if (
-        not broker.is_worker_process
-        and settings.app_env != "local"
-        and token
-    ):
+    if not broker.is_worker_process and settings.app_env != "local" and token:
         from aiogram import Bot
         from aiogram.client.default import DefaultBotProperties
         from aiogram.enums import ParseMode
@@ -215,4 +221,6 @@ if __name__ == "__main__":
 
     settings = get_settings()
     logging.basicConfig(level=settings.log_level)
-    uvicorn.run("shiftops_api.main:app", host=settings.api_host, port=settings.api_port, reload=True)
+    uvicorn.run(
+        "shiftops_api.main:app", host=settings.api_host, port=settings.api_port, reload=True
+    )

@@ -70,9 +70,8 @@ class CloseShiftUseCase:
 
         rows = (
             await self._session.execute(
-                select(TaskInstance, TemplateTask).join(
-                    TemplateTask, TemplateTask.id == TaskInstance.template_task_id
-                )
+                select(TaskInstance, TemplateTask)
+                .join(TemplateTask, TemplateTask.id == TaskInstance.template_task_id)
                 .where(TaskInstance.shift_id == shift_id)
                 .where(TaskInstance.status != TaskStatus.OBSOLETE.value)
             )
@@ -240,9 +239,9 @@ class CloseShiftUseCase:
         stmt = (
             select(
                 func.count(Attachment.id).label("total"),
-                func.count(Attachment.id).filter(Attachment.suspicious.is_(True)).label(
-                    "suspicious"
-                ),
+                func.count(Attachment.id)
+                .filter(Attachment.suspicious.is_(True))
+                .label("suspicious"),
             )
             .select_from(Attachment)
             .join(TaskInstance, TaskInstance.id == Attachment.task_instance_id)
@@ -277,16 +276,12 @@ def _build_handover_summary(
         1 for ti, _tt in template_task_rows if TaskStatus(ti.status) == TaskStatus.SKIPPED
     )
     waiver_pending = sum(
-        1
-        for ti, _tt in template_task_rows
-        if TaskStatus(ti.status) == TaskStatus.WAIVER_PENDING
+        1 for ti, _tt in template_task_rows if TaskStatus(ti.status) == TaskStatus.WAIVER_PENDING
     )
     # CloseShiftUseCase may leave WAIVER_REJECTED in the data set if it was pending,
     # but those count as "not done".
     waiver_rejected = sum(
-        1
-        for ti, _tt in template_task_rows
-        if TaskStatus(ti.status) == TaskStatus.WAIVER_REJECTED
+        1 for ti, _tt in template_task_rows if TaskStatus(ti.status) == TaskStatus.WAIVER_REJECTED
     )
 
     late_min = max(0, int((actual_end - scheduled_end).total_seconds() // 60))

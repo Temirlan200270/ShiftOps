@@ -130,9 +130,7 @@ async def send_telegram_media_group(
 
         if not resp.json().get("ok"):
             result_label = "error"
-            _log.error(
-                "tg.send_media_group.failed", extra={"chat_id": chat_id, "body": resp.text}
-            )
+            _log.error("tg.send_media_group.failed", extra={"chat_id": chat_id, "body": resp.text})
     except Exception:
         if result_label == "ok":
             result_label = "error"

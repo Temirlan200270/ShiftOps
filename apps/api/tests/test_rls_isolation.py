@@ -26,6 +26,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
+
 pytestmark = pytest.mark.integration
 
 
@@ -179,3 +181,48 @@ async def test_audit_events_are_append_only(session: AsyncSession) -> None:
             {"id": str(event_id)},
         )
     await session.rollback()
+
+
+async def test_privileged_rls_mode_sees_templates_across_tenants(session: AsyncSession) -> None:
+    """Worker-style sweep must see rows from all orgs after enter_privileged_rls_mode.
+
+    Without ``app.org_id`` and without bypass, RLS hides tenant tables. This
+    mirrors ``CreateRecurringShiftsTickUseCase`` under FORCE RLS.
+    """
+
+    org_a = uuid.uuid4()
+    org_b = uuid.uuid4()
+    tpl_a = uuid.uuid4()
+    tpl_b = uuid.uuid4()
+
+    await enter_privileged_rls_mode(session, reason="test_seed_templates")
+    await session.execute(
+        text("INSERT INTO organizations (id, name) VALUES (:a, 'RLS-A'), (:b, 'RLS-B')"),
+        {"a": str(org_a), "b": str(org_b)},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO templates (id, organization_id, name, role_target, default_schedule) "
+            "VALUES (:ta, :oa, 'T-A', 'operator', '{\"auto_create\": true}'::jsonb), "
+            "(:tb, :ob, 'T-B', 'operator', '{\"auto_create\": true}'::jsonb)"
+        ),
+        {"ta": str(tpl_a), "oa": str(org_a), "tb": str(tpl_b), "ob": str(org_b)},
+    )
+    await session.commit()
+
+    hidden = (
+        await session.execute(
+            text("SELECT COUNT(*) FROM templates WHERE id IN (:ta, :tb)"),
+            {"ta": str(tpl_a), "tb": str(tpl_b)},
+        )
+    ).scalar_one()
+    assert hidden == 0
+
+    await enter_privileged_rls_mode(session, reason="recurring_shifts_tick")
+    visible = (
+        await session.execute(
+            text("SELECT COUNT(*) FROM templates WHERE id IN (:ta, :tb)"),
+            {"ta": str(tpl_a), "tb": str(tpl_b)},
+        )
+    ).scalar_one()
+    assert visible == 2

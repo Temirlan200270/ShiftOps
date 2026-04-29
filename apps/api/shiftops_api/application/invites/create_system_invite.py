@@ -14,12 +14,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Invite, Location, Organization
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 
 _DEFAULT_HOURS = 48
 _MAX_HOURS = 168
@@ -67,7 +67,7 @@ class CreateSystemInviteUseCase:
                 )
             )
 
-        await self._session.execute(text("SET LOCAL row_security = off"))
+        await enter_privileged_rls_mode(self._session, reason="create_system_invite")
 
         org = await self._session.get(Organization, organization_id)
         if org is None:
@@ -92,4 +92,3 @@ class CreateSystemInviteUseCase:
         self._session.add(invite)
         await self._session.flush()
         return Success(SystemInviteCreated(id=invite.id, token=token, expires_at=invite.expires_at))
-

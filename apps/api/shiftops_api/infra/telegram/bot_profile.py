@@ -46,9 +46,7 @@ BOT_DESCRIPTION = (
     "попросите владельца или администратора прислать ссылку."
 )
 
-BOT_SHORT_DESCRIPTION = (
-    "Контроль смен в HoReCa: чек-листы, фото-доказательства, оценка качества."
-)
+BOT_SHORT_DESCRIPTION = "Контроль смен в HoReCa: чек-листы, фото-доказательства, оценка качества."
 
 # Shown until the user runs /start — keep tiny so random visitors do not see
 # super-admin org tooling.
@@ -126,7 +124,9 @@ async def push_slash_menu_for_private_chat(
             commands=_commands_for_profile(profile),
             scope=BotCommandScopeChat(chat_id=chat_id),
         )
-        _log.info("bot_profile.slash_menu_pushed", extra={"chat_id": chat_id, "profile": profile.value})
+        _log.info(
+            "bot_profile.slash_menu_pushed", extra={"chat_id": chat_id, "profile": profile.value}
+        )
     except Exception as exc:  # noqa: BLE001
         _log.warning("bot_profile.slash_menu_failed", extra={"error": str(exc), "chat_id": chat_id})
 

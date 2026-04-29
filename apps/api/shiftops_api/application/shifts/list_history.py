@@ -172,9 +172,7 @@ class ListHistoryUseCase:
                     score=shift.score,
                     formula_version=shift.score_formula_version or 1,
                     completion=breakdown.completion if breakdown else None,
-                    critical_compliance=(
-                        breakdown.critical_compliance if breakdown else None
-                    ),
+                    critical_compliance=(breakdown.critical_compliance if breakdown else None),
                     timeliness=breakdown.timeliness if breakdown else None,
                     photo_quality=breakdown.photo_quality if breakdown else None,
                     scheduled_start=shift.scheduled_start,
@@ -188,15 +186,11 @@ class ListHistoryUseCase:
             )
 
         next_cursor = (
-            items[-1].scheduled_start.astimezone(UTC).isoformat()
-            if (has_more and items)
-            else None
+            items[-1].scheduled_start.astimezone(UTC).isoformat() if (has_more and items) else None
         )
         return Success(HistoryPageDTO(items=items, next_cursor=next_cursor))
 
-    async def _tally_tasks(
-        self, shift_ids: list[uuid.UUID]
-    ) -> dict[uuid.UUID, _TaskTally]:
+    async def _tally_tasks(self, shift_ids: list[uuid.UUID]) -> dict[uuid.UUID, _TaskTally]:
         if not shift_ids:
             return {}
         # One round-trip; group counts by status & criticality so we can
@@ -213,9 +207,7 @@ class ListHistoryUseCase:
             .group_by(TaskInstance.shift_id, TaskInstance.status, TemplateTask.criticality)
         )
         out: dict[uuid.UUID, _TaskTally] = {sid: _TaskTally() for sid in shift_ids}
-        for shift_id, task_status, criticality, n in (
-            await self._session.execute(stmt)
-        ).all():
+        for shift_id, task_status, criticality, n in (await self._session.execute(stmt)).all():
             tally = out[shift_id]
             tally.total += n
             done = TaskStatus(task_status) in (TaskStatus.DONE, TaskStatus.WAIVED)
@@ -227,9 +219,7 @@ class ListHistoryUseCase:
                     tally.critical_done_or_waived += n
         return out
 
-    async def _tally_photos(
-        self, shift_ids: list[uuid.UUID]
-    ) -> dict[uuid.UUID, tuple[int, int]]:
+    async def _tally_photos(self, shift_ids: list[uuid.UUID]) -> dict[uuid.UUID, tuple[int, int]]:
         """Return ``(photo_total, photo_unique)`` per shift."""
         if not shift_ids:
             return {}

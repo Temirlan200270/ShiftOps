@@ -72,9 +72,7 @@ class InitDataValidator:
             raise InvalidInitData("hash missing")
 
         # 2. Build data_check_string: sorted "key=value" lines joined with \n.
-        data_check_string = "\n".join(
-            f"{key}={value}" for key, value in sorted(data.items())
-        )
+        data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(data.items()))
 
         # 3. HMAC-SHA256 with secret_key derived above.
         expected = hmac.new(
@@ -136,9 +134,7 @@ class InitDataValidator:
             msg=bot_token.encode("utf-8"),
             digestmod=hashlib.sha256,
         ).digest()
-        data_check_string = "\n".join(
-            f"{key}={value}" for key, value in sorted(payload.items())
-        )
+        data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(payload.items()))
         signature = hmac.new(
             key=secret_key,
             msg=data_check_string.encode("utf-8"),

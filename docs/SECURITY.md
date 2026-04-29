@@ -18,6 +18,36 @@
 - Межарендный integration-тест в CI должен оставаться зелёным, чтобы
   релиз дошёл до прода.
 
+## FORCE RLS и привилегированный доступ
+
+Миграция включает `FORCE ROW LEVEL SECURITY` на бизнес-таблицах: **владелец
+таблицы больше не обходит политики**. Обычный HTTP‑запрос после JWT выставляет
+`app.org_id` (`set_org_guc`) и работает строго внутри арендатора.
+
+**Выбранная стратегия (вариант A):** кросс‑арендные операции выполняют
+`SET LOCAL row_security = off` **только** через единую точку входа в коде —
+`enter_privileged_rls_mode()` в [`apps/api/shiftops_api/infra/db/rls.py`](../apps/api/shiftops_api/infra/db/rls.py).
+Там же инкрементируется метрика `shiftops_privileged_rls_bypass_total{reason=...}`
+и пишется structlog‑событие `rls.privileged_enter`. Новый bypass в приложении
+**не** добавлять сырым SQL.
+
+| Режим | Кто | Как |
+|--------|-----|-----|
+| Tenant (по умолчанию) | FastAPI после `require_user` / refresh | `set_org_guc` |
+| Системный (нет org до lookup) | Exchange initData, redeem invite, create org, bot super‑admin | `enter_privileged_rls_mode` с устойчивым `reason` |
+| Воркер (sweep по всем org) | `recurring_shifts_tick` и аналоги | `enter_privileged_rls_mode`, короткая транзакция |
+
+**Вариант B (на будущее):** отдельный пользователь БД с атрибутом `BYPASSRLS` и
+отдельный `DATABASE_URL` для воркера — если политика безопасности запретит
+`row_security=off` из роли приложения. Сейчас в репозитории один runtime URL
+(`Settings.database_url`) для API и TaskIQ; миграции используют
+`DATABASE_URL_SYNC` / `ALEMBIC_DATABASE_URL` (см. [`settings.py`](../apps/api/shiftops_api/config/settings.py)).
+
+**Операционный чеклист (discovery):** в Supabase → Project Settings → Database
+посмотреть пользователя в URI; на Fly — `fly secrets list -a shiftops-api`:
+убедиться, что `DATABASE_URL` осознанно один для API+worker или заведены
+раздельные секреты, если перейдёте на вариант B.
+
 ## Anti-fake (фото)
 
 - Сервер ставит `captured_at_server = now()`. Часам клиента **никогда**

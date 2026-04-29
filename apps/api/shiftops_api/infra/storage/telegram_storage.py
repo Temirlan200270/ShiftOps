@@ -94,9 +94,7 @@ class TelegramStorage(StorageProvider):
         url, _refreshed_ref = await self.get_url_with_refresh(ref)
         return url
 
-    async def get_url_with_refresh(
-        self, ref: AttachmentRef
-    ) -> tuple[str, AttachmentRef]:
+    async def get_url_with_refresh(self, ref: AttachmentRef) -> tuple[str, AttachmentRef]:
         """Return (url, possibly_refreshed_ref).
 
         The caller is expected to persist the refreshed ref if it differs from

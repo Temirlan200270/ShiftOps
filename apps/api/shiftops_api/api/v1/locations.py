@@ -41,6 +41,4 @@ async def list_locations(
             .order_by(Location.name.asc())
         )
     ).scalars()
-    return [
-        LocationOut(id=row.id, name=row.name, timezone=row.timezone) for row in rows
-    ]
+    return [LocationOut(id=row.id, name=row.name, timezone=row.timezone) for row in rows]

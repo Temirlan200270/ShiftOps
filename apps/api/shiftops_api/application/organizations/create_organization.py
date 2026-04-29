@@ -10,12 +10,13 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Organization, TelegramAccount, User
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +41,7 @@ class CreateOrganizationUseCase:
         if len(cleaned) < 2 or len(cleaned) > 255:
             return Failure(DomainError("invalid_org_name", "name must be 2-255 characters"))
 
-        await self._session.execute(text("SET LOCAL row_security = off"))
+        await enter_privileged_rls_mode(self._session, reason="create_organization")
 
         if owner_tg_user_id is not None:
             dup = (
@@ -50,7 +51,9 @@ class CreateOrganizationUseCase:
             ).scalar_one_or_none()
             if dup is not None:
                 return Failure(
-                    DomainError("telegram_already_linked", "this Telegram id already has an account")
+                    DomainError(
+                        "telegram_already_linked", "this Telegram id already has an account"
+                    )
                 )
 
         org = Organization(
@@ -87,4 +90,6 @@ class CreateOrganizationUseCase:
             await self._session.flush()
             owner_id = owner.id
 
-        return Success(OrganizationCreated(organization_id=org.id, name=org.name, owner_user_id=owner_id))
+        return Success(
+            OrganizationCreated(organization_id=org.id, name=org.name, owner_user_id=owner_id)
+        )

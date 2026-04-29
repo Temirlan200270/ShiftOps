@@ -95,6 +95,7 @@ async def list_active_shifts(
         for row in result.value
     ]
 
+
 _log = logging.getLogger(__name__)
 _HEARTBEAT_SECONDS = 25.0
 

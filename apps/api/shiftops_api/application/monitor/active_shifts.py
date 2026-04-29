@@ -45,9 +45,7 @@ class ListActiveShiftsUseCase:
     def __init__(self, *, session: AsyncSession) -> None:
         self._session = session
 
-    async def execute(
-        self, *, user: CurrentUser
-    ) -> Result[list[ActiveShiftDTO], DomainError]:
+    async def execute(self, *, user: CurrentUser) -> Result[list[ActiveShiftDTO], DomainError]:
         if user.role not in (UserRole.ADMIN, UserRole.OWNER):
             return Failure(DomainError("forbidden"))
 
@@ -91,9 +89,7 @@ class ListActiveShiftsUseCase:
             )
         return Success(items)
 
-    async def _progress(
-        self, shift_ids: list[uuid.UUID]
-    ) -> dict[uuid.UUID, _ProgressCounts]:
+    async def _progress(self, shift_ids: list[uuid.UUID]) -> dict[uuid.UUID, _ProgressCounts]:
         if not shift_ids:
             return {}
         from shiftops_api.infra.db.models import TemplateTask
@@ -125,9 +121,7 @@ class ListActiveShiftsUseCase:
             .group_by(TaskInstance.shift_id)
         )
         result: dict[uuid.UUID, _ProgressCounts] = {}
-        for shift_id, total, done, critical_pending in (
-            await self._session.execute(stmt)
-        ).all():
+        for shift_id, total, done, critical_pending in (await self._session.execute(stmt)).all():
             result[shift_id] = _ProgressCounts(
                 total=int(total or 0),
                 done=int(done or 0),

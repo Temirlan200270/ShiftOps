@@ -82,9 +82,7 @@ class SaveTemplateUseCase:
             event_type = "template.created"
         else:
             template = (
-                await self._session.execute(
-                    select(Template).where(Template.id == template_id)
-                )
+                await self._session.execute(select(Template).where(Template.id == template_id))
             ).scalar_one_or_none()
             if template is None:
                 return Failure(DomainError("template_not_found"))
@@ -96,9 +94,7 @@ class SaveTemplateUseCase:
         # provenance), delete the rest. New tasks get fresh ids assigned by
         # the DB. This is simpler than a per-task PATCH and gives the UI an
         # all-or-nothing update path.
-        retained_ids = {
-            t.id for t in payload.tasks if t.id is not None
-        }
+        retained_ids = {t.id for t in payload.tasks if t.id is not None}
         existing = (
             (
                 await self._session.execute(
@@ -211,26 +207,38 @@ async def _sync_open_shifts_with_template(session: AsyncSession, *, template_id:
     """
 
     shifts = (
-        await session.execute(
-            select(Shift.id)
-            .where(Shift.template_id == template_id)
-            .where(Shift.status.in_([ShiftStatus.SCHEDULED.value, ShiftStatus.ACTIVE.value]))
+        (
+            await session.execute(
+                select(Shift.id)
+                .where(Shift.template_id == template_id)
+                .where(Shift.status.in_([ShiftStatus.SCHEDULED.value, ShiftStatus.ACTIVE.value]))
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if not shifts:
         return
 
     current_task_ids = (
-        await session.execute(
-            select(TemplateTask.id).where(TemplateTask.template_id == template_id)
+        (
+            await session.execute(
+                select(TemplateTask.id).where(TemplateTask.template_id == template_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     current_set = set(current_task_ids)
 
     rows = (
         await session.execute(
-            select(TaskInstance.id, TaskInstance.shift_id, TaskInstance.template_task_id, TaskInstance.status)
-            .where(TaskInstance.shift_id.in_(list(shifts)))
+            select(
+                TaskInstance.id,
+                TaskInstance.shift_id,
+                TaskInstance.template_task_id,
+                TaskInstance.status,
+            ).where(TaskInstance.shift_id.in_(list(shifts)))
         )
     ).all()
 

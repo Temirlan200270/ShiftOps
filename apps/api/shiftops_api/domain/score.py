@@ -140,14 +140,11 @@ def _v1(inputs: ShiftScoreInputs) -> ShiftScoreResult:
     )
     timeliness = _timeliness_v1(inputs.scheduled_end, inputs.actual_end)
 
-    total_unrounded = (
-        Decimal("100")
-        * (
-            Decimal("0.50") * completion
-            + Decimal("0.25") * critical_compliance
-            + Decimal("0.15") * timeliness
-            + Decimal("0.10") * photo_quality
-        )
+    total_unrounded = Decimal("100") * (
+        Decimal("0.50") * completion
+        + Decimal("0.25") * critical_compliance
+        + Decimal("0.15") * timeliness
+        + Decimal("0.10") * photo_quality
     )
 
     return ShiftScoreResult(

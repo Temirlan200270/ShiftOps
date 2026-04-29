@@ -14,9 +14,7 @@ import structlog
 from shiftops_api.config import get_settings
 
 
-def _add_logger_name_compat(
-    logger: object, _method_name: str, event_dict: dict
-) -> dict:
+def _add_logger_name_compat(logger: object, _method_name: str, event_dict: dict) -> dict:
     """stdlib.add_logger_name assumes logging.Logger; PrintLogger has no .name (Fly/prod)."""
     name = getattr(logger, "name", None)
     if isinstance(name, str) and name:

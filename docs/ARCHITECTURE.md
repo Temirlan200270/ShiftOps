@@ -57,12 +57,12 @@ shiftops_api/
 - В каждой бизнес-таблице есть `organization_id uuid not null`.
 - RLS-политика Postgres:
   `USING (organization_id = current_setting('app.org_id')::uuid)`.
-- FastAPI-зависимость (`with_tenant_session`) открывает соединение,
-  ставит `SET LOCAL app.org_id = '<из JWT>'`, выполняет хендлер и
-  коммитит / откатывает в конце запроса.
-- `audit_events`, `organizations` и `users` (lookup по tg-id) требуют
-  RLS-исключений на конкретных эндпоинтах — реализовано паттерном
-  `set_role('app_admin')` только в привилегированных use case'ах.
+- После валидации JWT зависимость `require_user` выставляет GUC через
+  `set_config('app.org_id', …, true)` (см. `application/auth/deps.py`).
+- На таблицах включён **FORCE RLS**: кросс‑арендные сценарии (обмен initData,
+  redeem, супер‑админ в боте, `recurring_shifts_tick`) обходят политики только
+  через `enter_privileged_rls_mode()` — см. раздел «FORCE RLS» в
+  [SECURITY.md](SECURITY.md).
 
 ## 4. Абстракция хранилища
 

@@ -164,11 +164,22 @@ CSV_IMPORT_ROWS_TOTAL = Counter(
     labelnames=("outcome",),  # created | skipped | error | dry_run
 )
 
+# ---------------------------------------------------------------------------
+# RLS / privileged paths (FORCE RLS)
+# ---------------------------------------------------------------------------
+
+PRIVILEGED_RLS_BYPASS_TOTAL = Counter(
+    "shiftops_privileged_rls_bypass_total",
+    "Calls that run SET LOCAL row_security=off (bypass policies under FORCE RLS).",
+    labelnames=("reason",),
+)
+
 
 __all__ = [
     "ATTACHMENTS_UPLOADED_TOTAL",
     "ATTACHMENT_PHASH_COLLISIONS_TOTAL",
     "CSV_IMPORT_ROWS_TOTAL",
+    "PRIVILEGED_RLS_BYPASS_TOTAL",
     "REALTIME_WS_CONNECTIONS",
     "RECURRING_SHIFTS_CREATED_TOTAL",
     "RECURRING_TICK_CREATED_LAST",

@@ -12,15 +12,14 @@ Failure modes (returned as `AuthFailure`):
 - ``user_inactive``: linked but `is_active = false`.
 
 Note on RLS: this use-case must read across tenants (we don't know the
-organization yet at this point). It runs with `SET LOCAL row_security = off`
-in a privileged transaction.
+organization yet at this point). It calls :func:`enter_privileged_rls_mode`.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.config import get_settings
@@ -29,6 +28,7 @@ from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtService
 from shiftops_api.infra.db.models import TelegramAccount
 from shiftops_api.infra.db.models import User as UserModel
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.telegram.init_data import (
     InitDataValidator,
     InvalidInitData,
@@ -71,7 +71,7 @@ class ExchangeInitDataUseCase:
 
         # Bypass RLS for the auth lookup — we don't know the org yet, and the
         # bot token + HMAC signature already authorise us.
-        await self._session.execute(text("SET LOCAL row_security = off"))
+        await enter_privileged_rls_mode(self._session, reason="exchange_init_data")
 
         stmt = (
             select(UserModel, TelegramAccount)

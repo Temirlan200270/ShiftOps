@@ -222,9 +222,7 @@ class AnalyticsOverviewUseCase:
         if (range_to - range_from) > timedelta(days=MAX_DAYS):
             return Failure(DomainError("range_too_large"))
 
-        violators_limit = max(
-            MIN_VIOLATORS_LIMIT, min(violators_limit, MAX_VIOLATORS_LIMIT)
-        )
+        violators_limit = max(MIN_VIOLATORS_LIMIT, min(violators_limit, MAX_VIOLATORS_LIMIT))
 
         current = await self._build(
             range_from=range_from,
@@ -304,9 +302,7 @@ class AnalyticsOverviewUseCase:
 
     @staticmethod
     def _violation_filter():  # type: ignore[no-untyped-def]
-        return TaskInstance.status.in_(
-            [TaskStatus.SKIPPED, TaskStatus.WAIVER_REJECTED]
-        )
+        return TaskInstance.status.in_([TaskStatus.SKIPPED, TaskStatus.WAIVER_REJECTED])
 
     def _closed_shift_filter(
         self,
@@ -408,10 +404,7 @@ class AnalyticsOverviewUseCase:
         limit: int,
     ) -> list[ViolatorRow]:
         violation_subq = (
-            select(TaskInstance.shift_id)
-            .where(self._violation_filter())
-            .distinct()
-            .subquery()
+            select(TaskInstance.shift_id).where(self._violation_filter()).distinct().subquery()
         )
         violation_flag = case(
             (violation_subq.c.shift_id.isnot(None), 1),
@@ -462,10 +455,7 @@ class AnalyticsOverviewUseCase:
         range_to: datetime,
     ) -> list[LocationRow]:
         violation_subq = (
-            select(TaskInstance.shift_id)
-            .where(self._violation_filter())
-            .distinct()
-            .subquery()
+            select(TaskInstance.shift_id).where(self._violation_filter()).distinct().subquery()
         )
         violation_flag = case(
             (violation_subq.c.shift_id.isnot(None), 1),
@@ -511,10 +501,7 @@ class AnalyticsOverviewUseCase:
         location_id: uuid.UUID | None,
     ) -> list[TemplateRow]:
         violation_subq = (
-            select(TaskInstance.shift_id)
-            .where(self._violation_filter())
-            .distinct()
-            .subquery()
+            select(TaskInstance.shift_id).where(self._violation_filter()).distinct().subquery()
         )
         violation_flag = case(
             (violation_subq.c.shift_id.isnot(None), 1),
@@ -579,12 +566,8 @@ class AnalyticsOverviewUseCase:
             ),
             else_=0,
         )
-        is_skipped = case(
-            (TaskInstance.status == TaskStatus.SKIPPED, 1), else_=0
-        )
-        is_rejected = case(
-            (TaskInstance.status == TaskStatus.WAIVER_REJECTED, 1), else_=0
-        )
+        is_skipped = case((TaskInstance.status == TaskStatus.SKIPPED, 1), else_=0)
+        is_rejected = case((TaskInstance.status == TaskStatus.WAIVER_REJECTED, 1), else_=0)
 
         stmt = (
             select(
@@ -641,9 +624,7 @@ class AnalyticsOverviewUseCase:
         total = int(row.total or 0)
         susp = int(row.susp or 0)
         rate: Decimal | None = (
-            (Decimal(susp) / Decimal(total)).quantize(Decimal("0.0001"))
-            if total > 0
-            else None
+            (Decimal(susp) / Decimal(total)).quantize(Decimal("0.0001")) if total > 0 else None
         )
         return AntifakeBlock(
             attachments_total=total,
@@ -660,9 +641,7 @@ class AnalyticsOverviewUseCase:
         threshold = max(0, int(get_settings().analytics_sla_late_start_min))
 
         # Compute lateness in minutes inside SQL: EXTRACT(epoch FROM diff) / 60.
-        late_min_expr = (
-            func.extract("epoch", Shift.actual_start - Shift.scheduled_start) / 60
-        )
+        late_min_expr = func.extract("epoch", Shift.actual_start - Shift.scheduled_start) / 60
         is_late = case(
             (
                 and_(
@@ -701,9 +680,7 @@ class AnalyticsOverviewUseCase:
             else None
         )
         avg_late: Decimal | None = (
-            Decimal(row.avg_late).quantize(Decimal("0.1"))
-            if row.avg_late is not None
-            else None
+            Decimal(row.avg_late).quantize(Decimal("0.1")) if row.avg_late is not None else None
         )
         return SlaBlock(
             threshold_min=threshold,
@@ -720,9 +697,7 @@ class AnalyticsOverviewUseCase:
         location_id: uuid.UUID | None,
     ) -> RoleSplitBlock:
         is_clean = case((Shift.status == ShiftStatus.CLOSED_CLEAN, 1), else_=0)
-        is_violations = case(
-            (Shift.status == ShiftStatus.CLOSED_WITH_VIOLATIONS, 1), else_=0
-        )
+        is_violations = case((Shift.status == ShiftStatus.CLOSED_WITH_VIOLATIONS, 1), else_=0)
 
         stmt = (
             select(
@@ -771,24 +746,16 @@ class AnalyticsOverviewUseCase:
         heat_d: DensityFlag = (
             "empty"
             if not heatmap
-            else (
-                "low"
-                if kpis.shifts_closed < _HEATMAP_LOW_THRESHOLD
-                else "ok"
-            )
+            else ("low" if kpis.shifts_closed < _HEATMAP_LOW_THRESHOLD else "ok")
         )
-        eligible_violators = sum(
-            1 for v in violators if v.shifts_total >= _VIOLATOR_MIN_SHIFTS
-        )
+        eligible_violators = sum(1 for v in violators if v.shifts_total >= _VIOLATOR_MIN_SHIFTS)
         viol_d: DensityFlag = (
             "empty"
             if not violators
             else ("low" if eligible_violators < _VIOLATORS_LOW_ROWS else "ok")
         )
         tpl_d: DensityFlag = (
-            "empty"
-            if not templates
-            else ("low" if len(templates) < _TEMPLATES_LOW_ROWS else "ok")
+            "empty" if not templates else ("low" if len(templates) < _TEMPLATES_LOW_ROWS else "ok")
         )
         return DensityBlock(
             kpis=kpi_d,
@@ -813,9 +780,7 @@ def _kpi_from_row(row: object) -> KpiBlock:  # type: ignore[no-untyped-def]
     with_violations = int(getattr(row, "with_violations", 0) or 0)
     avg_score = _quantize_score(getattr(row, "avg_score", None))
     cleanliness: Decimal | None = (
-        (Decimal(clean) / Decimal(total)).quantize(Decimal("0.0001"))
-        if total > 0
-        else None
+        (Decimal(clean) / Decimal(total)).quantize(Decimal("0.0001")) if total > 0 else None
     )
     return KpiBlock(
         shifts_closed=total,

@@ -51,6 +51,7 @@ from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import Organization, TelegramAccount, User
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.telegram.bot_profile import (
     SlashMenuProfile,
     push_slash_menu_for_private_chat,
@@ -332,7 +333,7 @@ async def _resolve_org_spec_to_uuid(
     Returns ``(id, None)`` on success, or ``(None, html_error)``.
     """
 
-    await session.execute(text("SET LOCAL row_security = off"))
+    await enter_privileged_rls_mode(session, reason="telegram_bot_resolve_org_spec")
     token = org_spec.strip().strip("'\"")
     if not token:
         return None, "Укажите <b>название</b> организации или её <b>UUID</b>."
@@ -478,7 +479,6 @@ async def org_set_owner(message: Message) -> None:
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
-        await session.execute(text("SET LOCAL row_security = off"))
         row = (
             await session.execute(
                 select(TelegramAccount, User)
@@ -615,7 +615,7 @@ async def _resolve_owner_actor(
     is not an owner of any active org. Sets ``app.org_id`` for downstream RLS.
     """
 
-    await session.execute(text("SET LOCAL row_security = off"))
+    await enter_privileged_rls_mode(session, reason="telegram_bot_resolve_owner_actor")
     row = (
         await session.execute(
             select(User)
@@ -763,9 +763,7 @@ async def set_role_for_owner(message: Message) -> None:
             await message.answer(_team_err_text("user_not_found"))
             return
         uc = ChangeMemberRoleUseCase(session)
-        result = await uc.execute(
-            actor=actor, target_user_id=target.id, new_role=raw_role
-        )
+        result = await uc.execute(actor=actor, target_user_id=target.id, new_role=raw_role)
         if isinstance(result, Failure):
             await message.answer(_team_err_text(result.error.code))
             await session.rollback()
@@ -837,10 +835,7 @@ async def org_set_role_for_super_admin(message: Message) -> None:
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
-        await session.execute(text("SET LOCAL row_security = off"))
-        target = await _resolve_target_user(
-            session, organization_id=org_id, raw=str(tg_id)
-        )
+        target = await _resolve_target_user(session, organization_id=org_id, raw=str(tg_id))
         if target is None:
             await message.answer(_team_err_text("user_not_found"))
             return
@@ -851,9 +846,7 @@ async def org_set_role_for_super_admin(message: Message) -> None:
             tg_user_id=message.from_user.id,
         )
         uc = ChangeMemberRoleUseCase(session)
-        result = await uc.execute(
-            actor=actor, target_user_id=target.id, new_role=raw_role
-        )
+        result = await uc.execute(actor=actor, target_user_id=target.id, new_role=raw_role)
         if isinstance(result, Failure):
             await message.answer(_team_err_text(result.error.code))
             await session.rollback()
@@ -886,10 +879,7 @@ async def org_remove_member_for_super_admin(message: Message) -> None:
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
-        await session.execute(text("SET LOCAL row_security = off"))
-        target = await _resolve_target_user(
-            session, organization_id=org_id, raw=str(tg_id)
-        )
+        target = await _resolve_target_user(session, organization_id=org_id, raw=str(tg_id))
         if target is None:
             await message.answer(_team_err_text("user_not_found"))
             return

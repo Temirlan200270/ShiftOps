@@ -47,9 +47,7 @@ class DeleteTemplateUseCase:
 
         in_use = (
             await self._session.execute(
-                select(func.count())
-                .select_from(Shift)
-                .where(Shift.template_id == template_id)
+                select(func.count()).select_from(Shift).where(Shift.template_id == template_id)
             )
         ).scalar_one()
         if int(in_use or 0) > 0:

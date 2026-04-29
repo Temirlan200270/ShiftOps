@@ -66,9 +66,7 @@ class CreateInviteUseCase:
                 )
             )
         if user.role == UserRole.OPERATOR:
-            return Failure(
-                DomainError("insufficient_role", "operators cannot create invites")
-            )
+            return Failure(DomainError("insufficient_role", "operators cannot create invites"))
 
         hours = _DEFAULT_HOURS if expires_in_hours is None else expires_in_hours
         if hours < 1 or hours > _MAX_HOURS:
@@ -102,6 +100,4 @@ class CreateInviteUseCase:
         )
         self._session.add(invite)
         await self._session.flush()
-        return Success(
-            InviteCreated(id=invite.id, token=token, expires_at=invite.expires_at)
-        )
+        return Success(InviteCreated(id=invite.id, token=token, expires_at=invite.expires_at))
