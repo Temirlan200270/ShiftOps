@@ -21,6 +21,11 @@ from shiftops_api.application.templates.recurring_shifts_tick import (
     CreateRecurringShiftsTickUseCase,
 )
 from shiftops_api.infra.db.engine import get_sessionmaker
+from shiftops_api.infra.metrics import (
+    RECURRING_SHIFTS_CREATED_TOTAL,
+    RECURRING_TICK_CREATED_LAST,
+    RECURRING_TICK_TEMPLATES_VISIBLE,
+)
 from shiftops_api.infra.queue import broker
 
 _log = logging.getLogger(__name__)
@@ -40,15 +45,20 @@ async def recurring_shifts_tick() -> dict[str, int]:
         use_case = CreateRecurringShiftsTickUseCase(session=session)
         report = await use_case.execute()
 
-    if report.created or report.inspected:
-        _log.info(
-            "recurring.tick.summary",
-            extra={
-                "inspected": report.inspected,
-                "created": report.created,
-                "skipped": report.skipped,
-            },
-        )
+    # Canary metrics: if FORCE RLS blocks the worker, inspected will drop to 0.
+    RECURRING_TICK_TEMPLATES_VISIBLE.set(report.inspected)
+    RECURRING_TICK_CREATED_LAST.set(report.created)
+    if report.created:
+        RECURRING_SHIFTS_CREATED_TOTAL.inc(report.created)
+
+    _log.info(
+        "recurring.tick.summary",
+        extra={
+            "inspected": report.inspected,
+            "created": report.created,
+            "skipped": report.skipped,
+        },
+    )
     return {
         "inspected": report.inspected,
         "created": report.created,

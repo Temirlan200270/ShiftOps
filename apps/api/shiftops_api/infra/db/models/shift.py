@@ -59,3 +59,4 @@ class Shift(UuidPkMixin, TimestampMixin, Base):
         server_default="1",
     )
     close_notes: Mapped[str | None] = mapped_column(Text)
+    handover_summary: Mapped[str | None] = mapped_column(Text)

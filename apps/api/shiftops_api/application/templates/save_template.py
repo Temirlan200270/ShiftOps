@@ -196,7 +196,8 @@ class SaveTemplateUseCase:
             },
         )
 
-        await self._session.commit()
+        # Do not commit here — the API handler may need to perform follow-up
+        # writes in the same transaction (e.g. updating default_schedule).
         return Success(SavedTemplate(template_id=template.id))
 
 

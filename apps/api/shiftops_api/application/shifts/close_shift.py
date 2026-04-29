@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.audit import write_audit
@@ -141,6 +141,7 @@ class CloseShiftUseCase:
             )
 
         photo_unique = await self._count_unique_photos(shift_id)
+        photo_total, suspicious_photos = await self._count_photos(shift_id)
 
         now = datetime.now(tz=UTC)
         score_result = compute_score(
@@ -165,6 +166,17 @@ class CloseShiftUseCase:
         # Persist *which* formula scored this shift. Future formula tweaks
         # never silently restate past scores — see docs/SCORE_FORMULA.md.
         shift.score_formula_version = score_result.formula_version
+        shift.handover_summary = _build_handover_summary(
+            template_task_rows=rows,
+            required_missed=required_missed,
+            final_status=final_status.value,
+            score=score_result.total,
+            scheduled_end=shift.scheduled_end,
+            actual_end=now,
+            photo_total=photo_total,
+            photo_unique=photo_unique,
+            suspicious_photos=suspicious_photos,
+        )
 
         await write_audit(
             session=self._session,
@@ -221,3 +233,93 @@ class CloseShiftUseCase:
         )
         attachments = (await self._session.execute(stmt)).scalars().all()
         return sum(1 for a in attachments if not a.suspicious)
+
+    async def _count_photos(self, shift_id: uuid.UUID) -> tuple[int, int]:
+        """Return ``(photo_total, suspicious_total)`` for the shift."""
+
+        stmt = (
+            select(
+                func.count(Attachment.id).label("total"),
+                func.count(Attachment.id).filter(Attachment.suspicious.is_(True)).label(
+                    "suspicious"
+                ),
+            )
+            .select_from(Attachment)
+            .join(TaskInstance, TaskInstance.id == Attachment.task_instance_id)
+            .where(TaskInstance.shift_id == shift_id)
+        )
+        row = (await self._session.execute(stmt)).first()
+        if row is None:
+            return 0, 0
+        total, suspicious = row
+        return int(total or 0), int(suspicious or 0)
+
+
+def _build_handover_summary(
+    *,
+    template_task_rows: list[tuple[TaskInstance, TemplateTask]],
+    required_missed: list[uuid.UUID],
+    final_status: str,
+    score: Decimal,
+    scheduled_end: datetime,
+    actual_end: datetime,
+    photo_total: int,
+    photo_unique: int,
+    suspicious_photos: int,
+) -> str:
+    total = len(template_task_rows)
+    done_or_waived = sum(
+        1
+        for ti, _tt in template_task_rows
+        if TaskStatus(ti.status) in (TaskStatus.DONE, TaskStatus.WAIVED)
+    )
+    skipped = sum(
+        1 for ti, _tt in template_task_rows if TaskStatus(ti.status) == TaskStatus.SKIPPED
+    )
+    waiver_pending = sum(
+        1
+        for ti, _tt in template_task_rows
+        if TaskStatus(ti.status) == TaskStatus.WAIVER_PENDING
+    )
+    # CloseShiftUseCase may leave WAIVER_REJECTED in the data set if it was pending,
+    # but those count as "not done".
+    waiver_rejected = sum(
+        1
+        for ti, _tt in template_task_rows
+        if TaskStatus(ti.status) == TaskStatus.WAIVER_REJECTED
+    )
+
+    late_min = max(0, int((actual_end - scheduled_end).total_seconds() // 60))
+    status_emoji = "✅" if final_status == ShiftStatus.CLOSED_CLEAN.value else "🟠"
+
+    missed_titles = [
+        tt.title
+        for ti, tt in template_task_rows
+        if ti.id in required_missed  # NOTE: required_missed contains TaskInstance ids
+    ]
+    missed_preview = ""
+    if missed_titles:
+        clipped = missed_titles[:8]
+        more = len(missed_titles) - len(clipped)
+        lines = "\n".join(f"  - {t}" for t in clipped)
+        tail = f"\n  …ещё {more}" if more > 0 else ""
+        missed_preview = f"\n\nНе выполнено (required):\n{lines}{tail}"
+
+    photos_line = f"{photo_unique}/{photo_total}" if photo_total else "0"
+    suspicious_line = f", suspicious: {suspicious_photos}" if suspicious_photos else ""
+    waiver_line = ""
+    if waiver_pending or waiver_rejected:
+        waiver_line = f"\nWaiver: pending {waiver_pending}, rejected {waiver_rejected}"
+
+    late_line = f"\nОпоздание закрытия: {late_min} мин" if late_min > 0 else ""
+
+    return (
+        f"{status_emoji} Handover\n"
+        f"Прогресс: {done_or_waived}/{total} (skipped {skipped})\n"
+        f"Фото (unique/total): {photos_line}{suspicious_line}\n"
+        f"Нарушения (required missed): {len(required_missed)}"
+        f"{waiver_line}"
+        f"{late_line}\n"
+        f"Score: {score}%"
+        f"{missed_preview}"
+    )

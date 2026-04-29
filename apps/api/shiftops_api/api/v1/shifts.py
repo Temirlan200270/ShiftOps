@@ -106,6 +106,7 @@ class HistoryRow(BaseModel):
     actual_end: str | None
     tasks_total: int
     tasks_done: int
+    handover_summary: str | None = None
 
 
 class HistoryResponse(BaseModel):
@@ -200,6 +201,7 @@ async def list_history(
                 actual_end=row.actual_end.isoformat() if row.actual_end else None,
                 tasks_total=row.tasks_total,
                 tasks_done=row.tasks_done,
+                handover_summary=row.handover_summary,
             )
             for row in page.items
         ],

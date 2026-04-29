@@ -229,7 +229,9 @@
     "filterUserChip": "Operator: {name}",
     "filterLocationChip": "Location: {name}",
     "filterDateChip": "{from} – {to}",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "handoverCta": "Handover summary",
+    "handoverTitle": "Shift handover"
   },
   "templates": {
     "openManageCta": "Manage templates",

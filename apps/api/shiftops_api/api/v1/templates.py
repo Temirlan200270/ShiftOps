@@ -11,7 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser, require_role
@@ -177,6 +177,7 @@ async def create_template(
     assert isinstance(result, Success)
 
     await _persist_recurrence(session, user, result.value.template_id, payload.recurrence)
+    await session.commit()
     return TemplateSaveResponse(id=result.value.template_id)
 
 
@@ -208,6 +209,7 @@ async def update_template(
     assert isinstance(result, Success)
 
     await _persist_recurrence(session, user, template_id, payload.recurrence)
+    await session.commit()
     return TemplateSaveResponse(id=result.value.template_id)
 
 
@@ -280,37 +282,21 @@ async def _persist_recurrence(
     template_id: UUID,
     recurrence: RecurrenceConfig | None,
 ) -> None:
-    """Update the JSONB ``default_schedule`` cell after the template
-    save has committed.
-
-    SaveTemplateUseCase ends its transaction inside the use case, which
-    drops the request's ``SET LOCAL app.org_id`` GUC. We re-apply it
-    here so RLS still scopes the lookup to the actor's tenant.
-    """
+    """Update the JSONB ``default_schedule`` cell within the request tx."""
 
     if recurrence is None:
         # We still want to clear the column on update if the caller
         # turned recurrence off.
-        await session.execute(
-            text("SELECT set_config('app.org_id', :oid, true)"),
-            {"oid": str(user.organization_id)},
-        )
         template = await session.get(Template, template_id)
         if template is None:
             return
         template.default_schedule = None
-        await session.commit()
         return
 
-    await session.execute(
-        text("SELECT set_config('app.org_id', :oid, true)"),
-        {"oid": str(user.organization_id)},
-    )
     template = await session.get(Template, template_id)
     if template is None:
         return
     template.default_schedule = recurrence.to_storage()
-    await session.commit()
 
 
 class TemplateImportIn(BaseModel):

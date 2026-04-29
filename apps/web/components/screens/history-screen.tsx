@@ -16,6 +16,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { fetchHistory, type HistoryItem, type HistoryPage } from "@/lib/api/shifts";
 import { toast } from "@/lib/stores/toast-store";
 import { SCORE_WEIGHTS, type ScoreBreakdown } from "@/lib/types";
@@ -101,10 +102,12 @@ function HistoryRow({
   item,
   expanded,
   onToggle,
+  onOpenHandover,
 }: {
   item: HistoryItem;
   expanded: boolean;
   onToggle: () => void;
+  onOpenHandover: () => void;
 }): React.JSX.Element {
   const tHist = useTranslations("history");
   const tSum = useTranslations("summary");
@@ -146,6 +149,13 @@ function HistoryRow({
       </button>
       {expanded && item.breakdown ? (
         <CardContent className="px-4 pb-4 pt-0 border-t border-border/60">
+          {item.handoverSummary ? (
+            <div className="mt-3">
+              <Button variant="secondary" size="sm" onClick={onOpenHandover}>
+                {tHist("handoverCta")}
+              </Button>
+            </div>
+          ) : null}
           <ul className="space-y-2 mt-3">
             {(Object.keys(SCORE_WEIGHTS) as Array<keyof ScoreBreakdown>).map((key) => {
               const ratio = item.breakdown![key];
@@ -183,6 +193,8 @@ export function HistoryScreen({
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [handoverOpen, setHandoverOpen] = React.useState(false);
+  const [handoverText, setHandoverText] = React.useState<string | null>(null);
 
   // Snapshot the filter values into stable primitives so the effect
   // dependency array doesn't re-run on every parent render (an inline
@@ -237,6 +249,10 @@ export function HistoryScreen({
   }, [loadFirstPage]);
 
   const items = page?.items ?? [];
+  const handleOpenHandover = React.useCallback((item: HistoryItem) => {
+    setHandoverText(item.handoverSummary ?? null);
+    setHandoverOpen(true);
+  }, []);
   const recent7 = React.useMemo(
     // History comes back DESC, so the newest is index 0. Reverse so the
     // sparkline reads left=oldest -> right=newest, matching every other
@@ -265,6 +281,17 @@ export function HistoryScreen({
           </p>
         </div>
       </header>
+
+      <Sheet open={handoverOpen} onOpenChange={setHandoverOpen}>
+        <SheetTrigger asChild>
+          <span hidden />
+        </SheetTrigger>
+        <SheetContent title={tHist("handoverTitle")}>
+          <pre className="text-xs whitespace-pre-wrap break-words bg-elevated/60 border border-border rounded-md p-3">
+            {handoverText ?? ""}
+          </pre>
+        </SheetContent>
+      </Sheet>
 
       {filtersActive ? (
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -334,6 +361,7 @@ export function HistoryScreen({
               item={item}
               expanded={expandedId === item.id}
               onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+              onOpenHandover={() => handleOpenHandover(item)}
             />
           ))}
 

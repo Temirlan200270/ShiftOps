@@ -139,6 +139,25 @@ REALTIME_WS_CONNECTIONS = Gauge(
     "Open live-monitor WebSocket sessions.",
 )
 
+# ---------------------------------------------------------------------------
+# Recurrence tick (worker canary)
+# ---------------------------------------------------------------------------
+
+RECURRING_TICK_TEMPLATES_VISIBLE = Gauge(
+    "shiftops_recurring_tick_templates_visible",
+    "How many templates the worker saw on the last sweep (canary for RLS).",
+)
+
+RECURRING_TICK_CREATED_LAST = Gauge(
+    "shiftops_recurring_tick_created_last",
+    "How many shifts were created by the last sweep.",
+)
+
+RECURRING_SHIFTS_CREATED_TOTAL = Counter(
+    "shiftops_recurring_shifts_created_total",
+    "Total shifts created by the recurring tick worker.",
+)
+
 CSV_IMPORT_ROWS_TOTAL = Counter(
     "shiftops_csv_import_rows_total",
     "Rows processed by the CSV schedule importer.",
@@ -151,6 +170,9 @@ __all__ = [
     "ATTACHMENT_PHASH_COLLISIONS_TOTAL",
     "CSV_IMPORT_ROWS_TOTAL",
     "REALTIME_WS_CONNECTIONS",
+    "RECURRING_SHIFTS_CREATED_TOTAL",
+    "RECURRING_TICK_CREATED_LAST",
+    "RECURRING_TICK_TEMPLATES_VISIBLE",
     "SHIFTS_CLOSED_TOTAL",
     "SHIFTS_STARTED_TOTAL",
     "TASKS_COMPLETED_TOTAL",

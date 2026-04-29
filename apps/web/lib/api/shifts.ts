@@ -167,6 +167,7 @@ export interface HistoryItem {
   actualEnd: string | null;
   tasksTotal: number;
   tasksDone: number;
+  handoverSummary: string | null;
 }
 
 export interface HistoryPage {
@@ -187,6 +188,7 @@ interface HistoryRowDTO {
   actual_end: string | null;
   tasks_total: number;
   tasks_done: number;
+  handover_summary?: string | null;
 }
 
 interface HistoryResponseDTO {
@@ -233,6 +235,7 @@ export async function fetchHistory(input: {
         actualEnd: row.actual_end,
         tasksTotal: row.tasks_total,
         tasksDone: row.tasks_done,
+        handoverSummary: row.handover_summary ?? null,
       })),
       nextCursor: result.data.next_cursor,
     },

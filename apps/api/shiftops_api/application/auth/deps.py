@@ -19,12 +19,12 @@ from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
 from shiftops_api.infra.db.engine import get_session
+from shiftops_api.infra.db.rls import set_org_guc
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -64,10 +64,7 @@ async def require_user(
     # query. Use set_config(..., true) instead of SET LOCAL ... = :param —
     # asyncpg cannot bind parameters in SET (syntax error at $1); set_config
     # is the supported parameterized equivalent of SET LOCAL for this tx.
-    await session.execute(
-        text("SELECT set_config('app.org_id', :org_id, true)"),
-        {"org_id": str(payload.org)},
-    )
+    await set_org_guc(session, organization_id=payload.org)
     return CurrentUser(
         id=payload.sub,
         organization_id=payload.org,

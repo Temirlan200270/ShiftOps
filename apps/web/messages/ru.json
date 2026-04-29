@@ -229,7 +229,9 @@
     "filterUserChip": "Сотрудник: {name}",
     "filterLocationChip": "Локация: {name}",
     "filterDateChip": "{from} – {to}",
-    "clearFilters": "Сбросить фильтры"
+    "clearFilters": "Сбросить фильтры",
+    "handoverCta": "Сводка (handover)",
+    "handoverTitle": "Сводка смены"
   },
   "templates": {
     "openManageCta": "Управление шаблонами",

@@ -500,6 +500,13 @@ async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> No
         for owner_chat in owner_chats:
             await send_telegram_message.kiq(owner_chat, head)
 
+        # Handover summary: persisted at close time for audit stability.
+        if shift.handover_summary:
+            if admin_chat_id:
+                await send_telegram_message.kiq(admin_chat_id, shift.handover_summary)
+            for owner_chat in owner_chats:
+                await send_telegram_message.kiq(owner_chat, shift.handover_summary)
+
         await publish_event(
             organization_id=shift.organization_id,
             event_type="shift.closed",

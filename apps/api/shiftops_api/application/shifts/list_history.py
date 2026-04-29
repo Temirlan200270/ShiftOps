@@ -65,6 +65,7 @@ class HistoryRowDTO:
     actual_end: datetime | None
     tasks_total: int
     tasks_done: int
+    handover_summary: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +183,7 @@ class ListHistoryUseCase:
                     actual_end=shift.actual_end,
                     tasks_total=tally.total,
                     tasks_done=tally.done_or_waived,
+                    handover_summary=shift.handover_summary,
                 )
             )
 

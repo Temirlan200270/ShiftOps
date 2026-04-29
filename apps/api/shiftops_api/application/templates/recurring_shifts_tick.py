@@ -101,10 +101,9 @@ class CreateRecurringShiftsTickUseCase:
 
     Caller responsibility: provide a session WITHOUT an ``app.org_id``
     GUC (the worker is not bound to a tenant). RLS still applies to
-    queries — we explicitly bypass it by *not* setting ``app.org_id``
-    and SET ROLE-ing to a privileged role. For now the worker connects
-    as the DB owner (same role used by Alembic), so RLS bypass is
-    automatic.
+    queries — with ``FORCE ROW LEVEL SECURITY`` enabled, connecting as
+    the DB owner is *not* enough. We explicitly bypass RLS via
+    ``SET LOCAL row_security = off`` in the sweep transaction.
     """
 
     def __init__(self, *, session: AsyncSession, now: datetime | None = None) -> None:
@@ -112,6 +111,10 @@ class CreateRecurringShiftsTickUseCase:
         self._now = (now or datetime.now(tz=UTC)).astimezone(UTC)
 
     async def execute(self) -> TickReport:
+        # Worker is not bound to a tenant; it must see all orgs' templates.
+        # With FORCE RLS enabled this requires an explicit bypass.
+        await self._session.execute(text("SET LOCAL row_security = off"))
+
         # 1. Load all templates with a non-null default_schedule. We
         #    intentionally pull the full set (small, ~50 rows even at
         #    pilot scale) and filter in Python — the auto_create flag

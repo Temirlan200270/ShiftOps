@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
 from shiftops_api.infra.db.models import User as UserModel
+from shiftops_api.infra.db.rls import set_org_guc
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +42,7 @@ class RefreshAccessUseCase:
         except JwtError as exc:
             return RefreshFailure(reason=f"invalid_refresh_token: {exc}")
 
-        await self._session.execute(
-            text("SELECT set_config('app.org_id', :org_id, true)"),
-            {"org_id": str(payload.org)},
-        )
+        await set_org_guc(self._session, organization_id=payload.org)
 
         user = await self._session.get(UserModel, payload.sub)
         if user is None or user.organization_id != payload.org:
