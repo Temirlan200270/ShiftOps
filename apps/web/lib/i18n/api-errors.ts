@@ -1,6 +1,7 @@
 import type { ApiFailure } from "@/lib/api/client";
+import type { TranslationValues } from "next-intl";
 
-type Translator = (key: string, values?: Record<string, unknown>) => string;
+type Translator = (key: string, values?: TranslationValues) => string;
 
 export function localiseApiFailure(
   failure: Pick<ApiFailure, "code" | "message" | "status">,
