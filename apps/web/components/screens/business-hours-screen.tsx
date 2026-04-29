@@ -6,6 +6,7 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ApiFailure } from "@/lib/api/client";
 import {
   fetchBusinessHours,
   saveBusinessHours,
@@ -62,6 +63,16 @@ function mapFromDto(dto: BusinessHoursDTO): { regular: LocalRegular[]; dated: Lo
   };
 }
 
+/** Stable machine code + human message from API error envelope (see ``install_error_handlers``). */
+function formatApiFailureDescription(r: ApiFailure): string {
+  const code = r.code.trim();
+  const msg = r.message.trim();
+  if (code && msg && code !== msg) {
+    return `${code}: ${msg}`;
+  }
+  return msg || code || "";
+}
+
 function toDto(regular: LocalRegular[], dated: LocalDated[]): BusinessHoursDTO {
   return {
     timezone: null,
@@ -97,7 +108,11 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
       const r = await fetchBusinessHours();
       setLoading(false);
       if (!r.ok) {
-        toast({ variant: "critical", title: tErr("generic"), description: r.message });
+        toast({
+          variant: "critical",
+          title: tErr("generic"),
+          description: formatApiFailureDescription(r),
+        });
         return;
       }
       const m = mapFromDto(r.data);
@@ -159,14 +174,57 @@ export function BusinessHoursScreen({ onBack }: BusinessHoursScreenProps): React
     setDated((prev) => prev.map((row) => (row.localKey === key ? { ...row, ...patch } : row)));
   };
 
+  const validateBeforeSave = (): boolean => {
+    if (regular.length > 24 || dated.length > 366) {
+      toast({ variant: "critical", title: tErr("generic"), description: t("saveErrorTooManyRows") });
+      return false;
+    }
+    for (const row of regular) {
+      const o = toApiTime(row.opens, "open");
+      const c = toApiTime(row.closes, "close");
+      if (o === c) {
+        toast({ variant: "critical", title: tErr("generic"), description: t("saveErrorSameOpenClose") });
+        return false;
+      }
+      if (row.weekdays.length === 0) {
+        toast({ variant: "critical", title: tErr("generic"), description: t("saveErrorWeekdays") });
+        return false;
+      }
+    }
+    for (const row of dated) {
+      if (!row.on.trim()) {
+        toast({ variant: "critical", title: tErr("generic"), description: t("saveErrorEmptyDate") });
+        return false;
+      }
+      const o = toApiTime(row.opens, "open");
+      const c = toApiTime(row.closes, "close");
+      if (o === c) {
+        toast({ variant: "critical", title: tErr("generic"), description: t("saveErrorSameOpenClose") });
+        return false;
+      }
+      if ((row.note ?? "").length > 256) {
+        toast({ variant: "critical", title: tErr("generic"), description: t("saveErrorNoteTooLong") });
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSave = async (): Promise<void> => {
     haptic("medium");
+    if (!validateBeforeSave()) {
+      return;
+    }
     setSaving(true);
     const body = toDto(regular, dated);
     const r = await saveBusinessHours(body);
     setSaving(false);
     if (!r.ok) {
-      toast({ variant: "critical", title: tErr("generic"), description: r.message });
+      toast({
+        variant: "critical",
+        title: tErr("generic"),
+        description: formatApiFailureDescription(r),
+      });
       return;
     }
     const m = mapFromDto(r.data);

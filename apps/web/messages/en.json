@@ -122,7 +122,12 @@
     "removeRow": "Remove",
     "save": "Save",
     "saving": "Saving…",
-    "saved": "Opening hours saved"
+    "saved": "Opening hours saved",
+    "saveErrorSameOpenClose": "Opening and closing times must be different in each row.",
+    "saveErrorEmptyDate": "Pick a calendar date for every dated row.",
+    "saveErrorNoteTooLong": "Note must be at most 256 characters.",
+    "saveErrorWeekdays": "Each weekly row must include at least one weekday.",
+    "saveErrorTooManyRows": "Too many rows for one request (weekly max 24, dated max 366)."
   },
   "team": {
     "title": "Team",
