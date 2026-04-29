@@ -6,12 +6,17 @@ forgets to set the tenant and silently sees "zero rows".
 
 Under ``FORCE ROW LEVEL SECURITY``, table owners no longer bypass policies.
 Cross-tenant flows (auth exchange, bot admin, recurring tick) must call
-:func:`enter_privileged_rls_mode` — never raw ``SET LOCAL row_security`` in
-application code.
+:func:`enter_privileged_rls_mode`.
+
+Why not ``SET LOCAL row_security = off``? For ordinary roles PostgreSQL treats
+``row_security=off`` as *fail* any statement that would apply an RLS policy
+(pg_dump uses this). It does **not** skip policies. We switch ``current_role``
+to a NOLOGIN ``BYPASSRLS`` role (see migration ``0010_rls_bypass_role``).
 """
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -20,9 +25,12 @@ import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.config import get_settings
 from shiftops_api.infra.metrics import PRIVILEGED_RLS_BYPASS_TOTAL
 
 _log = structlog.get_logger("shiftops.rls")
+
+_SAFE_PG_IDENT = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 
 async def set_org_guc(session: AsyncSession, *, organization_id: uuid.UUID) -> None:
@@ -34,12 +42,15 @@ async def set_org_guc(session: AsyncSession, *, organization_id: uuid.UUID) -> N
     )
 
 
-async def _set_local_row_security_off(session: AsyncSession) -> None:
-    await session.execute(text("SET LOCAL row_security = off"))
+def _validated_bypass_role(name: str) -> str:
+    if not _SAFE_PG_IDENT.fullmatch(name):
+        msg = "database_rls_bypass_role must be a simple lowercase PostgreSQL identifier"
+        raise ValueError(msg)
+    return name
 
 
 async def enter_privileged_rls_mode(session: AsyncSession, *, reason: str) -> None:
-    """Disable RLS for the remainder of the current transaction.
+    """Assume the BYPASSRLS role until end of transaction (``SET LOCAL ROLE``).
 
     ``reason`` must be a low-cardinality label (metrics + logs). Use stable
     snake_case strings defined at call sites (e.g. ``exchange_init_data``).
@@ -47,7 +58,8 @@ async def enter_privileged_rls_mode(session: AsyncSession, *, reason: str) -> No
 
     PRIVILEGED_RLS_BYPASS_TOTAL.labels(reason=reason).inc()
     _log.info("rls.privileged_enter", reason=reason)
-    await _set_local_row_security_off(session)
+    role = _validated_bypass_role(get_settings().database_rls_bypass_role)
+    await session.execute(text(f"SET LOCAL ROLE {role}"))
 
 
 @asynccontextmanager

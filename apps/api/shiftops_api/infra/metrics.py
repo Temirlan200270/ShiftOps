@@ -170,7 +170,7 @@ CSV_IMPORT_ROWS_TOTAL = Counter(
 
 PRIVILEGED_RLS_BYPASS_TOTAL = Counter(
     "shiftops_privileged_rls_bypass_total",
-    "Calls that run SET LOCAL row_security=off (bypass policies under FORCE RLS).",
+    "Calls that run SET LOCAL ROLE to the NOLOGIN BYPASSRLS helper role.",
     labelnames=("reason",),
 )
 

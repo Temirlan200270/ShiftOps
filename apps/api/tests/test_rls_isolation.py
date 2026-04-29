@@ -53,9 +53,9 @@ async def _seed_minimal_org(session: AsyncSession) -> dict[str, uuid.UUID]:
     shift_id = uuid.uuid4()
     now = datetime.now(tz=UTC)
 
-    # `organizations` has no RLS. Other tables do; `SET row_security=off` only
-    # works for superuser/BYPASSRLS/owner — CI uses `shiftops_app`, so we set
-    # `app.org_id` and satisfy WITH CHECK like the real app.
+    # `organizations` has no RLS. Other tables do; CI runs as `shiftops_app`
+    # (no BYPASSRLS on the session user), so we set `app.org_id` and satisfy
+    # WITH CHECK like the real app instead of calling enter_privileged_rls_mode.
     await session.execute(
         text(
             "INSERT INTO organizations (id, name) VALUES (:id, :name)",

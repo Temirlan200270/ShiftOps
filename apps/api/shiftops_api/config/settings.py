@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     # DSN still hits DuplicatePreparedStatementError on Fly/Supabase.
     db_disable_asyncpg_statement_cache: bool = False
 
+    database_rls_bypass_role: str = Field(
+        default="shiftops_rls_bypass",
+        description=(
+            "NOLOGIN BYPASSRLS role used with SET LOCAL ROLE in enter_privileged_rls_mode. "
+            "Grant membership to the runtime DB user after migrations."
+        ),
+    )
+
     redis_url: str = "redis://redis:6379/0"
 
     jwt_secret: SecretStr = Field(default=SecretStr("change-me-to-32-chars-min-secret-please"))
