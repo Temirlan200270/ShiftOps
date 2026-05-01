@@ -16,12 +16,12 @@
 | `/today` | админ / собственник | Краткая текстовая сводка по сменам сегодняшнего дня по всем локациям. |
 | `/help` | все | Короткая справка. Текст подбирается по роли (super-admin / owner / admin / operator). |
 | `/team_list` | владелец | Список активных участников организации с подсказками по `/set_role` и `/remove_member`. |
-| `/set_role <@username\|tg_id> <admin\|operator>` | владелец | Меняет роль участника между admin и operator. Роль `owner` через эту команду не выдаётся. |
+| `/set_role <@username\|tg_id> <admin\|operator\|bartender>` | владелец | Меняет роль участника между `admin`, `operator` и `bartender`. Роль `owner` через эту команду не выдаётся. |
 | `/remove_member <@username\|tg_id>` | владелец | Деактивирует участника (soft-delete). |
 | `/create_org` | super-admin | FSM создания пустой организации без владельца. |
-| `/org_invite <org_uuid> <owner\|admin\|operator> [hours]` | super-admin | Создаёт инвайт-ссылку для указанной роли. |
+| `/org_invite <org_uuid> <owner\|admin\|operator\|bartender> [hours]` | super-admin | Создаёт инвайт-ссылку для указанной роли. |
 | `/org_set_owner <org_uuid> <tg_user_id>` | super-admin | Назначает / переназначает владельца, существующих owner'ов в этой org понижает до admin. |
-| `/org_set_role <org_uuid> <tg_user_id> <admin\|operator>` | super-admin | Меняет роль участника в любой организации. |
+| `/org_set_role <org_uuid> <tg_user_id> <admin\|operator\|bartender>` | super-admin | Меняет роль участника в любой организации. |
 | `/org_remove_member <org_uuid> <tg_user_id>` | super-admin | Деактивирует участника в указанной организации. |
 | `/cancel` | super-admin | Сбрасывает текущий FSM-сценарий. |
 
@@ -40,6 +40,12 @@
 Платформенный super-admin определяется по `super_admin_tg_id` в settings и
 никаких записей в БД не требует. Защищён от изменений на уровне организации:
 владелец не может ни сменить ему роль, ни удалить.
+
+### TWA vs бот (управление командой)
+
+- **Основной канал:** TWA (экран «Команда»), `POST /api/v1/team/members/{user_id}/role`.
+- **Бот — fallback:** `/team_list`, `/set_role`, `/remove_member` остаются для
+  плохой сети или привычки владельца; не выкидываем из slash-меню без причины.
 
 ## Профиль бота (BotFather)
 

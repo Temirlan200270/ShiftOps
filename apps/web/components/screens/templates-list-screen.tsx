@@ -9,6 +9,40 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listTemplates, type TemplateListItem } from "@/lib/api/templates";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { toast } from "@/lib/stores/toast-store";
+import type { UserRole } from "@/lib/types";
+
+/** Section order on the templates list (Владелец → Админ → Оператор → Бармен). */
+const TEMPLATE_LIST_ROLE_ORDER: readonly UserRole[] = ["owner", "admin", "operator", "bartender"];
+
+function compareTemplateNames(a: TemplateListItem, b: TemplateListItem): number {
+  return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+}
+
+function groupTemplatesByRoleOrder(items: TemplateListItem[]): { role: UserRole; templates: TemplateListItem[] }[] {
+  const byRole = new Map<UserRole, TemplateListItem[]>();
+  for (const tpl of items) {
+    const bucket = byRole.get(tpl.roleTarget);
+    if (bucket) {
+      bucket.push(tpl);
+    } else {
+      byRole.set(tpl.roleTarget, [tpl]);
+    }
+  }
+  const rolesPresent = [...byRole.keys()].sort((a, b) => {
+    const ia = TEMPLATE_LIST_ROLE_ORDER.indexOf(a);
+    const ib = TEMPLATE_LIST_ROLE_ORDER.indexOf(b);
+    const ra = ia === -1 ? TEMPLATE_LIST_ROLE_ORDER.length : ia;
+    const rb = ib === -1 ? TEMPLATE_LIST_ROLE_ORDER.length : ib;
+    if (ra !== rb) {
+      return ra - rb;
+    }
+    return a.localeCompare(b);
+  });
+  return rolesPresent.map((role) => ({
+    role,
+    templates: [...(byRole.get(role) ?? [])].sort(compareTemplateNames),
+  }));
+}
 
 interface TemplatesListScreenProps {
   onBack: () => void;
@@ -20,8 +54,7 @@ interface TemplatesListScreenProps {
  * admins jump into the editor. Templates with zero tasks still show with
  * a "0 tasks" badge so admins notice the unfinished state.
  *
- * No search/filter for v1: orgs typically own <20 templates. We can revisit
- * after pilot data shows otherwise.
+ * Grouped by role_target (owner → admin → operator → bartender), then by name.
  */
 export function TemplatesListScreen({ onBack, onOpen }: TemplatesListScreenProps): React.JSX.Element {
   const tTpl = useTranslations("templates");
@@ -47,6 +80,8 @@ export function TemplatesListScreen({ onBack, onOpen }: TemplatesListScreenProps
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const grouped = React.useMemo(() => (items ? groupTemplatesByRoleOrder(items) : []), [items]);
 
   return (
     <main className="mx-auto max-w-md px-4 pt-4 pb-24 animate-fade-in-up">
@@ -84,31 +119,42 @@ export function TemplatesListScreen({ onBack, onOpen }: TemplatesListScreenProps
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-2">
-          {items!.map((tpl) => (
-            <li key={tpl.id}>
-              <Card>
-                <button
-                  type="button"
-                  onClick={() => onOpen(tpl.id)}
-                  className="w-full text-left"
-                  aria-label={tTpl("editAria", { name: tpl.name })}
-                >
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{tpl.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {tTpl(`role.${tpl.roleTarget}`)} ·{" "}
-                        {tTpl("taskCount", { count: tpl.taskCount })}
-                      </p>
-                    </div>
-                    <Pencil className="size-4 text-muted-foreground shrink-0" />
-                  </CardContent>
-                </button>
-              </Card>
-            </li>
+        <div className="space-y-6">
+          {grouped.map(({ role, templates }) => (
+            <section key={role} aria-labelledby={`templates-role-${role}`}>
+              <h2
+                id={`templates-role-${role}`}
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 px-0.5"
+              >
+                {tTpl(`role.${role}`)}
+              </h2>
+              <ul className="space-y-2">
+                {templates.map((tpl) => (
+                  <li key={tpl.id}>
+                    <Card>
+                      <button
+                        type="button"
+                        onClick={() => onOpen(tpl.id)}
+                        className="w-full text-left"
+                        aria-label={tTpl("editAria", { name: tpl.name })}
+                      >
+                        <CardContent className="p-4 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{tpl.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {tTpl("taskCount", { count: tpl.taskCount })}
+                            </p>
+                          </div>
+                          <Pencil className="size-4 text-muted-foreground shrink-0" />
+                        </CardContent>
+                      </button>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </main>
   );

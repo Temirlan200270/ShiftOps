@@ -124,6 +124,10 @@ erDiagram
     }
 ```
 
+**План V1.1:** колонка `users.job_title` (`VARCHAR`, nullable) — подпись для UI
+(«Шеф-повар» и т.п.), **без** влияния на RBAC; организация уже задаётся
+`users.organization_id`.
+
 ## `template_tasks.section`
 
 Свободный человекочитаемый ярлык секции внутри шаблона

@@ -127,14 +127,20 @@ stateDiagram-v2
   роль» / «Удалить». Кнопки доступны только если бэкенд вернул
   `can_change_role: true` / `can_deactivate: true` (правила одинаковые: только
   владелец и платформенный super-admin). Нажатие открывает нижний sheet с
-  подтверждением.
+  выбором роли (`admin` / `operator` / `bartender`). Org `admin` может
+  просматривать список, но не управлять ролями (пилотная политика; см.
+  `ARCHITECTURE.md` и `ROADMAP.md`).
+- **V1.1 (план):** опциональная должность `job_title` под именем и в том же
+  flow редактирования; права не меняются — только подпись для людей.
 - В боте те же действия доступны владельцу через `/team_list`, `/set_role` и
-  `/remove_member`. Super-admin использует `/org_set_role` / `/org_remove_member`
-  с явным `org_uuid`. Полный список — в
-  [TELEGRAM_BOT.md](TELEGRAM_BOT.md).
+  `/remove_member` как **fallback** при плохой сети. Super-admin использует
+  `/org_set_role` / `/org_remove_member` с явным `org_uuid`. Полный список —
+  в [TELEGRAM_BOT.md](TELEGRAM_BOT.md).
 - Роль `owner` через эти потоки не выдаётся: единственный способ
   переназначить владельца — `/org_set_owner` (super-admin), что автоматически
   понижает прежнего owner до admin.
+- Роль `bartender` — полноценная системная роль (шаблоны `role_target`,
+  аналитика, инвайты), не «косметический тег» к `operator`.
 
 ## Авто-создание ежедневных смен
 
