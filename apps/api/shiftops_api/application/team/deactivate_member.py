@@ -11,6 +11,9 @@ Owners may deactivate other owners (e.g. successor scenarios via
 The Telegram link (``telegram_accounts``) is kept so the same person can be
 **reactivated** when they redeem a new invite for this organization
 (see :class:`~shiftops_api.application.invites.redeem_invite.RedeemInviteUseCase`).
+
+Any ``scheduled`` / ``active`` shifts assigned to this user are marked ``aborted``
+so they do not reappear after a role change or re-invite.
 """
 
 from __future__ import annotations
@@ -23,6 +26,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser
+from shiftops_api.application.shifts.abort_open_shifts_for_operator import (
+    abort_open_shifts_for_operator,
+)
 from shiftops_api.application.team.permissions import can_manage_member
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import TelegramAccount, User
@@ -65,6 +71,11 @@ class DeactivateMemberUseCase:
 
         target.is_active = False
         await self._session.flush()
+        await abort_open_shifts_for_operator(
+            self._session,
+            organization_id=target.organization_id,
+            operator_user_id=target.id,
+        )
         _log.info(
             "team.member_deactivated",
             target_user_id=str(target.id),

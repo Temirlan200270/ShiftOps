@@ -10,6 +10,9 @@ from aiogram import types
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.application.shifts.abort_open_shifts_for_operator import (
+    abort_open_shifts_for_operator,
+)
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Invite, Location, Organization, TelegramAccount, User
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
@@ -94,6 +97,13 @@ class RedeemInviteUseCase:
                 row.used_at = now
                 row.used_by_user_id = user_model.id
                 await self._session.flush()
+                # Stale scheduled/active shifts from a previous role (or pre-deactivation)
+                # must not surface on ``GET /v1/shifts/me`` under the new seat.
+                await abort_open_shifts_for_operator(
+                    self._session,
+                    organization_id=user_model.organization_id,
+                    operator_user_id=user_model.id,
+                )
 
                 location_label: str | None = None
                 if row.location_id is not None:
