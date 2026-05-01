@@ -26,6 +26,7 @@ import html
 import logging
 import uuid
 
+import structlog
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -68,6 +69,7 @@ from shiftops_api.infra.telegram.bot_profile import (
 )
 
 _log = logging.getLogger(__name__)
+_start_log = structlog.get_logger("shiftops.telegram.start")
 _router = Router(name="shiftops.bot")
 _storage = MemoryStorage()
 
@@ -123,6 +125,13 @@ async def handle_start(message: Message) -> None:
     if message.from_user is None:
         return
     payload = _start_payload(message)
+    has_inv = payload.startswith("inv_") and len(payload) > len("inv_")
+    _start_log.info(
+        "start_command",
+        tg_user_id=message.from_user.id,
+        has_invite_payload=has_inv,
+        payload_chars=len(payload),
+    )
     factory = get_sessionmaker()
     async with factory() as session:
         existing = await _existing_tg_user(session, message.from_user.id)
@@ -166,9 +175,20 @@ async def handle_start(message: Message) -> None:
                     )
                 else:
                     await message.answer(text)
+                _start_log.warning(
+                    "invite_redeem_failed",
+                    tg_user_id=message.from_user.id,
+                    code=result.error.code,
+                )
                 await session.rollback()
                 return
             assert isinstance(result, Success)
+            _start_log.info(
+                "invite_redeemed",
+                tg_user_id=message.from_user.id,
+                organization_name=result.value.organization_name,
+                role=result.value.role,
+            )
             loc_line = (
                 f"Вас пригласили в точку: <b>{result.value.location_label}</b>.\n"
                 if result.value.location_label
@@ -191,15 +211,34 @@ async def handle_start(message: Message) -> None:
         if existing is None:
             web_app_url = get_settings().web_public_url
             await _push_slash_menu(message, None)
+            hint = ""
+            if not has_inv:
+                hint = (
+                    "\n\n⚠️ <b>Важно.</b> Если вас пригласили по ссылке, нажимайте <b>именно её</b> "
+                    "(или «Start» в сообщении с приглашением). "
+                    "Кнопка «Start» в профиле бота без ссылки даёт только этот текст — "
+                    "<b>инвайт так не активируется</b> и в базе вас ещё нет."
+                )
+            _start_log.info("start_plain_guest", tg_user_id=message.from_user.id, had_inv=has_inv)
             await message.answer(
                 "👋 Добро пожаловать в <b>ShiftOps</b>.\n\n"
-                "Чтобы начать, попросите администратора пригласить вас ссылкой "
-                f"из приложения, затем откройте Web App.\n\n🌐 {web_app_url}",
+                "Чтобы попасть в команду заведения, откройте <b>одноразовую ссылку-приглашение</b>, "
+                "которую прислал администратор (в Telegram она выглядит как переход к этому боту "
+                "с параметром start). После успешного входа вы увидите сообщение "
+                "«✅ Добро пожаловать в <i>название организации</i>» — только тогда открывайте "
+                "мини-приложение."
+                f"{hint}\n\n"
+                f"Справка по приложению: {web_app_url}",
             )
             return
         _, user = existing
         await _push_slash_menu(message, user)
         back_kb = _web_app_entry_keyboard()
+        _start_log.info(
+            "start_returning_member",
+            tg_user_id=message.from_user.id,
+            user_id=str(user.id),
+        )
         await message.answer(
             f"С возвращением, {user.full_name}. Откройте ShiftOps кнопкой ниже или через меню бота.",
             reply_markup=back_kb,
