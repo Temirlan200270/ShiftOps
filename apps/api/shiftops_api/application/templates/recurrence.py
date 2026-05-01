@@ -34,6 +34,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from shiftops_api.domain.timezone import require_iana_timezone
+
 ISO_WEEKDAYS = {1, 2, 3, 4, 5, 6, 7}
 
 
@@ -56,6 +58,14 @@ class RecurrenceConfig(BaseModel):
     # an hour earlier so the operator sees their checklist when they
     # arrive". The cron tick will create as soon as the lead window opens.
     lead_time_min: int = Field(default=0, ge=0, le=12 * 60)
+
+    @field_validator("timezone")
+    @classmethod
+    def _validate_timezone(cls, value: str) -> str:
+        try:
+            return require_iana_timezone(value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
 
     @field_validator("weekdays")
     @classmethod

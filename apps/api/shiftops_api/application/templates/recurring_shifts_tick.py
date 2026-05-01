@@ -326,7 +326,7 @@ class CreateRecurringShiftsTickUseCase:
                 select(User)
                 .where(User.organization_id == template.organization_id)
                 .where(User.is_active.is_(True))
-                .where(User.role == UserRole.OWNER.value)
+                .where(User.role == UserRole.OWNER)
                 .limit(1)
             )
         ).scalar_one_or_none()

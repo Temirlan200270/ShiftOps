@@ -44,6 +44,19 @@ def _cfg(**overrides: object) -> RecurrenceConfig:
     return RecurrenceConfig.model_validate(base)
 
 
+def _cfg_as_if_legacy_db(**overrides: object) -> RecurrenceConfig:
+    """Build a config with *skipped* timezone validation.
+
+    Production paths validate via Pydantic; ``parse_storage`` skips bad rows.
+    ``is_window_open`` still defends with UTC fallback for unknown ZoneInfo
+    names (legacy JSONB). Tests use this to pin that runtime behavior.
+    """
+
+    data = _cfg().model_dump()
+    data.update(overrides)
+    return RecurrenceConfig.model_construct(**data)
+
+
 def test_window_opens_at_lead_time_boundary() -> None:
     cfg = _cfg(time_of_day=time(9, 0), lead_time_min=30)
     # 09:00 Asia/Almaty (UTC+5) == 04:00 UTC; lead window opens 30 min earlier.
@@ -79,7 +92,7 @@ def test_other_timezone_changes_local_weekday_at_midnight() -> None:
 
 
 def test_unknown_timezone_falls_back_to_utc() -> None:
-    cfg = _cfg(timezone="Mars/Olympus", time_of_day=time(9, 0))
+    cfg = _cfg_as_if_legacy_db(timezone="Mars/Olympus", time_of_day=time(9, 0))
     # 09:00 UTC on Monday.
     on_time_utc = datetime(2026, 5, 4, 9, 0, tzinfo=UTC)
     assert is_window_open(cfg, location_tz_name="Mars/Olympus", now_utc=on_time_utc)
@@ -93,7 +106,7 @@ def test_location_tz_used_when_cfg_has_blank_tz() -> None:
     # we cover the documented intent: location TZ wins when cfg's TZ is
     # unknown. Mars/Olympus on cfg, Asia/Almaty on location → uses the
     # `cfg.timezone or location_tz_name` order from the production code.
-    bad_cfg = _cfg(timezone="Mars/Olympus", time_of_day=time(9, 0))
+    bad_cfg = _cfg_as_if_legacy_db(timezone="Mars/Olympus", time_of_day=time(9, 0))
     on_time_utc = datetime(2026, 5, 4, 4, 0, tzinfo=UTC)  # 09:00 Almaty
     # cfg.timezone takes precedence over location_tz_name; since
     # Mars/Olympus is unknown, we fall back to UTC (NOT to the location).

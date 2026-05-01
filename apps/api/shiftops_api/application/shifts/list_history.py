@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser
@@ -137,13 +137,12 @@ class ListHistoryUseCase:
         # rather than N. With 50 shifts and 20 tasks each, the naive
         # approach is 100 round-trips on Supabase pooler latency = ~3 s.
         shift_ids = [s.id for s, _ in rows]
-        task_counts = await self._tally_tasks(shift_ids)
-        photo_counts = await self._tally_photos(shift_ids)
+        tallies = await self._shift_tallies(shift_ids)
 
         items: list[HistoryRowDTO] = []
         for shift, template in rows:
-            tally = task_counts.get(shift.id, _TaskTally())
-            photo_total, photo_unique = photo_counts.get(shift.id, (0, 0))
+            tally = tallies.get(shift.id, _TaskTally())
+            photo_total, photo_unique = tally.photo_total, tally.photo_unique
 
             # Recompute the breakdown using the formula version stored on
             # the row — historical scores never silently shift.
@@ -190,54 +189,77 @@ class ListHistoryUseCase:
         )
         return Success(HistoryPageDTO(items=items, next_cursor=next_cursor))
 
-    async def _tally_tasks(self, shift_ids: list[uuid.UUID]) -> dict[uuid.UUID, _TaskTally]:
+    async def _shift_tallies(self, shift_ids: list[uuid.UUID]) -> dict[uuid.UUID, _TaskTally]:
         if not shift_ids:
             return {}
-        # One round-trip; group counts by status & criticality so we can
-        # reconstruct the tally without round-tripping per shift.
-        stmt = (
+        done_states = (TaskStatus.DONE.value, TaskStatus.WAIVED.value)
+        task_sq = (
             select(
-                TaskInstance.shift_id,
-                TaskInstance.status,
-                TemplateTask.criticality,
-                func.count().label("n"),
+                TaskInstance.shift_id.label("shift_id"),
+                func.count().label("total"),
+                func.sum(
+                    case((TaskInstance.status.in_(done_states), 1), else_=0),
+                ).label("done_or_waived"),
+                func.sum(case((TemplateTask.criticality == "critical", 1), else_=0)).label(
+                    "critical_total"
+                ),
+                func.sum(
+                    case(
+                        (
+                            (TemplateTask.criticality == "critical")
+                            & TaskInstance.status.in_(done_states),
+                            1,
+                        ),
+                        else_=0,
+                    ),
+                ).label("critical_done_or_waived"),
             )
             .join(TemplateTask, TemplateTask.id == TaskInstance.template_task_id)
             .where(TaskInstance.shift_id.in_(shift_ids))
-            .group_by(TaskInstance.shift_id, TaskInstance.status, TemplateTask.criticality)
-        )
-        out: dict[uuid.UUID, _TaskTally] = {sid: _TaskTally() for sid in shift_ids}
-        for shift_id, task_status, criticality, n in (await self._session.execute(stmt)).all():
-            tally = out[shift_id]
-            tally.total += n
-            done = TaskStatus(task_status) in (TaskStatus.DONE, TaskStatus.WAIVED)
-            if done:
-                tally.done_or_waived += n
-            if criticality == "critical":
-                tally.critical_total += n
-                if done:
-                    tally.critical_done_or_waived += n
-        return out
-
-    async def _tally_photos(self, shift_ids: list[uuid.UUID]) -> dict[uuid.UUID, tuple[int, int]]:
-        """Return ``(photo_total, photo_unique)`` per shift."""
-        if not shift_ids:
-            return {}
-        stmt = (
+            .group_by(TaskInstance.shift_id)
+        ).subquery()
+        photo_sq = (
             select(
-                TaskInstance.shift_id,
-                func.count().label("total"),
-                func.count().filter(Attachment.suspicious.is_(False)).label("unique"),
+                TaskInstance.shift_id.label("shift_id"),
+                func.count(Attachment.id).label("photo_total"),
+                func.count().filter(~Attachment.suspicious).label("photo_unique"),
             )
             .select_from(Attachment)
             .join(TaskInstance, TaskInstance.id == Attachment.task_instance_id)
             .where(TaskInstance.shift_id.in_(shift_ids))
             .group_by(TaskInstance.shift_id)
-        )
-        result: dict[uuid.UUID, tuple[int, int]] = {}
-        for shift_id, total, unique in (await self._session.execute(stmt)).all():
-            result[shift_id] = (int(total or 0), int(unique or 0))
-        return result
+        ).subquery()
+
+        stmt = select(
+            func.coalesce(task_sq.c.shift_id, photo_sq.c.shift_id).label("shift_id"),
+            task_sq.c.total,
+            task_sq.c.done_or_waived,
+            task_sq.c.critical_total,
+            task_sq.c.critical_done_or_waived,
+            photo_sq.c.photo_total,
+            photo_sq.c.photo_unique,
+        ).select_from(task_sq.join(photo_sq, task_sq.c.shift_id == photo_sq.c.shift_id, full=True))
+
+        out: dict[uuid.UUID, _TaskTally] = {sid: _TaskTally() for sid in shift_ids}
+        for (
+            sid,
+            total,
+            done_ow,
+            crit_tot,
+            crit_done,
+            ptot,
+            puniq,
+        ) in (await self._session.execute(stmt)).all():
+            if sid is None:
+                continue
+            row = out[sid]
+            row.total = int(total or 0)
+            row.done_or_waived = int(done_ow or 0)
+            row.critical_total = int(crit_tot or 0)
+            row.critical_done_or_waived = int(crit_done or 0)
+            row.photo_total = int(ptot or 0)
+            row.photo_unique = int(puniq or 0)
+        return out
 
 
 @dataclass
@@ -246,3 +268,5 @@ class _TaskTally:
     done_or_waived: int = 0
     critical_total: int = 0
     critical_done_or_waived: int = 0
+    photo_total: int = 0
+    photo_unique: int = 0

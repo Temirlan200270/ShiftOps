@@ -34,7 +34,9 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.base import BaseStorage
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
 from aiogram.types import (
     CallbackQuery,
     KeyboardButton,
@@ -55,6 +57,7 @@ from shiftops_api.application.organizations.create_organization import (
 from shiftops_api.application.organizations.delete_organization import (
     DeleteOrganizationUseCase,
 )
+from shiftops_api.application.organizations.resolve_org_spec import resolve_org_spec_to_uuid
 from shiftops_api.application.shifts.approve_waiver import ApproveWaiverUseCase
 from shiftops_api.application.team.change_member_role import ChangeMemberRoleUseCase
 from shiftops_api.application.team.deactivate_member import DeactivateMemberUseCase
@@ -71,8 +74,22 @@ from shiftops_api.infra.telegram.bot_profile import (
 
 _log = logging.getLogger(__name__)
 _start_log = structlog.get_logger("shiftops.telegram.start")
-_router = Router(name="shiftops.bot")
-_storage = MemoryStorage()
+_fsm_storage_singleton: BaseStorage | None = None
+_router = Router()
+
+
+def _get_fsm_storage() -> BaseStorage:
+    global _fsm_storage_singleton
+    if _fsm_storage_singleton is None:
+        try:
+            _fsm_storage_singleton = RedisStorage.from_url(
+                get_settings().redis_url,
+                key_builder=DefaultKeyBuilder(with_bot_id=True, with_dest_id=True),
+            )
+        except Exception:
+            _log.warning("telegram.fsm.redis_unavailable_fallback_memory", exc_info=True)
+            _fsm_storage_singleton = MemoryStorage()
+    return _fsm_storage_singleton
 
 
 def _is_valid_telegram_web_app_url(url: str) -> bool:
@@ -448,49 +465,6 @@ def _parse_org_tg_role(tokens: list[str]) -> tuple[str, int, str] | None:
     return org_spec, tg, role
 
 
-async def _resolve_org_spec_to_uuid(
-    session: AsyncSession,
-    org_spec: str,
-) -> tuple[uuid.UUID | None, str | None]:
-    """Resolve ``org_spec`` to ``organization_id`` (UUID or exact name).
-
-    Returns ``(id, None)`` on success, or ``(None, html_error)``.
-    """
-
-    await enter_privileged_rls_mode(session, reason="telegram_bot_resolve_org_spec")
-    token = org_spec.strip().strip("'\"")
-    if not token:
-        return None, "Укажите <b>название</b> организации или её <b>UUID</b>."
-    uid = _parse_uuid(token)
-    if uid is not None:
-        org = await session.get(Organization, uid)
-        if org is None:
-            return None, "Организация с таким UUID не найдена."
-        return uid, None
-
-    rows = (
-        await session.execute(
-            select(Organization.id, Organization.name).where(
-                func.lower(Organization.name) == func.lower(token)
-            )
-        )
-    ).all()
-    if len(rows) == 1:
-        return rows[0][0], None
-    if len(rows) > 1:
-        lines = "\n".join(f"• <code>{r[0]}</code> — {html.escape(r[1])}" for r in rows)
-        return (
-            None,
-            "Несколько организаций с таким именем — укажите UUID:\n" + lines,
-        )
-
-    return (
-        None,
-        f"Организация «<b>{html.escape(token)}</b>» не найдена. "
-        "Проверьте название (как в ответе <code>/create_org</code>) или вставьте UUID.",
-    )
-
-
 async def _push_slash_menu(message: Message, user: User | None) -> None:
     """Refresh Telegram slash hints for this private chat."""
 
@@ -504,9 +478,9 @@ async def _push_slash_menu(message: Message, user: User | None) -> None:
         profile = SlashMenuProfile.SUPER_ADMIN
     elif user is None:
         profile = SlashMenuProfile.GUEST
-    elif user.role == UserRole.OWNER.value:
+    elif user.role == UserRole.OWNER:
         profile = SlashMenuProfile.OWNER
-    elif user.role == UserRole.ADMIN.value:
+    elif user.role == UserRole.ADMIN:
         profile = SlashMenuProfile.ADMIN
     else:
         profile = SlashMenuProfile.LINE
@@ -541,7 +515,7 @@ async def org_invite(message: Message) -> None:
 
     factory = get_sessionmaker()
     async with factory() as session:
-        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        org_id, err = await resolve_org_spec_to_uuid(session, org_spec)
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
@@ -588,8 +562,9 @@ async def org_delete_for_super_admin(message: Message) -> None:
         await message.answer(
             "Использование:\n"
             "<code>/org_delete &lt;название или UUID&gt;</code>\n\n"
-            "Удаляет организацию <b>безвозвратно</b> вместе со всеми данными в БД "
-            "(локации, сотрудники, смены, шаблоны, приглашения, аудит и т.д.).\n\n"
+            "Помечает организацию на удаление: доступ TWA/инвайты отключаются сразу, "
+            f"а строки в БД <b>безвозвратно</b> удалятся через "
+            f"<code>{get_settings().org_deletion_retention_days}</code> дней.\n\n"
             "Примеры:\n"
             "<code>/org_delete PlovХана</code>\n"
             "<code>/org_delete The Rusty Anchor</code>\n"
@@ -600,7 +575,7 @@ async def org_delete_for_super_admin(message: Message) -> None:
 
     factory = get_sessionmaker()
     async with factory() as session:
-        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        org_id, err = await resolve_org_spec_to_uuid(session, org_spec)
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
@@ -613,9 +588,10 @@ async def org_delete_for_super_admin(message: Message) -> None:
         assert isinstance(result, Success)
         await session.commit()
         safe = html.escape(result.value.name)
+        retention = get_settings().org_deletion_retention_days
         await message.answer(
             f"🗑 Организация <b>{safe}</b> (<code>{result.value.organization_id}</code>) "
-            f"<b>удалена безвозвратно</b>."
+            f"отмечена на удаление. Данные будут стёрты безвозвратно через <b>{retention}</b> дн."
         )
 
 
@@ -641,7 +617,7 @@ async def org_set_owner(message: Message) -> None:
 
     factory = get_sessionmaker()
     async with factory() as session:
-        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        org_id, err = await resolve_org_spec_to_uuid(session, org_spec)
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
@@ -664,7 +640,7 @@ async def org_set_owner(message: Message) -> None:
             ),
             {"org": str(org_id), "uid": str(user.id)},
         )
-        user.role = "owner"
+        user.role = UserRole.OWNER
         await session.commit()
         await message.answer(f"✅ Владелец назначен. user_id=<code>{user.id}</code>")
 
@@ -698,7 +674,8 @@ async def handle_help(message: Message) -> None:
             "Организации:\n"
             "• <code>/create_org</code> — создать организацию (без владельца)\n"
             "• <code>/org_invite &lt;название|UUID&gt; &lt;owner|admin|operator|bartender&gt; [часы]</code> — инвайт-ссылка\n"
-            "• <code>/org_delete &lt;название|UUID&gt;</code> — <b>безвозвратно</b> удалить организацию и все данные\n"
+            "• <code>/org_delete &lt;название|UUID&gt;</code> — пометить организацию на удаление "
+            f"(безвозвратное стирание через {get_settings().org_deletion_retention_days} дн.)\n"
             "• <code>/org_set_owner &lt;название|UUID&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n"
             "• <code>/org_set_role &lt;название|UUID&gt; &lt;tg_user_id&gt; &lt;admin|operator|bartender&gt;</code> — сменить роль участника\n"
             "• <code>/org_remove_member &lt;название|UUID&gt; &lt;tg_user_id&gt;</code> — деактивировать участника\n\n"
@@ -731,7 +708,7 @@ async def handle_help(message: Message) -> None:
         return
 
     _, user = existing
-    role = (user.role or "").lower()
+    role = (user.role.value or "").lower()
     if role == "owner":
         await message.answer(
             "<b>ShiftOps · Владелец</b>\n\n"
@@ -788,7 +765,7 @@ async def _resolve_owner_actor(
             select(User)
             .join(TelegramAccount, TelegramAccount.user_id == User.id)
             .where(TelegramAccount.tg_user_id == tg_user_id)
-            .where(User.role == UserRole.OWNER.value)
+            .where(User.role == UserRole.OWNER)
             .where(User.is_active.is_(True))
         )
     ).scalar_one_or_none()
@@ -998,7 +975,7 @@ async def org_set_role_for_super_admin(message: Message) -> None:
 
     factory = get_sessionmaker()
     async with factory() as session:
-        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        org_id, err = await resolve_org_spec_to_uuid(session, org_spec)
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
@@ -1042,7 +1019,7 @@ async def org_remove_member_for_super_admin(message: Message) -> None:
 
     factory = get_sessionmaker()
     async with factory() as session:
-        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        org_id, err = await resolve_org_spec_to_uuid(session, org_spec)
         if org_id is None:
             await message.answer(err or "Организация не найдена.")
             return
@@ -1091,7 +1068,7 @@ async def handle_waiver_callback(callback: CallbackQuery) -> None:
                 select(User)
                 .join(TelegramAccount, TelegramAccount.user_id == User.id)
                 .where(TelegramAccount.tg_user_id == callback.from_user.id)
-                .where(User.role.in_(("owner", "admin")))
+                .where(User.role.in_((UserRole.OWNER, UserRole.ADMIN)))
             )
         ).scalar_one_or_none()
         if actor is None:
@@ -1128,7 +1105,7 @@ _dispatcher: Dispatcher | None = None
 def _get_dispatcher() -> Dispatcher:
     global _dispatcher
     if _dispatcher is None:
-        dp = Dispatcher(storage=_storage)
+        dp = Dispatcher(storage=_get_fsm_storage())
         dp.include_router(_router)
         _dispatcher = dp
     return _dispatcher

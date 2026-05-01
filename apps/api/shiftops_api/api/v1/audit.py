@@ -145,6 +145,8 @@ async def list_audit_events(
         """UI accent for border/icon; keep in sync with web ``auditAccentClass``."""
 
         if event_type == "shift.started":
+            if payload.get("suspicious_location") is True:
+                return "warning"
             return "positive"
         if event_type == "shift.closed":
             if payload.get("final_status") == "closed_with_violations":
@@ -176,13 +178,18 @@ async def list_audit_events(
         if event_type == "shift.started":
             sid = _maybe_uuid(payload.get("shift_id"))
             tpl, loc = shift_lookup.get(sid, (None, None)) if sid else (None, None)
+            base = ""
             if tpl and loc:
-                return f"Начал смену «{tpl}» на локации «{loc}»."
-            if loc_id := _maybe_uuid(payload.get("location_id")):
+                base = f"Начал смену «{tpl}» на локации «{loc}»."
+            elif loc_id := _maybe_uuid(payload.get("location_id")):
                 loc_name = location_lookup.get(loc_id)
                 if loc_name:
-                    return f"Начал смену на локации «{loc_name}»."
-            return "Начал смену."
+                    base = f"Начал смену на локации «{loc_name}»."
+            if not base:
+                base = "Начал смену."
+            if payload.get("suspicious_location") is True:
+                return base + " Метка: подозрительная геолокация (далеко от точки)."
+            return base
 
         if event_type == "shift.closed":
             sid = _maybe_uuid(payload.get("shift_id"))

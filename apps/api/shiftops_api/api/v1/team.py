@@ -20,6 +20,7 @@ from shiftops_api.application.team.deactivate_member import (
     evaluate_deactivation_eligibility,
 )
 from shiftops_api.application.team.permissions import is_platform_super_admin
+from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_session
@@ -139,7 +140,7 @@ async def list_team_members(
             TeamMemberOut(
                 id=u.id,
                 full_name=u.full_name,
-                role=u.role,
+                role=u.role.value,
                 is_active=u.is_active,
                 tg_user_id=int(tg_id) if tg_id is not None else None,
                 tg_username=tg_username,
@@ -150,19 +151,6 @@ async def list_team_members(
             )
         )
     return result
-
-
-def _http_for_code(code: str) -> int:
-    if code == "user_not_found":
-        return status.HTTP_404_NOT_FOUND
-    if code in {
-        "insufficient_role",
-        "cannot_manage_self",
-        "cannot_manage_super_admin",
-        "cannot_change_owner_role",
-    }:
-        return status.HTTP_403_FORBIDDEN
-    return status.HTTP_400_BAD_REQUEST
 
 
 @router.post(
@@ -177,10 +165,7 @@ async def deactivate_member(
     uc = DeactivateMemberUseCase(session)
     result = await uc.execute(actor=current, target_user_id=user_id)
     if isinstance(result, Failure):
-        code = result.error.code
-        raise HTTPException(
-            status_code=_http_for_code(code), detail=f"{code}: {result.error.message}"
-        )
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
     await session.commit()
     return {"ok": "true"}
@@ -203,10 +188,7 @@ async def change_member_role(
         new_role=payload.role,
     )
     if isinstance(result, Failure):
-        code = result.error.code
-        raise HTTPException(
-            status_code=_http_for_code(code), detail=f"{code}: {result.error.message}"
-        )
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
     await session.commit()
     return {"ok": "true", "role": result.value.role}

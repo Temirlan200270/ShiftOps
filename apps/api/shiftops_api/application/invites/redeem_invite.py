@@ -60,7 +60,7 @@ class RedeemInviteUseCase:
             return Failure(DomainError("invite_expired", "this link has expired"))
 
         org = await self._session.get(Organization, row.organization_id)
-        if org is None or not org.is_active:
+        if org is None or not org.is_active or org.deleted_at is not None:
             return Failure(
                 DomainError("organization_inactive", "this organization is not available")
             )

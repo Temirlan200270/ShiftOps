@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
 from shiftops_api.infra.db.engine import get_session
+from shiftops_api.infra.db.models import Organization
 from shiftops_api.infra.db.rls import set_org_guc
 
 _bearer = HTTPBearer(auto_error=False)
@@ -65,6 +66,12 @@ async def require_user(
     # asyncpg cannot bind parameters in SET (syntax error at $1); set_config
     # is the supported parameterized equivalent of SET LOCAL for this tx.
     await set_org_guc(session, organization_id=payload.org)
+    org = await session.get(Organization, payload.org)
+    if org is None or org.deleted_at is not None or not org.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="organization_unavailable",
+        )
     return CurrentUser(
         id=payload.sub,
         organization_id=payload.org,

@@ -27,7 +27,7 @@ from shiftops_api.config import get_settings
 from shiftops_api.domain.entities import User
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtService
-from shiftops_api.infra.db.models import TelegramAccount
+from shiftops_api.infra.db.models import Organization, TelegramAccount
 from shiftops_api.infra.db.models import User as UserModel
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.metrics import AUTH_EXCHANGE_FAILURES_TOTAL
@@ -43,6 +43,8 @@ _log = structlog.get_logger("shiftops.auth.exchange")
 def _exchange_failure_metric_reason(raw: str) -> str:
     if raw == "user_inactive":
         return "user_inactive"
+    if raw == "organization_unavailable":
+        return "organization_unavailable"
     if raw == "ask_admin_to_invite":
         return "ask_admin_to_invite"
     if raw.startswith("invalid_init_data"):
@@ -106,6 +108,10 @@ class ExchangeInitDataUseCase:
             return AuthFailure(reason="ask_admin_to_invite")
 
         user_model, tg_account = row
+        org = await self._session.get(Organization, user_model.organization_id)
+        if org is None or org.deleted_at is not None or not org.is_active:
+            _record_exchange_failure("organization_unavailable")
+            return AuthFailure(reason="organization_unavailable")
         if not user_model.is_active:
             _log.warning(
                 "auth.exchange.user_inactive",

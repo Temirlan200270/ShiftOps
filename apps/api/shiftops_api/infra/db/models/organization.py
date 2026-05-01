@@ -17,6 +17,7 @@ class Organization(UuidPkMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     plan: Mapped[str] = mapped_column(String(32), nullable=False, default="free")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Recurring weekly windows + dated overrides (see ``BusinessHoursConfig``).
     business_hours: Mapped[dict[str, Any]] = mapped_column(

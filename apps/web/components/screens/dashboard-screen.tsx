@@ -32,7 +32,7 @@ import { TemplatesListScreen } from "@/components/screens/templates-list-screen"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { fetchMyShift, startShift } from "@/lib/api/shifts";
+import { fetchMyShift, readClientGeoForShiftStart, startShift } from "@/lib/api/shifts";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
@@ -110,7 +110,8 @@ export function DashboardScreen(): React.JSX.Element {
     if (!shift) return;
     setActing(true);
     haptic("medium");
-    const result = await startShift(shift.id);
+    const geo = await readClientGeoForShiftStart();
+    const result = await startShift(shift.id, geo);
     setActing(false);
     if (result.ok) {
       setShift(result.data);

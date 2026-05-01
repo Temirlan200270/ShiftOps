@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.audit import write_audit
 from shiftops_api.application.auth.deps import CurrentUser
+from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import (
     CaptureMethod,
     Criticality,
@@ -29,6 +30,7 @@ from shiftops_api.domain.enums import (
     is_line_staff,
 )
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
+from shiftops_api.infra.antifake.luminance import is_low_luminance_photo
 from shiftops_api.infra.antifake.phash import compute_phash, find_similar
 from shiftops_api.infra.db.models import (
     Attachment,
@@ -54,11 +56,18 @@ class CompleteTaskUseCase:
         storage: StorageProvider,
         phash_threshold: int = 5,
         history_lookback: int = 50,
+        min_mean_luminance_255: float | None = None,
     ) -> None:
         self._session = session
         self._storage = storage
         self._phash_threshold = phash_threshold
         self._history_lookback = history_lookback
+        s = get_settings()
+        self._min_mean_luminance_255 = (
+            min_mean_luminance_255
+            if min_mean_luminance_255 is not None
+            else s.antifake_min_mean_luminance_255
+        )
 
     async def execute(
         self,
@@ -101,6 +110,8 @@ class CompleteTaskUseCase:
             return Failure(DomainError("comment_required"))
 
         suspicious = False
+        phash_collision = False
+        low_luminance = False
 
         if photo_bytes is not None:
             phash_hex = compute_phash(photo_bytes)
@@ -112,7 +123,12 @@ class CompleteTaskUseCase:
                 threshold=self._phash_threshold,
                 lookback=self._history_lookback,
             )
-            suspicious = similar is not None
+            phash_collision = similar is not None
+            low_luminance = is_low_luminance_photo(
+                photo_bytes,
+                min_mean=self._min_mean_luminance_255,
+            )
+            suspicious = phash_collision or low_luminance
 
             try:
                 ref = await self._storage.upload(
@@ -166,6 +182,8 @@ class CompleteTaskUseCase:
                 "criticality": template_task.criticality,
                 "with_photo": photo_bytes is not None,
                 "suspicious": suspicious,
+                "phash_collision": phash_collision,
+                "low_luminance": low_luminance,
             },
         )
         await self._session.commit()
@@ -190,7 +208,8 @@ class CompleteTaskUseCase:
             task_id=task.id,
             actor_user_id=user.id,
             new_status=TaskStatus.DONE.value,
-            suspicious=suspicious,
+            phash_collision=phash_collision,
+            low_luminance=low_luminance,
         )
 
         _ = template_task.criticality is Criticality.CRITICAL  # placeholder for V1

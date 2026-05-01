@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import (
     Attachment,
@@ -39,12 +40,14 @@ from shiftops_api.infra.db.models import (
     User,
 )
 from shiftops_api.infra.metrics import (
+    ATTACHMENT_LOW_LUMINANCE_TOTAL,
     ATTACHMENT_PHASH_COLLISIONS_TOTAL,
     SHIFTS_CLOSED_TOTAL,
     SHIFTS_STARTED_TOTAL,
     TASKS_COMPLETED_TOTAL,
     VIOLATION_TYPE_INCOMPLETE_REQUIRED,
     VIOLATION_TYPE_LATE_CLOSE,
+    VIOLATION_TYPE_LOW_LUMINANCE,
     VIOLATION_TYPE_PHASH_COLLISION,
     VIOLATIONS_TOTAL,
     WAIVER_DECISIONS_TOTAL,
@@ -97,7 +100,7 @@ async def _resolve_owner_dm_ids(session: AsyncSession, organization_id: uuid.UUI
         select(TelegramAccount.tg_user_id)
         .join(User, User.id == TelegramAccount.user_id)
         .where(User.organization_id == organization_id)
-        .where(User.role == "owner")
+        .where(User.role == UserRole.OWNER)
         .where(User.is_active.is_(True))
     )
     return [row for row in (await session.execute(stmt)).scalars().all() if row]
@@ -222,7 +225,8 @@ async def dispatch_task_progress(
     task_id: uuid.UUID,
     actor_user_id: uuid.UUID,
     new_status: str,
-    suspicious: bool = False,
+    phash_collision: bool = False,
+    low_luminance: bool = False,
 ) -> None:
     """Publish a real-time progress event for the admin live monitor.
 
@@ -259,6 +263,7 @@ async def dispatch_task_progress(
             )
         ).one()
 
+        suspicious = phash_collision or low_luminance
         await publish_event(
             organization_id=shift.organization_id,
             event_type="task.completed",
@@ -270,6 +275,8 @@ async def dispatch_task_progress(
                 "criticality": template_task.criticality,
                 "status": new_status,
                 "suspicious": suspicious,
+                "phash_collision": phash_collision,
+                "low_luminance": low_luminance,
                 "progress_total": int(progress_row.total or 0),
                 "progress_done": int(progress_row.done or 0),
             },
@@ -280,14 +287,16 @@ async def dispatch_task_progress(
         # should not inflate the task-completion rate dashboards.
         if new_status == "done":
             TASKS_COMPLETED_TOTAL.labels(criticality=str(template_task.criticality)).inc()
-            if suspicious:
-                # Two related metrics: the standalone counter for
-                # quick "anti-fake heat" panels, and a violations row
-                # so the violations dashboard captures the same event
-                # under the unified rule-break taxonomy.
+            if phash_collision:
                 ATTACHMENT_PHASH_COLLISIONS_TOTAL.inc()
                 VIOLATIONS_TOTAL.labels(
                     type=VIOLATION_TYPE_PHASH_COLLISION,
+                    location_id=str(location.id),
+                ).inc()
+            if low_luminance:
+                ATTACHMENT_LOW_LUMINANCE_TOTAL.inc()
+                VIOLATIONS_TOTAL.labels(
+                    type=VIOLATION_TYPE_LOW_LUMINANCE,
                     location_id=str(location.id),
                 ).inc()
 

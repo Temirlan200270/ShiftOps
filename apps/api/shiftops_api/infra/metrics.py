@@ -70,6 +70,7 @@ TASKS_COMPLETED_TOTAL = Counter(
 VIOLATION_TYPE_INCOMPLETE_REQUIRED = "incomplete_required"
 VIOLATION_TYPE_LATE_CLOSE = "late_close"
 VIOLATION_TYPE_PHASH_COLLISION = "phash_collision"
+VIOLATION_TYPE_LOW_LUMINANCE = "low_luminance"
 
 VIOLATIONS_TOTAL = Counter(
     "shiftops_violations_total",
@@ -80,6 +81,11 @@ VIOLATIONS_TOTAL = Counter(
 ATTACHMENT_PHASH_COLLISIONS_TOTAL = Counter(
     "shiftops_attachment_phash_collisions_total",
     "Photos that perceptually matched a recent attachment (anti-fake check).",
+)
+
+ATTACHMENT_LOW_LUMINANCE_TOTAL = Counter(
+    "shiftops_attachment_low_luminance_total",
+    "Photos flagged as suspiciously dark (anti-fake heuristic).",
 )
 
 ATTACHMENTS_UPLOADED_TOTAL = Counter(
@@ -189,6 +195,7 @@ AUTH_EXCHANGE_FAILURES_TOTAL = Counter(
 
 __all__ = [
     "ATTACHMENTS_UPLOADED_TOTAL",
+    "ATTACHMENT_LOW_LUMINANCE_TOTAL",
     "ATTACHMENT_PHASH_COLLISIONS_TOTAL",
     "AUTH_EXCHANGE_FAILURES_TOTAL",
     "CSV_IMPORT_ROWS_TOTAL",
@@ -206,6 +213,7 @@ __all__ = [
     "VIOLATIONS_TOTAL",
     "VIOLATION_TYPE_INCOMPLETE_REQUIRED",
     "VIOLATION_TYPE_LATE_CLOSE",
+    "VIOLATION_TYPE_LOW_LUMINANCE",
     "VIOLATION_TYPE_PHASH_COLLISION",
     "WAIVER_DECISIONS_TOTAL",
     "WAIVER_REQUESTS_TOTAL",

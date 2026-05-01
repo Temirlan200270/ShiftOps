@@ -98,8 +98,37 @@ export async function fetchMyShift(): Promise<ApiResult<ShiftSummary | null>> {
   return { ok: true, status: result.status, data: fromCurrentShift(result.data) };
 }
 
-export async function startShift(shiftId: string): Promise<ApiResult<ShiftSummary | null>> {
-  const result = await api.post<CurrentShiftDTO>(`/v1/shifts/${shiftId}/start`);
+export interface StartShiftGeo {
+  client_latitude: number;
+  client_longitude: number;
+  client_accuracy_m?: number;
+}
+
+export async function readClientGeoForShiftStart(): Promise<StartShiftGeo | undefined> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return undefined;
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          client_latitude: pos.coords.latitude,
+          client_longitude: pos.coords.longitude,
+          client_accuracy_m:
+            pos.coords.accuracy !== undefined ? pos.coords.accuracy : undefined,
+        });
+      },
+      () => resolve(undefined),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
+  });
+}
+
+export async function startShift(
+  shiftId: string,
+  geo?: StartShiftGeo,
+): Promise<ApiResult<ShiftSummary | null>> {
+  const result = await api.post<CurrentShiftDTO>(`/v1/shifts/${shiftId}/start`, geo);
   if (!result.ok) return result;
   return { ok: true, status: result.status, data: fromCurrentShift(result.data) };
 }

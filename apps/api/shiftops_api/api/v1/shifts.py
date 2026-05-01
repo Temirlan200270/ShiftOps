@@ -6,10 +6,11 @@ from datetime import UTC, date, datetime, time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.application.auth.deps import CurrentUser, require_user
 from shiftops_api.application.shifts.close_shift import CloseShiftUseCase
 from shiftops_api.application.shifts.complete_task import CompleteTaskUseCase
@@ -64,6 +65,14 @@ class CurrentShiftResponse(BaseModel):
 
 class StartShiftResponse(BaseModel):
     shift_id: UUID
+
+
+class StartShiftIn(BaseModel):
+    """Optional client geolocation from the TWA (best-effort audit beacon)."""
+
+    client_latitude: float | None = None
+    client_longitude: float | None = None
+    client_accuracy_m: float | None = None
 
 
 class CompleteTaskResponse(BaseModel):
@@ -174,7 +183,7 @@ async def list_history(
     if isinstance(result, Failure):
         if result.error.code == "forbidden":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.error.code)
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
     page = result.value
     return HistoryResponse(
@@ -227,9 +236,17 @@ async def start_shift(
     shift_id: UUID,
     user: CurrentUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
+    body: Annotated[StartShiftIn | None, Body()] = None,
 ) -> CurrentShiftResponse:
+    geo = body or StartShiftIn()
     use_case = StartShiftUseCase(session=session)
-    result = await use_case.execute(shift_id=shift_id, user=user)
+    result = await use_case.execute(
+        shift_id=shift_id,
+        user=user,
+        client_latitude=geo.client_latitude,
+        client_longitude=geo.client_longitude,
+        client_accuracy_m=geo.client_accuracy_m,
+    )
     if isinstance(result, Failure):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result.error.code)
     assert isinstance(result, Success)
@@ -258,6 +275,7 @@ async def complete_task(
         storage=get_storage_provider(),
         phash_threshold=settings.antifake_phash_threshold,
         history_lookback=settings.antifake_history_lookback,
+        min_mean_luminance_255=settings.antifake_min_mean_luminance_255,
     )
     photo_bytes = await photo.read() if photo is not None else None
     photo_mime = photo.content_type if photo is not None else None
@@ -269,7 +287,7 @@ async def complete_task(
         comment=comment,
     )
     if isinstance(result, Failure):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.error.code)
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
     return CompleteTaskResponse(
         task_id=task_id,

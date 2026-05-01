@@ -13,14 +13,19 @@ the broker on a stuck retry chain.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import delete, select
 from taskiq import TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 
 from shiftops_api.application.templates.recurring_shifts_tick import (
     CreateRecurringShiftsTickUseCase,
 )
+from shiftops_api.config import get_settings
 from shiftops_api.infra.db.engine import get_sessionmaker
+from shiftops_api.infra.db.models import Organization
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.metrics import (
     RECURRING_SHIFTS_CREATED_TOTAL,
     RECURRING_TICK_CREATED_LAST,
@@ -66,9 +71,52 @@ async def recurring_shifts_tick() -> dict[str, int]:
     }
 
 
+@broker.task(
+    task_name="shiftops.purge_deleted_orgs_tick",
+    schedule=[{"cron": "27 4 * * *"}],
+)
+async def purge_deleted_orgs_tick() -> dict[str, int]:
+    """Daily: hard-delete organizations past the soft-delete retention window."""
+
+    settings = get_settings()
+    cutoff = datetime.now(tz=UTC) - timedelta(days=settings.org_deletion_retention_days)
+    factory = get_sessionmaker()
+    async with factory() as session:
+        await enter_privileged_rls_mode(session, reason="purge_deleted_orgs_list")
+        ids = list(
+            (
+                await session.execute(
+                    select(Organization.id).where(
+                        Organization.deleted_at.isnot(None),
+                        Organization.deleted_at <= cutoff,
+                    )
+                )
+            ).scalars().all()
+        )
+        await session.commit()
+
+    purged = 0
+    for oid in ids:
+        async with factory() as s:
+            await enter_privileged_rls_mode(s, reason="purge_deleted_org")
+            try:
+                await s.execute(delete(Organization).where(Organization.id == oid))
+                await s.commit()
+                purged += 1
+            except Exception:
+                await s.rollback()
+                _log.warning("purge_org_failed", extra={"organization_id": str(oid)})
+
+    _log.info(
+        "purge_deleted_orgs.summary",
+        extra={"candidates": len(ids), "purged": purged},
+    )
+    return {"candidates": len(ids), "purged": purged}
+
+
 # Re-export `scheduler` from the broker module so the worker entrypoint
 # (`taskiq scheduler ...`) can find the `LabelScheduleSource`.
-__all__ = ["recurring_shifts_tick"]
+__all__ = ["recurring_shifts_tick", "purge_deleted_orgs_tick"]
 
 
 # Defensive import: the worker might import only `infra.queue` (via the

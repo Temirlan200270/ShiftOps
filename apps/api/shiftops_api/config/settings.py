@@ -96,6 +96,13 @@ class Settings(BaseSettings):
 
     antifake_phash_threshold: int = 5
     antifake_history_lookback: int = 50
+    # Grayscale mean (0–255) below this marks a photo as suspiciously dark (lens covered / black frame).
+    antifake_min_mean_luminance_255: float = Field(default=14.0, ge=1.0, le=254.0)
+
+    # Soft-deleted organizations are hard-deleted after this many days.
+    org_deletion_retention_days: int = Field(default=30, ge=1, le=365)
+    # If TWA sends geolocation on shift start and it is farther than this from ``locations.geo``, we log audit.
+    shift_start_geo_warn_radius_m: float = Field(default=400.0, ge=50.0, le=50_000.0)
 
     # SLA threshold for the analytics dashboard's "late start" tile.
     # A shift counts as "late" when ``actual_start - scheduled_start`` is

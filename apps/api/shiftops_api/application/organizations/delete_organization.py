@@ -1,18 +1,18 @@
-"""Super-admin use case: permanently remove a tenant and all dependent rows.
+"""Super-admin organization deletion — soft schedule with hard purge after retention.
 
-PostgreSQL FK chains ``ON DELETE CASCADE`` from ``organizations`` into locations,
-users, templates, shifts, invites, audit_events, etc. Shifts cascade to
-task_instances and attachments. This is **irreversible** — exposed only via the
-platform super-admin Telegram command.
+``DeleteOrganizationUseCase`` **schedules** deletion: ``deleted_at`` is set,
+``is_active`` becomes false. A daily TaskIQ job (see
+``infra.scheduling.tasks.purge_deleted_orgs_tick``) hard-deletes rows whose
+``deleted_at`` is older than :attr:`Settings.org_deletion_retention_days`.
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import structlog
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
@@ -29,6 +29,8 @@ class OrganizationDeleted:
 
 
 class DeleteOrganizationUseCase:
+    """Mark an organization as deleted; API/invites stop working immediately."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -39,25 +41,21 @@ class DeleteOrganizationUseCase:
         if org is None:
             return Failure(DomainError("organization_not_found", "organization does not exist"))
 
-        name = org.name
-        try:
-            await self._session.delete(org)
-            await self._session.flush()
-        except IntegrityError as exc:
-            await self._session.rollback()
-            _log.warning(
-                "organization_delete_blocked",
-                organization_id=str(organization_id),
-                error=str(exc),
-            )
+        if org.deleted_at is not None:
             return Failure(
                 DomainError(
-                    "organization_delete_blocked",
-                    "database refused delete — check for unexpected FK constraints",
+                    "organization_already_deleted",
+                    "organization is already scheduled for removal",
                 )
             )
 
-        _log.info("organization_deleted", organization_id=str(organization_id), name=name)
+        name = org.name
+        org.deleted_at = datetime.now(tz=UTC)
+        org.is_active = False
+
+        await self._session.flush()
+
+        _log.info("organization_soft_deleted", organization_id=str(organization_id), name=name)
         return Success(OrganizationDeleted(organization_id=organization_id, name=name))
 
 

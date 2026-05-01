@@ -58,7 +58,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.audit import write_audit
 from shiftops_api.application.auth.deps import CurrentUser
-from shiftops_api.domain.enums import ShiftStatus, TaskStatus, UserRole
+from shiftops_api.domain.timezone import require_iana_timezone
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import (
     Location,
@@ -217,7 +217,19 @@ class ImportScheduleCsvUseCase:
                     )
                 )
                 continue
-            row.location_id, row.location_tz = loc
+            row.location_id, raw_tz = loc
+            try:
+                row.location_tz = require_iana_timezone(raw_tz or "UTC")
+            except ValueError as exc:
+                errors.append(
+                    ImportRowError(
+                        line_no=row.line_no,
+                        code="invalid_location_timezone",
+                        message=str(exc),
+                        columns={"location": row.raw["location"]},
+                    )
+                )
+                continue
 
             tpl = template_index.get(row.raw["template"].lower())
             if tpl is None:

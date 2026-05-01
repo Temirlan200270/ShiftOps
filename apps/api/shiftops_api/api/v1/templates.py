@@ -26,6 +26,7 @@ from shiftops_api.application.templates.get_template import GetTemplateUseCase
 from shiftops_api.application.templates.list_templates import ListTemplatesUseCase
 from shiftops_api.application.templates.recurrence import RecurrenceConfig
 from shiftops_api.application.templates.save_template import SaveTemplateUseCase
+from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.domain.enums import Criticality, UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_session
@@ -116,7 +117,7 @@ async def get_template(
     use_case = GetTemplateUseCase(session=session)
     result = await use_case.execute(user=user, template_id=template_id)
     if isinstance(result, Failure):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.error.code)
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
     tpl = result.value
 
@@ -173,7 +174,7 @@ async def create_template(
         payload=_to_input_dto(payload),
     )
     if isinstance(result, Failure):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.error.code)
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
 
     await _persist_recurrence(session, user, result.value.template_id, payload.recurrence)
@@ -198,14 +199,7 @@ async def update_template(
         payload=_to_input_dto(payload),
     )
     if isinstance(result, Failure):
-        # 404 for "doesn't exist", 400 for everything else.
-        code = result.error.code
-        http_status = (
-            status.HTTP_404_NOT_FOUND
-            if code == "template_not_found"
-            else status.HTTP_400_BAD_REQUEST
-        )
-        raise HTTPException(status_code=http_status, detail=code)
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
 
     await _persist_recurrence(session, user, template_id, payload.recurrence)
@@ -258,17 +252,17 @@ async def _validate_recurrence(
         # admin templates → admin/owner; bartender → bartender/admin/owner;
         # operator (and owner-target) templates → any active member.
         if payload.role_target == UserRole.ADMIN and assignee.role not in (
-            UserRole.ADMIN.value,
-            UserRole.OWNER.value,
+            UserRole.ADMIN,
+            UserRole.OWNER,
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="recurrence_assignee_role_mismatch",
             )
         if payload.role_target == UserRole.BARTENDER and assignee.role not in (
-            UserRole.BARTENDER.value,
-            UserRole.ADMIN.value,
-            UserRole.OWNER.value,
+            UserRole.BARTENDER,
+            UserRole.ADMIN,
+            UserRole.OWNER,
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -376,7 +370,7 @@ async def import_template(
         payload=to_template_input(parsed, name=payload.name, role_target=payload.role_target),
     )
     if isinstance(result, Failure):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.error.code)
+        raise_for_domain_failure(result)
     assert isinstance(result, Success)
     return TemplateImportApplyOut(
         template_id=result.value.template_id,
@@ -399,12 +393,7 @@ async def delete_template(
     use_case = DeleteTemplateUseCase(session=session)
     result = await use_case.execute(user=user, template_id=template_id)
     if isinstance(result, Failure):
-        code = result.error.code
-        if code == "template_not_found":
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=code)
-        if code == "template_in_use":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=code)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=code)
+        raise_for_domain_failure(result)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
