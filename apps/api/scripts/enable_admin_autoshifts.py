@@ -222,7 +222,14 @@ async def main() -> None:
         print("org", org.id, org.name)
         print("user_id", user.id, "role", user.role, "active", user.is_active)
         print("location_id", location.id, "location_name", location.name, "tz", location.timezone)
-        print("tick_inspected", report.inspected, "tick_created", report.created)
+        print(
+            "tick_inspected",
+            report.inspected,
+            "tick_created",
+            report.created,
+            "tick_aborted_expired_vacant",
+            report.aborted_expired_vacant,
+        )
 
     await get_engine().dispose()
 

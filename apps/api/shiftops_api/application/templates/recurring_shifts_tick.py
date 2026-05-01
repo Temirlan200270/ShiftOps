@@ -39,7 +39,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.templates.recurrence import RecurrenceConfig, parse_storage
@@ -105,6 +105,7 @@ class TickReport:
     inspected: int
     created: int
     skipped: int
+    aborted_expired_vacant: int
 
 
 class CreateRecurringShiftsTickUseCase:
@@ -126,6 +127,8 @@ class CreateRecurringShiftsTickUseCase:
         # Worker is not bound to a tenant; it must see all orgs' templates.
         # With FORCE RLS enabled this requires an explicit bypass.
         await enter_privileged_rls_mode(self._session, reason="recurring_shifts_tick")
+
+        aborted_expired_vacant = await self._abort_expired_vacant_scheduled()
 
         # 1. Load all templates with a non-null default_schedule. We
         #    intentionally pull the full set (small, ~50 rows even at
@@ -154,7 +157,7 @@ class CreateRecurringShiftsTickUseCase:
                 continue
 
             try:
-                made = await self._materialize_for(template, cfg)
+                slots_created = await self._materialize_for(template, cfg)
             except Exception:  # noqa: BLE001 — must not crash the sweep
                 _log.exception(
                     "recurring.tick.template_failed",
@@ -165,19 +168,50 @@ class CreateRecurringShiftsTickUseCase:
                 skipped += 1
                 continue
 
-            if made:
-                created += 1
+            if slots_created > 0:
+                created += slots_created
             else:
                 skipped += 1
 
         await self._session.commit()
-        return TickReport(inspected=inspected, created=created, skipped=skipped)
+        return TickReport(
+            inspected=inspected,
+            created=created,
+            skipped=skipped,
+            aborted_expired_vacant=aborted_expired_vacant,
+        )
+
+    async def _abort_expired_vacant_scheduled(self) -> int:
+        """Vacant pool slots past ``scheduled_end`` would clutter dashboards forever.
+
+        Mark them ``aborted`` so the next tick can materialise a fresh day slot if
+        needed (``aborted`` is not in ``RECURRING_SLOT_BLOCKING_STATUSES``).
+        """
+
+        now = self._now
+        res = await self._session.execute(
+            update(Shift)
+            .where(Shift.status == ShiftStatus.SCHEDULED.value)
+            .where(Shift.operator_user_id.is_(None))
+            .where(Shift.scheduled_end < now)
+            .values(
+                status=ShiftStatus.ABORTED.value,
+                actual_end=now,
+            )
+        )
+        n = int(res.rowcount or 0)
+        if n:
+            _log.info(
+                "recurring.tick.aborted_expired_vacant",
+                extra={"count": n},
+            )
+        return n
 
     async def _materialize_for(
         self,
         template: Template,
         cfg: RecurrenceConfig,
-    ) -> bool:
+    ) -> int:
         location = await self._session.get(Location, cfg.location_id)
         if location is None:
             _log.warning(
@@ -187,14 +221,14 @@ class CreateRecurringShiftsTickUseCase:
                     "location_id": str(cfg.location_id),
                 },
             )
-            return False
+            return 0
 
         if not is_window_open(
             cfg,
             location_tz_name=location.timezone or "UTC",
             now_utc=self._now,
         ):
-            return False
+            return 0
 
         try:
             tz = ZoneInfo(cfg.timezone or location.timezone or "UTC")
@@ -207,89 +241,109 @@ class CreateRecurringShiftsTickUseCase:
         scheduled_end_utc = scheduled_start_utc + timedelta(minutes=cfg.duration_min)
         local_day: date = local_now.date()
 
-        if await self._already_exists(template.id, location.id, local_day, tz):
-            return False
+        labels = cfg.slot_labels or []
+        created_here = 0
+        slot_cap = max(1, int(template.slot_count))
 
-        operator_id = await self._resolve_operator(template, cfg)
-        if operator_id is None:
-            _log.warning(
-                "recurring.tick.no_operator",
-                extra={
-                    "template_id": str(template.id),
-                    "organization_id": str(template.organization_id),
+        for slot_index in range(slot_cap):
+            if await self._already_exists_slot(
+                template.id, location.id, local_day, tz, slot_index
+            ):
+                continue
+
+            await self._session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+                {
+                    "k": (
+                        f"recurring:{template.id}:{location.id}:"
+                        f"{local_day.isoformat()}:{slot_index}"
+                    ),
                 },
             )
-            return False
 
-        # Advisory lock keyed by template + location + day so two ticks
-        # racing on the same minute don't insert duplicates. The lock
-        # is transaction-scoped (released on commit) and works on the
-        # Supabase pooler.
-        await self._session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
-            {"k": f"recurring:{template.id}:{location.id}:{local_day.isoformat()}"},
-        )
+            if await self._already_exists_slot(
+                template.id, location.id, local_day, tz, slot_index
+            ):
+                continue
 
-        # Re-check after taking the lock — a concurrent winner may have
-        # inserted between our existence check and the lock acquire.
-        if await self._already_exists(template.id, location.id, local_day, tz):
-            return False
+            station_label: str | None = None
+            if slot_index < len(labels):
+                station_label = labels[slot_index]
 
-        shift_id = uuid.uuid4()
-        self._session.add(
-            Shift(
-                id=shift_id,
-                organization_id=template.organization_id,
-                location_id=location.id,
-                template_id=template.id,
-                operator_user_id=operator_id,
-                scheduled_start=scheduled_start_utc,
-                scheduled_end=scheduled_end_utc,
-                status=ShiftStatus.SCHEDULED.value,
-            )
-        )
+            operator_id: uuid.UUID | None
+            if template.unassigned_pool:
+                operator_id = None
+            else:
+                operator_id = await self._resolve_operator(template, cfg)
+                if operator_id is None:
+                    _log.warning(
+                        "recurring.tick.no_operator",
+                        extra={
+                            "template_id": str(template.id),
+                            "organization_id": str(template.organization_id),
+                            "slot_index": slot_index,
+                        },
+                    )
+                    continue
 
-        tt_rows = (
-            (
-                await self._session.execute(
-                    select(TemplateTask)
-                    .where(TemplateTask.template_id == template.id)
-                    .order_by(TemplateTask.order_index.asc())
-                )
-            )
-            .scalars()
-            .all()
-        )
-        for tt in tt_rows:
+            shift_id = uuid.uuid4()
             self._session.add(
-                TaskInstance(
-                    shift_id=shift_id,
-                    template_task_id=tt.id,
-                    status=TaskStatus.PENDING.value,
+                Shift(
+                    id=shift_id,
+                    organization_id=template.organization_id,
+                    location_id=location.id,
+                    template_id=template.id,
+                    operator_user_id=operator_id,
+                    slot_index=slot_index,
+                    station_label=station_label,
+                    scheduled_start=scheduled_start_utc,
+                    scheduled_end=scheduled_end_utc,
+                    status=ShiftStatus.SCHEDULED.value,
                 )
             )
 
-        _log.info(
-            "recurring.tick.created",
-            extra={
-                "template_id": str(template.id),
-                "location_id": str(location.id),
-                "shift_id": str(shift_id),
-                "scheduled_start": scheduled_start_utc.isoformat(),
-            },
-        )
-        return True
+            tt_rows = (
+                (
+                    await self._session.execute(
+                        select(TemplateTask)
+                        .where(TemplateTask.template_id == template.id)
+                        .order_by(TemplateTask.order_index.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for tt in tt_rows:
+                self._session.add(
+                    TaskInstance(
+                        shift_id=shift_id,
+                        template_task_id=tt.id,
+                        status=TaskStatus.PENDING.value,
+                    )
+                )
 
-    async def _already_exists(
+            _log.info(
+                "recurring.tick.created",
+                extra={
+                    "template_id": str(template.id),
+                    "location_id": str(location.id),
+                    "shift_id": str(shift_id),
+                    "slot_index": slot_index,
+                    "scheduled_start": scheduled_start_utc.isoformat(),
+                },
+            )
+            created_here += 1
+
+        return created_here
+
+    async def _already_exists_slot(
         self,
         template_id: uuid.UUID,
         location_id: uuid.UUID,
         local_day: date,
         tz: ZoneInfo,
+        slot_index: int,
     ) -> bool:
-        # We don't have a pre-computed "scheduled_date_local" column, so we
-        # bracket the search by [start_of_day_local, end_of_day_local]
-        # converted to UTC. ZoneInfo handles DST transitions correctly.
         day_start_local = datetime.combine(local_day, datetime.min.time(), tzinfo=tz)
         day_end_local = day_start_local + timedelta(days=1)
         existing = (
@@ -297,6 +351,7 @@ class CreateRecurringShiftsTickUseCase:
                 select(Shift.id)
                 .where(Shift.template_id == template_id)
                 .where(Shift.location_id == location_id)
+                .where(Shift.slot_index == slot_index)
                 .where(Shift.scheduled_start >= day_start_local.astimezone(UTC))
                 .where(Shift.scheduled_start < day_end_local.astimezone(UTC))
                 .where(Shift.status.in_(RECURRING_SLOT_BLOCKING_STATUSES))

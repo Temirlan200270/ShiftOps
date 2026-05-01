@@ -49,6 +49,8 @@ class Template:
     organization_id: uuid.UUID
     name: str
     role_target: UserRole
+    slot_count: int = 1
+    unassigned_pool: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +71,7 @@ class Shift:
     organization_id: uuid.UUID
     location_id: uuid.UUID
     template_id: uuid.UUID
-    operator_user_id: uuid.UUID
+    operator_user_id: uuid.UUID | None
     scheduled_start: datetime
     scheduled_end: datetime
     actual_start: datetime | None

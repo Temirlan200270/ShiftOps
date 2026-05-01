@@ -48,6 +48,8 @@ class TemplateInputDTO:
     name: str
     role_target: UserRole
     tasks: list[TemplateTaskInputDTO]
+    slot_count: int = 1
+    unassigned_pool: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +70,8 @@ class TemplateDTO:
     name: str
     role_target: str
     tasks: list[TemplateTaskDTO]
+    slot_count: int = 1
+    unassigned_pool: bool = False
 
 
 @dataclass(frozen=True, slots=True)

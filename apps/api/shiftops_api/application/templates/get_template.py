@@ -43,7 +43,9 @@ class GetTemplateUseCase:
             TemplateDTO(
                 id=template.id,
                 name=template.name,
-                role_target=template.role_target,
+                role_target=str(template.role_target),
+                slot_count=template.slot_count,
+                unassigned_pool=template.unassigned_pool,
                 tasks=[
                     TemplateTaskDTO(
                         id=t.id,

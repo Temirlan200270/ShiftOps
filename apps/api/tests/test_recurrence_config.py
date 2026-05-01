@@ -67,6 +67,16 @@ def test_to_storage_round_trip() -> None:
     assert parsed.time_of_day == cfg.time_of_day
 
 
+def test_slot_labels_round_trip() -> None:
+    cfg = RecurrenceConfig.model_validate(
+        _base(slot_labels=["Бар 1", "Бар 2"]),
+    )
+    blob = cfg.to_storage()
+    parsed = parse_storage(blob)
+    assert parsed is not None
+    assert parsed.slot_labels == ["Бар 1", "Бар 2"]
+
+
 def test_parse_storage_returns_none_on_garbage() -> None:
     assert parse_storage(None) is None
     assert parse_storage({}) is None

@@ -44,6 +44,8 @@ MIN_NAME_LEN = 3
 MAX_NAME_LEN = 128
 MIN_TITLE_LEN = 3
 MAX_TITLE_LEN = 255
+MIN_SLOT_COUNT = 1
+MAX_SLOT_COUNT = 50
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +78,8 @@ class SaveTemplateUseCase:
                 organization_id=user.organization_id,
                 name=payload.name.strip(),
                 role_target=payload.role_target.value,
+                slot_count=payload.slot_count,
+                unassigned_pool=payload.unassigned_pool,
             )
             self._session.add(template)
             await self._session.flush()  # populates template.id
@@ -88,6 +92,8 @@ class SaveTemplateUseCase:
                 return Failure(DomainError("template_not_found"))
             template.name = payload.name.strip()
             template.role_target = payload.role_target.value
+            template.slot_count = payload.slot_count
+            template.unassigned_pool = payload.unassigned_pool
             event_type = "template.updated"
 
         # Replace tasks. We diff: keep ids the caller mentioned (for FK
@@ -278,6 +284,8 @@ def _validate(payload: TemplateInputDTO) -> DomainError | None:
     name = payload.name.strip()
     if not (MIN_NAME_LEN <= len(name) <= MAX_NAME_LEN):
         return DomainError("invalid_name_length")
+    if not (MIN_SLOT_COUNT <= payload.slot_count <= MAX_SLOT_COUNT):
+        return DomainError("invalid_slot_count")
     if not (MIN_TASKS <= len(payload.tasks) <= MAX_TASKS):
         return DomainError("invalid_task_count")
     seen_ids: set[uuid.UUID] = set()

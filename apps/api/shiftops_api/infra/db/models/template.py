@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import CheckConstraint, ForeignKey, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, SmallInteger, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,3 +35,7 @@ class Template(UuidPkMixin, TimestampMixin, Base):
         default=UserRole.OPERATOR,
     )
     default_schedule: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    slot_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
+    unassigned_pool: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )

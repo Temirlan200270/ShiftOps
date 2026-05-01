@@ -91,6 +91,9 @@ class CompleteTaskUseCase:
 
         task, template_task, shift = row
 
+        if shift.operator_user_id is None:
+            return Failure(DomainError("shift_not_claimed"))
+
         if is_line_staff(user.role) and shift.operator_user_id != user.id:
             return Failure(DomainError("not_your_shift"))
 

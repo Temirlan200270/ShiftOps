@@ -40,6 +40,8 @@ _STATUS_BY_CODE: dict[str, int] = {
     "already_active_member": status.HTTP_409_CONFLICT,
     "shift_not_scheduled": status.HTTP_409_CONFLICT,
     "shift_not_active": status.HTTP_409_CONFLICT,
+    "shift_taken": status.HTTP_409_CONFLICT,
+    "shift_not_claimed": status.HTTP_409_CONFLICT,
 }
 
 _DEFAULT_STATUS = status.HTTP_400_BAD_REQUEST

@@ -1,10 +1,4 @@
-"""Use-case: operator starts a scheduled shift.
-
-Side effects:
-- shift.status: scheduled -> active, actual_start = now()
-- audit_event "shift.started"
-- enqueues "shift_opened" notification to admin group + owner
-"""
+"""Atomically claim a vacant scheduled shift (pool model) and open it."""
 
 from __future__ import annotations
 
@@ -12,24 +6,25 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.audit import write_audit
 from shiftops_api.application.auth.deps import CurrentUser
+from shiftops_api.application.shifts.claim_role import user_may_operate_template_role
 from shiftops_api.application.shifts.geo import extract_geo_point, haversine_m
 from shiftops_api.config import get_settings
-from shiftops_api.domain.enums import ShiftStatus, is_line_staff
+from shiftops_api.domain.enums import ShiftStatus
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
-from shiftops_api.infra.db.models import Location, Shift
+from shiftops_api.infra.db.models import Location, Shift, Template
 
 
 @dataclass(frozen=True, slots=True)
-class StartedShift:
+class ClaimedShift:
     id: uuid.UUID
 
 
-class StartShiftUseCase:
+class ClaimShiftUseCase:
     def __init__(self, *, session: AsyncSession) -> None:
         self._session = session
 
@@ -41,24 +36,51 @@ class StartShiftUseCase:
         client_latitude: float | None = None,
         client_longitude: float | None = None,
         client_accuracy_m: float | None = None,
-    ) -> Result[StartedShift, DomainError]:
+    ) -> Result[ClaimedShift, DomainError]:
         shift = (
             await self._session.execute(select(Shift).where(Shift.id == shift_id))
         ).scalar_one_or_none()
         if shift is None:
             return Failure(DomainError("shift_not_found"))
 
-        if shift.operator_user_id is None:
-            return Failure(DomainError("shift_not_claimed"))
+        if shift.organization_id != user.organization_id:
+            return Failure(DomainError("shift_not_found"))
 
-        if is_line_staff(user.role) and shift.operator_user_id != user.id:
-            return Failure(DomainError("not_your_shift"))
+        tpl = await self._session.get(Template, shift.template_id)
+        if tpl is None:
+            return Failure(DomainError("shift_not_found"))
+
+        if not user_may_operate_template_role(user, tpl.role_target):
+            return Failure(DomainError("insufficient_role"))
 
         if shift.status != ShiftStatus.SCHEDULED:
             return Failure(DomainError("shift_not_scheduled"))
 
-        shift.status = ShiftStatus.ACTIVE.value
-        shift.actual_start = datetime.now(tz=UTC)
+        if shift.operator_user_id is not None:
+            return Failure(DomainError("shift_taken"))
+
+        now = datetime.now(tz=UTC)
+        # Single atomic UPDATE: avoids a torn state if the process dies between
+        # assigning operator and flipping status (and matches the race contract).
+        claim_stmt = (
+            update(Shift)
+            .where(Shift.id == shift_id)
+            .where(Shift.organization_id == user.organization_id)
+            .where(Shift.operator_user_id.is_(None))
+            .where(Shift.status == ShiftStatus.SCHEDULED.value)
+            .values(
+                operator_user_id=user.id,
+                status=ShiftStatus.ACTIVE.value,
+                actual_start=now,
+            )
+        )
+        res = await self._session.execute(claim_stmt)
+        if res.rowcount == 0:
+            return Failure(DomainError("shift_taken"))
+
+        shift = (
+            await self._session.execute(select(Shift).where(Shift.id == shift_id))
+        ).scalar_one()
 
         location = await self._session.get(Location, shift.location_id)
         suspicious_location = False
@@ -78,6 +100,7 @@ class StartShiftUseCase:
             "shift_id": str(shift.id),
             "location_id": str(shift.location_id),
             "suspicious_location": suspicious_location,
+            "claimed": True,
         }
         if distance_m is not None:
             audit_payload["distance_m"] = round(distance_m, 1)
@@ -101,4 +124,4 @@ class StartShiftUseCase:
 
         await dispatch_shift_opened(shift_id=shift.id)
 
-        return Success(StartedShift(id=shift.id))
+        return Success(ClaimedShift(id=shift.id))

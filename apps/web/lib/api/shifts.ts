@@ -98,6 +98,68 @@ export async function fetchMyShift(): Promise<ApiResult<ShiftSummary | null>> {
   return { ok: true, status: result.status, data: fromCurrentShift(result.data) };
 }
 
+export interface VacantShift {
+  id: string;
+  templateName: string;
+  templateId: string;
+  roleTarget: string;
+  locationId: string;
+  locationName: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+  stationLabel: string | null;
+  slotIndex: number;
+}
+
+interface VacantShiftDTO {
+  id: string;
+  template_name: string;
+  template_id: string;
+  role_target: string;
+  location_id: string;
+  location_name: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  station_label: string | null;
+  slot_index: number;
+}
+
+export async function fetchAvailableShifts(input?: {
+  locationId?: string | null;
+}): Promise<ApiResult<VacantShift[]>> {
+  const params = new URLSearchParams();
+  if (input?.locationId) params.set("location_id", input.locationId);
+  const qs = params.toString();
+  const path = `/v1/shifts/available${qs ? `?${qs}` : ""}`;
+  const result = await api.get<VacantShiftDTO[]>(path);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    status: result.status,
+    data: result.data.map((row) => ({
+      id: row.id,
+      templateName: row.template_name,
+      templateId: row.template_id,
+      roleTarget: row.role_target,
+      locationId: row.location_id,
+      locationName: row.location_name,
+      scheduledStart: row.scheduled_start,
+      scheduledEnd: row.scheduled_end,
+      stationLabel: row.station_label,
+      slotIndex: row.slot_index,
+    })),
+  };
+}
+
+export async function claimShift(
+  shiftId: string,
+  geo?: StartShiftGeo,
+): Promise<ApiResult<ShiftSummary | null>> {
+  const result = await api.post<CurrentShiftDTO>(`/v1/shifts/${shiftId}/claim`, geo ?? {});
+  if (!result.ok) return result;
+  return { ok: true, status: result.status, data: fromCurrentShift(result.data) };
+}
+
 export interface StartShiftGeo {
   client_latitude: number;
   client_longitude: number;

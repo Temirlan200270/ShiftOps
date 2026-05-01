@@ -38,12 +38,14 @@ class Shift(UuidPkMixin, TimestampMixin, Base):
         ForeignKey("templates.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    operator_user_id: Mapped[uuid.UUID] = mapped_column(
+    operator_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    slot_index: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+    station_label: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     scheduled_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     scheduled_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

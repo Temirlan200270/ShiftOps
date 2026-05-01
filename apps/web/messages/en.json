@@ -17,6 +17,10 @@
   "dashboard": {
     "noShift": "No shift today",
     "noShiftBody": "If you came in to work, ask the admin to assign a shift to you.",
+    "availableTitle": "Open slots to claim",
+    "claimCta": "Take this shift",
+    "slotHint": "{location} · {template}",
+    "stationLabel": "Post: {label}",
     "shiftStatus": {
       "scheduled": "Starting soon",
       "active": "Active shift",
@@ -93,6 +97,8 @@
   "errors": {
     "network": "Offline. We'll send it when you're back online.",
     "uploadRetrying": "Photo queued — will retry automatically.",
+    "shiftTakenTitle": "Already taken",
+    "shiftTaken": "Someone just claimed this slot. Pick another — the list was refreshed.",
     "generic": "Something went wrong. Please try again.",
     "sessionExpired": "Session expired. Reopen ShiftOps from the bot.",
     "privilegedRlsUnavailable": "System DB access is not configured. Contact an admin.",
@@ -289,6 +295,8 @@
     "nameLabel": "Name",
     "namePlaceholder": "e.g. Morning bar shift",
     "roleLabel": "Assigned to",
+    "slotCountLabel": "Shift slots (per day)",
+    "unassignedPoolLabel": "Vacant pool — staff claim shifts in the app (no default assignee)",
     "tasksHeading": "Tasks ({count})",
     "addTaskCta": "Add task",
     "taskTitlePlaceholder": "Task title",
@@ -343,6 +351,8 @@
       "leadTimeLabel": "Create N min before start",
       "noLocations": "Add at least one location first.",
       "assigneeReset": "The selected operator is no longer available. Switched back to auto-pick.",
+      "slotLabelsHint": "Optional station labels (one line per slot, for multi-slot templates)",
+      "slotLabelsPlaceholder": "Bar 1\nBar 2",
       "error": {
         "locationNotFound": "The selected location was not found. Pick a location again.",
         "assigneeNotFound": "The default operator was not found or is inactive. Pick again, or leave it on auto-pick.",

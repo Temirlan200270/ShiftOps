@@ -32,7 +32,14 @@ import { TemplatesListScreen } from "@/components/screens/templates-list-screen"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { fetchMyShift, readClientGeoForShiftStart, startShift } from "@/lib/api/shifts";
+import {
+  claimShift,
+  fetchAvailableShifts,
+  fetchMyShift,
+  readClientGeoForShiftStart,
+  startShift,
+  type VacantShift,
+} from "@/lib/api/shifts";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
@@ -61,6 +68,8 @@ export function DashboardScreen(): React.JSX.Element {
   const [view, setView] = React.useState<View>("dashboard");
   const [loading, setLoading] = React.useState(true);
   const [acting, setActing] = React.useState(false);
+  const [vacantShifts, setVacantShifts] = React.useState<VacantShift[]>([]);
+  const [claimingId, setClaimingId] = React.useState<string | null>(null);
   const lastShiftToastAtRef = React.useRef(0);
   const tDash = useTranslations("dashboard");
   const tErr = useTranslations("errors");
@@ -80,9 +89,17 @@ export function DashboardScreen(): React.JSX.Element {
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
-    const result = await fetchMyShift();
-    if (result.ok) {
-      setShift(result.data);
+    const [myResult, availResult] = await Promise.all([
+      fetchMyShift(),
+      fetchAvailableShifts(),
+    ]);
+    if (availResult.ok) {
+      setVacantShifts(availResult.data);
+    } else {
+      setVacantShifts([]);
+    }
+    if (myResult.ok) {
+      setShift(myResult.data);
     } else {
       const now = Date.now();
       if (now - lastShiftToastAtRef.current >= 3800) {
@@ -90,7 +107,7 @@ export function DashboardScreen(): React.JSX.Element {
         toast({
           variant: "critical",
           title: tErr("generic"),
-          description: localiseApiFailure(result, tErr),
+          description: localiseApiFailure(myResult, tErr),
         });
       }
     }
@@ -106,6 +123,39 @@ export function DashboardScreen(): React.JSX.Element {
 
   // Hooks must run on every render — declare here, before any early `return`
   // for sub-screens. Otherwise `react-hooks/rules-of-hooks` fails the build.
+  const handleClaimVacant = React.useCallback(
+    async (row: VacantShift) => {
+      setClaimingId(row.id);
+      haptic("medium");
+      const geo = await readClientGeoForShiftStart();
+      const result = await claimShift(row.id, geo);
+      setClaimingId(null);
+      if (result.ok && result.data) {
+        setShift(result.data);
+        setVacantShifts([]);
+        notify("success");
+        setView("tasks");
+      } else if (!result.ok) {
+        notify("error");
+        if (result.code === "shift_taken") {
+          await refresh();
+          toast({
+            variant: "critical",
+            title: tErr("shiftTakenTitle"),
+            description: tErr("shiftTaken"),
+          });
+        } else {
+          toast({
+            variant: "critical",
+            title: tErr("generic"),
+            description: localiseApiFailure(result, tErr),
+          });
+        }
+      }
+    },
+    [refresh, setShift, tErr],
+  );
+
   const handleStart = React.useCallback(async () => {
     if (!shift) return;
     setActing(true);
@@ -231,14 +281,53 @@ export function DashboardScreen(): React.JSX.Element {
           <CardContent className="p-6 h-40" />
         </Card>
       ) : !shift ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{tDash("noShift")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
-          </CardContent>
-        </Card>
+        <>
+          {vacantShifts.length > 0 ? (
+            <Card className="mb-3">
+              <CardHeader>
+                <CardTitle>{tDash("availableTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {vacantShifts.map((row) => (
+                  <div
+                    key={row.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border p-3 bg-elevated/40"
+                  >
+                    <p className="text-sm font-medium">{row.templateName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {tDash("slotHint", {
+                        location: row.locationName,
+                        template: row.templateName,
+                      })}
+                    </p>
+                    {row.stationLabel ? (
+                      <p className="text-xs text-muted-foreground">
+                        {tDash("stationLabel", { label: row.stationLabel })}
+                      </p>
+                    ) : null}
+                    <Button
+                      size="block"
+                      variant="secondary"
+                      disabled={claimingId !== null}
+                      onClick={() => void handleClaimVacant(row)}
+                    >
+                      <PlayCircle className="size-5" />
+                      {claimingId === row.id ? "…" : tDash("claimCta")}
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>{tDash("noShift")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
+            </CardContent>
+          </Card>
+        </>
       ) : shift.status === "scheduled" ? (
         <Card>
           <CardHeader>

@@ -41,6 +41,8 @@ export interface RecurrenceConfig {
   locationId: string;
   defaultAssigneeId: string | null;
   leadTimeMin: number;
+  /** Labels for multi-slot shifts (index-aligned with ``slot_index``). */
+  slotLabels?: string[];
 }
 
 export interface TemplateDetail {
@@ -49,6 +51,8 @@ export interface TemplateDetail {
   roleTarget: UserRole;
   tasks: TemplateTaskRow[];
   recurrence: RecurrenceConfig | null;
+  slotCount: number;
+  unassignedPool: boolean;
 }
 
 export interface TemplateTaskInput {
@@ -68,6 +72,8 @@ export interface TemplateInput {
   roleTarget: UserRole;
   tasks: TemplateTaskInput[];
   recurrence: RecurrenceConfig | null;
+  slotCount: number;
+  unassignedPool: boolean;
 }
 
 interface ListItemDTO {
@@ -98,6 +104,7 @@ interface RecurrenceDTO {
   location_id: string;
   default_assignee_id: string | null;
   lead_time_min: number;
+  slot_labels?: string[] | null;
 }
 
 interface DetailDTO {
@@ -106,6 +113,8 @@ interface DetailDTO {
   role_target: UserRole;
   tasks: TaskDTO[];
   recurrence: RecurrenceDTO | null;
+  slot_count: number;
+  unassigned_pool: boolean;
 }
 
 interface SaveResponseDTO {
@@ -138,6 +147,8 @@ function toDTO(input: TemplateInput): unknown {
   return {
     name: input.name,
     role_target: input.roleTarget,
+    slot_count: input.slotCount,
+    unassigned_pool: input.unassignedPool,
     tasks: input.tasks.map((t) => ({
       id: t.id,
       title: t.title,
@@ -162,6 +173,9 @@ function recurrenceToDTO(r: RecurrenceConfig): RecurrenceDTO {
     location_id: r.locationId,
     default_assignee_id: r.defaultAssigneeId,
     lead_time_min: r.leadTimeMin,
+    ...(r.slotLabels !== undefined && r.slotLabels.length > 0
+      ? { slot_labels: r.slotLabels }
+      : {}),
   };
 }
 
@@ -176,6 +190,9 @@ function recurrenceFromDTO(dto: RecurrenceDTO): RecurrenceConfig {
     locationId: dto.location_id,
     defaultAssigneeId: dto.default_assignee_id,
     leadTimeMin: dto.lead_time_min,
+    ...(dto.slot_labels && dto.slot_labels.length > 0
+      ? { slotLabels: dto.slot_labels }
+      : {}),
   };
 }
 
@@ -197,6 +214,8 @@ export async function getTemplate(id: string): Promise<ApiResult<TemplateDetail>
       roleTarget: result.data.role_target,
       tasks: result.data.tasks.map(fromTaskDTO),
       recurrence: result.data.recurrence ? recurrenceFromDTO(result.data.recurrence) : null,
+      slotCount: result.data.slot_count,
+      unassignedPool: result.data.unassigned_pool,
     },
   };
 }

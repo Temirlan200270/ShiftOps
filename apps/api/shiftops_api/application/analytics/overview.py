@@ -320,6 +320,7 @@ class AnalyticsOverviewUseCase:
             Shift.actual_end.isnot(None),
             Shift.actual_end >= range_from,
             Shift.actual_end <= range_to,
+            Shift.operator_user_id.isnot(None),
         ]
         if location_id is not None:
             clauses.append(Shift.location_id == location_id)

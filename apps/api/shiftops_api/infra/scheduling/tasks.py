@@ -62,12 +62,14 @@ async def recurring_shifts_tick() -> dict[str, int]:
             "inspected": report.inspected,
             "created": report.created,
             "skipped": report.skipped,
+            "aborted_expired_vacant": report.aborted_expired_vacant,
         },
     )
     return {
         "inspected": report.inspected,
         "created": report.created,
         "skipped": report.skipped,
+        "aborted_expired_vacant": report.aborted_expired_vacant,
     }
 
 

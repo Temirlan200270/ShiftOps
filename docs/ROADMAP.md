@@ -93,6 +93,14 @@
 
 **Бот:** `/set_role` и соседние команды остаются fallback (см. `TELEGRAM_BOT.md`).
 
+## V1.2 — Пул вакантных смен (claim) и мульти-слоты
+
+- `templates.slot_count`, `unassigned_pool`; `shifts.operator_user_id` nullable
+  до claim; `slot_index`, `station_label`.
+- `GET /v1/shifts/available`, `POST /v1/shifts/{id}/claim`; воркер создаёт до
+  `slot_count` слотов за день; TWA — блок «Свободные слоты» на дашборде.
+- Два разных бара в одной локации — два шаблона или несколько слотов с подписями.
+
 ## V0.5 — Чек-листы Пловханы
 
 - ~~Секции в `template_tasks` (`section: VARCHAR(64)`).~~ ✅ Готово:

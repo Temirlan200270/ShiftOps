@@ -10,6 +10,8 @@ export function localiseApiFailure(
   switch (failure.code) {
     case "network":
       return tErr("network");
+    case "shift_taken":
+      return tErr("shiftTaken");
     case "privileged_rls_unavailable":
       return tErr("privilegedRlsUnavailable");
     case "missing_bearer_token":

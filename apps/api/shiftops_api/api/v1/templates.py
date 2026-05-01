@@ -53,6 +53,8 @@ class TemplateIn(BaseModel):
     name: str = Field(min_length=3, max_length=128)
     role_target: UserRole
     tasks: list[TemplateTaskIn] = Field(min_length=1, max_length=200)
+    slot_count: int = Field(default=1, ge=1, le=50)
+    unassigned_pool: bool = False
     # Optional recurrence config — when ``auto_create=true`` the worker
     # materialises a shift every day (or on the configured weekdays).
     # ``None`` keeps the column empty: nothing fires automatically.
@@ -76,6 +78,8 @@ class TemplateOut(BaseModel):
     role_target: str
     tasks: list[TemplateTaskOut]
     recurrence: RecurrenceConfig | None = None
+    slot_count: int = 1
+    unassigned_pool: bool = False
 
 
 class TemplateListItemOut(BaseModel):
@@ -137,6 +141,8 @@ async def get_template(
         id=tpl.id,
         name=tpl.name,
         role_target=tpl.role_target,
+        slot_count=tpl.slot_count,
+        unassigned_pool=tpl.unassigned_pool,
         tasks=[
             TemplateTaskOut(
                 id=t.id,
@@ -268,6 +274,12 @@ async def _validate_recurrence(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="recurrence_assignee_role_mismatch",
             )
+
+    if cfg.slot_labels is not None and len(cfg.slot_labels) > payload.slot_count:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="recurrence_slot_labels_overflow",
+        )
 
 
 async def _persist_recurrence(
@@ -401,6 +413,8 @@ def _to_input_dto(payload: TemplateIn) -> TemplateInputDTO:
     return TemplateInputDTO(
         name=payload.name,
         role_target=payload.role_target,
+        slot_count=payload.slot_count,
+        unassigned_pool=payload.unassigned_pool,
         tasks=[
             TemplateTaskInputDTO(
                 id=t.id,

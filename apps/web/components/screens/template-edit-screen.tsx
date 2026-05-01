@@ -126,6 +126,8 @@ export function TemplateEditScreen({
 
   const [name, setName] = React.useState("");
   const [roleTarget, setRoleTarget] = React.useState<UserRole>("operator");
+  const [slotCount, setSlotCount] = React.useState(1);
+  const [unassignedPool, setUnassignedPool] = React.useState(false);
   const [tasks, setTasks] = React.useState<DraftTask[]>([emptyTask()]);
   const [loading, setLoading] = React.useState<boolean>(templateId !== null);
   const [saving, setSaving] = React.useState(false);
@@ -166,6 +168,8 @@ export function TemplateEditScreen({
       if (result.ok) {
         setName(result.data.name);
         setRoleTarget(result.data.roleTarget);
+        setSlotCount(result.data.slotCount);
+        setUnassignedPool(result.data.unassignedPool);
         setTasks(
           result.data.tasks.map((t) => ({
             id: t.id,
@@ -305,6 +309,8 @@ export function TemplateEditScreen({
     const payload = {
       name: name.trim(),
       roleTarget,
+      slotCount,
+      unassignedPool,
       tasks: tasks.map<TemplateTaskInput>((t) => ({
         id: t.id,
         title: t.title.trim(),
@@ -341,7 +347,18 @@ export function TemplateEditScreen({
     notify("success");
     toast({ variant: "success", title: tTpl("saved") });
     onSaved();
-  }, [name, roleTarget, tasks, recurrence, templateId, validation, tTpl, onSaved]);
+  }, [
+    name,
+    roleTarget,
+    slotCount,
+    unassignedPool,
+    tasks,
+    recurrence,
+    templateId,
+    validation,
+    tTpl,
+    onSaved,
+  ]);
 
   const handleImportPreview = React.useCallback(async () => {
     setImportError(null);
@@ -494,6 +511,32 @@ export function TemplateEditScreen({
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">
+              {tTpl("slotCountLabel")}
+            </span>
+            <input
+              type="number"
+              value={slotCount}
+              min={1}
+              max={50}
+              onChange={(e) => {
+                const n = e.currentTarget.valueAsNumber;
+                if (Number.isNaN(n)) return;
+                setSlotCount(Math.min(50, Math.max(1, Math.floor(n))));
+              }}
+              className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={unassignedPool}
+              onChange={(e) => setUnassignedPool(e.target.checked)}
+              className="rounded border-border"
+            />
+            <span className="text-sm">{tTpl("unassignedPoolLabel")}</span>
+          </label>
         </CardContent>
       </Card>
 
@@ -503,6 +546,7 @@ export function TemplateEditScreen({
         locations={locations}
         members={members}
         roleTarget={roleTarget}
+        slotCount={slotCount}
         tTpl={tTpl}
       />
 
@@ -865,6 +909,7 @@ function RecurrenceBlock({
   locations,
   members,
   roleTarget,
+  slotCount,
   tTpl,
 }: {
   value: RecurrenceConfig | null;
@@ -872,6 +917,7 @@ function RecurrenceBlock({
   locations: LocationRow[];
   members: TeamMemberRow[];
   roleTarget: UserRole;
+  slotCount: number;
   tTpl: Translator;
 }): React.JSX.Element {
   const enabled = value !== null && value.autoCreate;
@@ -1067,6 +1113,27 @@ function RecurrenceBlock({
                 className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </label>
+
+            {slotCount > 1 ? (
+              <label className="block">
+                <span className="text-xs text-muted-foreground">
+                  {tTpl("recurrence.slotLabelsHint")}
+                </span>
+                <textarea
+                  value={(value.slotLabels ?? []).join("\n")}
+                  onChange={(e) => {
+                    const lines = e.target.value
+                      .split("\n")
+                      .map((s) => s.trim())
+                      .filter((s) => s.length > 0);
+                    update({ slotLabels: lines.length > 0 ? lines : undefined });
+                  }}
+                  rows={Math.min(6, slotCount)}
+                  className="mt-1 w-full rounded-md bg-elevated p-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                  placeholder={tTpl("recurrence.slotLabelsPlaceholder")}
+                />
+              </label>
+            ) : null}
           </div>
         ) : null}
       </CardContent>

@@ -12,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.application.auth.deps import CurrentUser, require_user
+from shiftops_api.application.shifts.claim_shift import ClaimShiftUseCase
 from shiftops_api.application.shifts.close_shift import CloseShiftUseCase
 from shiftops_api.application.shifts.complete_task import CompleteTaskUseCase
+from shiftops_api.application.shifts.list_available_shifts import ListAvailableShiftsUseCase
 from shiftops_api.application.shifts.list_history import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
@@ -123,6 +125,19 @@ class HistoryResponse(BaseModel):
     next_cursor: str | None
 
 
+class VacantShiftOut(BaseModel):
+    id: UUID
+    template_name: str
+    template_id: UUID
+    role_target: str
+    location_id: UUID
+    location_name: str
+    scheduled_start: str
+    scheduled_end: str
+    station_label: str | None
+    slot_index: int
+
+
 @router.get(
     "/history",
     response_model=HistoryResponse,
@@ -218,6 +233,37 @@ async def list_history(
     )
 
 
+@router.get("/available", response_model=list[VacantShiftOut])
+async def list_available_shifts(
+    location_id: Annotated[
+        UUID | None,
+        Query(description="Filter by location within the organization."),
+    ] = None,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[VacantShiftOut]:
+    use_case = ListAvailableShiftsUseCase(session=session)
+    result = await use_case.execute(user=user, location_id=location_id)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+    assert isinstance(result, Success)
+    return [
+        VacantShiftOut(
+            id=row.id,
+            template_name=row.template_name,
+            template_id=row.template_id,
+            role_target=row.role_target,
+            location_id=row.location_id,
+            location_name=row.location_name,
+            scheduled_start=row.scheduled_start,
+            scheduled_end=row.scheduled_end,
+            station_label=row.station_label,
+            slot_index=row.slot_index,
+        )
+        for row in result.value
+    ]
+
+
 @router.get("/me", response_model=CurrentShiftResponse)
 async def get_my_shift(
     user: CurrentUser = Depends(require_user),
@@ -229,6 +275,36 @@ async def get_my_shift(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.error.code)
     assert isinstance(result, Success)
     return CurrentShiftResponse.model_validate(result.value, from_attributes=True)
+
+
+@router.post("/{shift_id}/claim", response_model=CurrentShiftResponse)
+async def claim_shift(
+    shift_id: UUID,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+    body: Annotated[StartShiftIn | None, Body()] = None,
+) -> CurrentShiftResponse:
+    geo = body or StartShiftIn()
+    use_case = ClaimShiftUseCase(session=session)
+    result = await use_case.execute(
+        shift_id=shift_id,
+        user=user,
+        client_latitude=geo.client_latitude,
+        client_longitude=geo.client_longitude,
+        client_accuracy_m=geo.client_accuracy_m,
+    )
+    if isinstance(result, Failure):
+        if result.error.code == "insufficient_role":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient_role")
+        raise_for_domain_failure(result)
+    assert isinstance(result, Success)
+
+    read_use_case = ListMyShiftUseCase(session=session)
+    read_result = await read_use_case.execute(user=user)
+    if isinstance(read_result, Failure):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=read_result.error.code)
+    assert isinstance(read_result, Success)
+    return CurrentShiftResponse.model_validate(read_result.value, from_attributes=True)
 
 
 @router.post("/{shift_id}/start", response_model=CurrentShiftResponse)

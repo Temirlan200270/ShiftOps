@@ -58,6 +58,9 @@ class RecurrenceConfig(BaseModel):
     # an hour earlier so the operator sees their checklist when they
     # arrive". The cron tick will create as soon as the lead window opens.
     lead_time_min: int = Field(default=0, ge=0, le=12 * 60)
+    # Optional labels for multi-slot materialisation (index-aligned with slot_index).
+    # Length must be <= template.slot_count (enforced when saving the template).
+    slot_labels: list[str] | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -93,6 +96,7 @@ class RecurrenceConfig(BaseModel):
                 str(self.default_assignee_id) if self.default_assignee_id else None
             ),
             "lead_time_min": self.lead_time_min,
+            "slot_labels": list(self.slot_labels) if self.slot_labels else None,
         }
 
 
@@ -112,6 +116,7 @@ class RecurrenceInputDTO:
     location_id: uuid.UUID
     default_assignee_id: uuid.UUID | None
     lead_time_min: int
+    slot_labels: list[str] | None = None
 
 
 def parse_storage(blob: dict[str, Any] | None) -> RecurrenceConfig | None:

@@ -57,6 +57,8 @@ erDiagram
         text name
         text role_target
         jsonb default_schedule
+        smallint slot_count
+        bool unassigned_pool
         timestamptz created_at
     }
     template_tasks {
@@ -75,7 +77,9 @@ erDiagram
         uuid organization_id FK
         uuid location_id FK
         uuid template_id FK
-        uuid operator_user_id FK
+        uuid operator_user_id FK "nullable until claim"
+        smallint slot_index
+        text station_label
         timestamptz scheduled_start
         timestamptz scheduled_end
         timestamptz actual_start
@@ -139,7 +143,9 @@ erDiagram
 ## `templates.default_schedule`
 
 JSONB-блоб, описывающий ежедневное автосоздание смен. Формат
-сериализуется из [`RecurrenceConfig`](../apps/api/shiftops_api/application/templates/recurrence.py):
+сериализуется из [`RecurrenceConfig`](../apps/api/shiftops_api/application/templates/recurrence.py).
+**Не дублируйте** в JSON поля `slot_count` и `unassigned_pool` — они живут в
+колонках таблицы `templates`, не внутри `default_schedule`.
 
 ```json
 {
@@ -151,16 +157,26 @@ JSONB-блоб, описывающий ежедневное автосоздан
   "timezone": "Asia/Almaty",
   "location_id": "<uuid>",
   "default_assignee_id": "<uuid|null>",
-  "lead_time_min": 30
+  "lead_time_min": 30,
+  "slot_labels": ["Бар 1", "Бар 2"]
 }
 ```
+
+Опционально `slot_labels` — подписи постов для мульти-слотов (`templates.slot_count`).
+
+Колонки шаблона: `slot_count` (≥ 1, сколько смен создавать за календарный день
+на пару template×location), `unassigned_pool` — если `true`, воркер создаёт
+слоты с `operator_user_id IS NULL` до **claim** в TWA.
 
 `recurring_shifts_tick` (TaskIQ, каждую минуту) сканирует все
 шаблоны с `auto_create=true`, проверяет окно
 `time_of_day - lead_time_min ≤ now_local ≤ time_of_day + 5 мин` и
-идемпотентно создаёт смену + `task_instances`. Идемпотентность —
-advisory-lock на `(template_id, location_id, local_day)` плюс
-повторный existence-check после захвата лока.
+идемпотентно создаёт до `slot_count` смен + `task_instances`. Идемпотентность —
+advisory-lock на `(template_id, location_id, local_day, slot_index)` плюс
+повторный existence-check после захвата лока (статусы `aborted` не блокируют слот).
+
+Частичный индекс `ix_shifts_org_scheduled_unassigned` по `(organization_id)`
+WHERE `status = 'scheduled' AND operator_user_id IS NULL` — выборка «вакантных» слотов.
 
 ## `organizations.business_hours`
 
