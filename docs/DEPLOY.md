@@ -47,6 +47,25 @@ free-tier Upstash (10к команд/день), Vercel hobby — всё $0. Пл
    `GRANT shiftops_rls_bypass TO "<runtime_user из DATABASE_URL>"`.
    Без членства мини-приложение покажет `privileged_rls_unavailable` при входе.
 
+   **Если ошибка остаётся после деплоя:** в Supabase → SQL Editor выполни диагностику:
+
+   ```sql
+   SELECT version_num FROM alembic_version;
+   SELECT rolname, rolbypassrls FROM pg_roles WHERE rolname = 'shiftops_rls_bypass';
+   SELECT r.rolname AS member_of_bypass
+   FROM pg_auth_members m
+   JOIN pg_roles r ON r.oid = m.member
+   JOIN pg_roles g ON g.oid = m.roleid
+   WHERE g.rolname = 'shiftops_rls_bypass';
+   ```
+
+   В логах Fly при сбое смотри поле `db_user` в событии `rls.privileged_unavailable` — это роль,
+   которой не хватает `GRANT shiftops_rls_bypass TO ...`. Частая причина: на машине задан
+   `ALEMBIC_DATABASE_URL` с **другим** логином, чем в `DATABASE_URL` (миграции выдали роль одному
+   пользователю, API ходит под другим). Либо убери `ALEMBIC_DATABASE_URL` с Fly, либо выполни
+   `GRANT` для пользователя из **transaction pooler** (`DATABASE_URL`). Миграция
+   `0012_grant_rls_bypass_pooler_roles` дополнительно выдаёт членство ролям `postgres` / `postgres.*`.
+
 #### 1.1a Off-site backup (Nightly pg_dump) — обязательно для free tier
 
 На бесплатном Supabase нет PITR, поэтому **обязателен** внешний логический дамп.

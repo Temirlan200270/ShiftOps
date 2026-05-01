@@ -73,11 +73,19 @@ async def enter_privileged_rls_mode(session: AsyncSession, *, reason: str) -> No
         # Most common causes:
         # - migration 0010 not applied (role doesn't exist)
         # - missing GRANT shiftops_rls_bypass TO <runtime_user>
+        # - ALEMBIC_DATABASE_URL used a different role than DATABASE_URL (0012 fixes pooler names)
         PRIVILEGED_RLS_UNAVAILABLE_TOTAL.labels(reason=reason).inc()
+        db_user: str | None = None
+        try:
+            await session.rollback()
+            db_user = await session.scalar(text("SELECT current_user::text"))
+        except Exception:  # noqa: BLE001 — best-effort for ops logs only
+            pass
         _log.error(
             "rls.privileged_unavailable",
             reason=reason,
             role=role,
+            db_user=db_user,
             error=str(getattr(exc, "orig", exc)),
         )
         raise PrivilegedRlsUnavailable(

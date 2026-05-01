@@ -10,6 +10,12 @@ IPv4 add-on — do not rely on Direct for ``fly ssh … alembic``.
 with IPv6. ``sslmode=require`` is appended only for Supabase hostnames, not for ``localhost``/Docker
 Postgres (CI uses plain TCP without SSL).
 
+**Production trap:** if this env var is set on Fly **and** the **username** in the URI differs from
+``DATABASE_URL`` (transaction pooler), migration ``0011`` alone grants bypass to the wrong role.
+Prefer **omitting** ``ALEMBIC_DATABASE_URL`` on Fly so Alembic uses ``DATABASE_URL_SYNC``, or run
+``GRANT shiftops_rls_bypass TO "<runtime user from DATABASE_URL>"`` after deploy. Migration
+``0012_grant_rls_bypass_pooler_roles`` grants to typical Supabase ``postgres`` / ``postgres.*`` logins.
+
 **``Tenant or user not found``** on the pooler: reset the DB password in Supabase and paste fresh
 Session + Transaction URIs from the dashboard.
 """

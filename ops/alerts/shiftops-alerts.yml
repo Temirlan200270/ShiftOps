@@ -27,8 +27,9 @@ groups:
         annotations:
           summary: "Privileged RLS bypass failed (SET LOCAL ROLE)"
           description: >
-            The API cannot assume shiftops_rls_bypass — see migration 0010/0011 and
-            GRANT shiftops_rls_bypass TO <runtime_user>. Logs: rls.privileged_unavailable.
+            The API cannot assume shiftops_rls_bypass — see migrations 0010/0011/0012,
+            ALEMBIC_DATABASE_URL vs DATABASE_URL user mismatch, and
+            GRANT shiftops_rls_bypass TO <runtime_user>. Logs: rls.privileged_unavailable (db_user).
 
   - name: shiftops-worker
     rules:
