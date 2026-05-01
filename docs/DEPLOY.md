@@ -36,6 +36,16 @@ free-tier Upstash (10к команд/день), Vercel hobby — всё $0. Пл
    (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`). Миграции из репозитория
    делают это автоматически; проверь в Supabase Studio после первой
    миграции.
+6. **Членство в роли `shiftops_rls_bypass`:** кросс-арендные сценарии (обмен
+   `initData`, тики воркера) вызывают `SET LOCAL ROLE shiftops_rls_bypass`. Роль
+   создаётся миграцией `0010`; миграция `0011_grant_rls_bypass_membership`
+   выдаёт `GRANT shiftops_rls_bypass TO` пользователю, от имени которого выполнен
+   `alembic upgrade` (тот же логин, что в `DATABASE_URL_SYNC`). На Fly при
+   одинаковых учётках для API и release-команды это покрывает рантайм без ручных
+   шагов. Если API подключается **другим** пользователем БД, чем миграции,
+   выполни в Supabase SQL Editor вручную:
+   `GRANT shiftops_rls_bypass TO "<runtime_user из DATABASE_URL>"`.
+   Без членства мини-приложение покажет `privileged_rls_unavailable` при входе.
 
 #### 1.1a Off-site backup (Nightly pg_dump) — обязательно для free tier
 
