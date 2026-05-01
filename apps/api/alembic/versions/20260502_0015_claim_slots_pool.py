@@ -1,8 +1,10 @@
 """Claim model: template slots, nullable shift assignee, station labels.
 
-Revision ID: 0015_claim_slots_and_unassigned_pool
+Revision ID: 0015_claim_slots_pool
 Revises: 0014_users_job_title
 Create Date: 2026-05-02
+
+Note: revision id must stay ≤32 chars — ``alembic_version.version_num`` is VARCHAR(32).
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0015_claim_slots_and_unassigned_pool"
+revision: str = "0015_claim_slots_pool"
 down_revision: str | None = "0014_users_job_title"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
