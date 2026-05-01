@@ -41,8 +41,13 @@ interface RequestInitJSON extends Omit<RequestInit, "body"> {
 
 function parseErrorPayload(payload: unknown): { code: string; message: string } {
   const record = (payload as Record<string, unknown>) ?? {};
-  const code = typeof record.code === "string" ? record.code : "";
-  const message = typeof record.message === "string" ? record.message : "";
+  let code = typeof record.code === "string" ? record.code : "";
+  let message = typeof record.message === "string" ? record.message : "";
+  const detail = record.detail;
+  if (!code && typeof detail === "string" && detail.length > 0) {
+    code = detail;
+    message = detail;
+  }
   return { code, message };
 }
 

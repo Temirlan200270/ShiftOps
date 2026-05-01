@@ -11,7 +11,8 @@
     "retry": "Retry",
     "signInAgain": "Sign in again",
     "signInAgainHint": "No active session. Tap to sign in with Telegram again without reloading the mini app.",
-    "userInactiveHint": "Access to the organization is disabled (your account is inactive). Ask an owner for access or accept a new invite from the bot. If you are an admin, check Team — your profile may have been deactivated."
+    "userInactiveHint": "Access to the organization is disabled (your account is inactive). Ask an owner for access or accept a new invite from the bot. If you are an admin, check Team — your profile may have been deactivated.",
+    "inviteRequiredHint": "This Telegram account is not linked to an organization yet. Open the ShiftOps bot chat, open the invite link again, and press Start — you should see a «Welcome» confirmation. Then open the Web App using the button under that message or from the bot menu. Use the same Telegram account that accepted the invite."
   },
   "dashboard": {
     "noShift": "No shift today",

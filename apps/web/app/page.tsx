@@ -104,7 +104,10 @@ export default function Page(): React.JSX.Element {
                 ? tSplash("initDataExpiredHint")
                 : handshakeErrorCode === "user_inactive"
                   ? tSplash("userInactiveHint")
-                  : handshakeError}
+                  : handshakeErrorCode === "ask_admin_to_invite" ||
+                      handshakeError.includes("ask_admin_to_invite")
+                    ? tSplash("inviteRequiredHint")
+                    : handshakeError}
             </p>
             {handshakeErrorCode !== "invalid_init_data" &&
             handshakeErrorCode !== "user_inactive" &&

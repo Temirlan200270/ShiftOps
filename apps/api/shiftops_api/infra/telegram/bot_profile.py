@@ -80,6 +80,7 @@ SUPER_ADMIN_COMMANDS: list[BotCommand] = [
         command="org_invite",
         description="Инвайт: имя или UUID, роль, часы 1–168",
     ),
+    BotCommand(command="org_delete", description="Удалить организацию: имя или UUID"),
     BotCommand(command="org_set_owner", description="Владелец: org + tg_id"),
     BotCommand(command="org_set_role", description="Роль: org + tg_id + роль"),
     BotCommand(command="org_remove_member", description="Деактивировать: org + tg_id"),

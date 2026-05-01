@@ -33,7 +33,14 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import CallbackQuery, Message, Update
+from aiogram.types import (
+    CallbackQuery,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+    Update,
+    WebAppInfo,
+)
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +49,9 @@ from shiftops_api.application.invites.create_system_invite import CreateSystemIn
 from shiftops_api.application.invites.redeem_invite import RedeemInviteUseCase
 from shiftops_api.application.organizations.create_organization import (
     CreateOrganizationUseCase,
+)
+from shiftops_api.application.organizations.delete_organization import (
+    DeleteOrganizationUseCase,
 )
 from shiftops_api.application.shifts.approve_waiver import ApproveWaiverUseCase
 from shiftops_api.application.team.change_member_role import ChangeMemberRoleUseCase
@@ -62,6 +72,17 @@ _router = Router(name="shiftops.bot")
 _storage = MemoryStorage()
 
 
+def _web_app_entry_keyboard() -> ReplyKeyboardMarkup | None:
+    """One-tap open of the TWA after onboarding; avoids users hunting the menu."""
+    url = (get_settings().web_public_url or "").strip()
+    if not url:
+        return None
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Открыть ShiftOps", web_app=WebAppInfo(url=url))]],
+        resize_keyboard=True,
+    )
+
+
 class CreateOrgFSM(StatesGroup):
     org_name = State()
 
@@ -71,6 +92,21 @@ def _bot() -> Bot:
         token=get_settings().tg_bot_token.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+
+
+def _command_head_token(text: str) -> str:
+    """First token of a message, command part without @bot suffix."""
+    parts = (text or "").strip().split(maxsplit=1)
+    if not parts:
+        return ""
+    head = parts[0]
+    if "@" in head:
+        head = head.split("@", 1)[0]
+    return head
+
+
+def _is_cancel_command_text(text: str) -> bool:
+    return _command_head_token(text).lower() == "/cancel"
 
 
 def _start_payload(message: Message) -> str:
@@ -123,7 +159,13 @@ async def handle_start(message: Message) -> None:
                 )
                 if result.error.code == "already_active_member" and existing is not None:
                     await _push_slash_menu(message, existing[1])
-                await message.answer(text)
+                    already_kb = _web_app_entry_keyboard()
+                    await message.answer(
+                        "Вы уже в организации — откройте приложение кнопкой ниже.",
+                        reply_markup=already_kb,
+                    )
+                else:
+                    await message.answer(text)
                 await session.rollback()
                 return
             assert isinstance(result, Success)
@@ -132,11 +174,14 @@ async def handle_start(message: Message) -> None:
                 if result.value.location_label
                 else ""
             )
+            welcome_kb = _web_app_entry_keyboard()
             await message.answer(
                 f"✅ Добро пожаловать в <b>{result.value.organization_name}</b>.\n"
                 f"{loc_line}"
                 f"Ваша роль: <b>{result.value.role}</b>.\n"
-                f"Теперь откройте Web App, чтобы начать."
+                f"<b>Сначала нажмите кнопку «Открыть ShiftOps» ниже</b> "
+                f"(или пункт меню бота с мини-приложением) — так Telegram передаст нам ваш профиль.",
+                reply_markup=welcome_kb,
             )
             await session.commit()
             joined = await _existing_tg_user(session, message.from_user.id)
@@ -154,8 +199,10 @@ async def handle_start(message: Message) -> None:
             return
         _, user = existing
         await _push_slash_menu(message, user)
+        back_kb = _web_app_entry_keyboard()
         await message.answer(
-            f"С возвращением, {user.full_name}. Откройте Web App, чтобы начать смену."
+            f"С возвращением, {user.full_name}. Откройте ShiftOps кнопкой ниже или через меню бота.",
+            reply_markup=back_kb,
         )
 
 
@@ -204,7 +251,17 @@ async def create_org_start(message: Message, state: FSMContext) -> None:
 async def create_org_name(message: Message, state: FSMContext) -> None:
     if not message.text or not message.from_user or not _is_super_admin(message.from_user.id):
         return
+    if _is_cancel_command_text(message.text):
+        await state.clear()
+        await message.answer("Создание организации отменено.")
+        return
     name = message.text.strip()
+    if name.startswith("/"):
+        await message.answer(
+            "Это похоже на команду, а не на название. "
+            "Введите название организации текстом или отправьте <code>/cancel</code> для отмены."
+        )
+        return
     if not name or len(name) < 2:
         await message.answer("Название слишком короткое. Повторите или /cancel")
         return
@@ -453,6 +510,48 @@ async def org_invite(message: Message) -> None:
         )
 
 
+@_router.message(Command("org_delete"))
+async def org_delete_for_super_admin(message: Message) -> None:
+    """Super-admin: hard-delete a tenant; resolves org by exact name (case-insensitive) or UUID."""
+
+    if message.from_user is None or not _is_super_admin(message.from_user.id):
+        return
+    tokens = _command_argv(message)
+    if not tokens:
+        await message.answer(
+            "Использование:\n"
+            "<code>/org_delete &lt;название или UUID&gt;</code>\n\n"
+            "Удаляет организацию <b>безвозвратно</b> вместе со всеми данными в БД "
+            "(локации, сотрудники, смены, шаблоны, приглашения, аудит и т.д.).\n\n"
+            "Примеры:\n"
+            "<code>/org_delete PlovХана</code>\n"
+            "<code>/org_delete The Rusty Anchor</code>\n"
+            "<code>/org_delete 51794cbb-8b0a-47bb-84cf-1c619a275057</code>"
+        )
+        return
+    org_spec = " ".join(tokens).strip()
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        org_id, err = await _resolve_org_spec_to_uuid(session, org_spec)
+        if org_id is None:
+            await message.answer(err or "Организация не найдена.")
+            return
+        uc = DeleteOrganizationUseCase(session)
+        result = await uc.execute(organization_id=org_id)
+        if isinstance(result, Failure):
+            await message.answer(f"Не удалось удалить: <code>{html.escape(result.error.code)}</code>")
+            await session.rollback()
+            return
+        assert isinstance(result, Success)
+        await session.commit()
+        safe = html.escape(result.value.name)
+        await message.answer(
+            f"🗑 Организация <b>{safe}</b> (<code>{result.value.organization_id}</code>) "
+            f"<b>удалена безвозвратно</b>."
+        )
+
+
 @_router.message(Command("org_set_owner"))
 async def org_set_owner(message: Message) -> None:
     """Super-admin: (re)assign a single owner inside an org by tg_id.
@@ -532,6 +631,7 @@ async def handle_help(message: Message) -> None:
             "Организации:\n"
             "• <code>/create_org</code> — создать организацию (без владельца)\n"
             "• <code>/org_invite &lt;название|UUID&gt; &lt;owner|admin|operator|bartender&gt; [часы]</code> — инвайт-ссылка\n"
+            "• <code>/org_delete &lt;название|UUID&gt;</code> — <b>безвозвратно</b> удалить организацию и все данные\n"
             "• <code>/org_set_owner &lt;название|UUID&gt; &lt;tg_user_id&gt;</code> — назначить/переназначить владельца\n"
             "• <code>/org_set_role &lt;название|UUID&gt; &lt;tg_user_id&gt; &lt;admin|operator|bartender&gt;</code> — сменить роль участника\n"
             "• <code>/org_remove_member &lt;название|UUID&gt; &lt;tg_user_id&gt;</code> — деактивировать участника\n\n"

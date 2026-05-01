@@ -20,6 +20,7 @@
 | `/remove_member <@username\|tg_id>` | владелец | Деактивирует участника (soft-delete). |
 | `/create_org` | super-admin | FSM создания пустой организации без владельца. |
 | `/org_invite <org_uuid> <owner\|admin\|operator\|bartender> [hours]` | super-admin | Создаёт инвайт-ссылку для указанной роли. |
+| `/org_delete <название\|uuid>` | super-admin | **Безвозвратно** удаляет организацию и каскадно все связанные данные в БД. Имя — как при `/create_org`, без кавычек; несколько слов подряд. При совпадении имён — только UUID. |
 | `/org_set_owner <org_uuid> <tg_user_id>` | super-admin | Назначает / переназначает владельца, существующих owner'ов в этой org понижает до admin. |
 | `/org_set_role <org_uuid> <tg_user_id> <admin\|operator\|bartender>` | super-admin | Меняет роль участника в любой организации. |
 | `/org_remove_member <org_uuid> <tg_user_id>` | super-admin | Деактивирует участника в указанной организации. |
