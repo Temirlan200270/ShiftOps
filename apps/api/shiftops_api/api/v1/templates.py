@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.application.auth.deps import CurrentUser, require_role
 from shiftops_api.application.templates.bulk_parser import (
     BulkParseError,
@@ -26,7 +27,6 @@ from shiftops_api.application.templates.get_template import GetTemplateUseCase
 from shiftops_api.application.templates.list_templates import ListTemplatesUseCase
 from shiftops_api.application.templates.recurrence import RecurrenceConfig
 from shiftops_api.application.templates.save_template import SaveTemplateUseCase
-from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.domain.enums import Criticality, UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_session

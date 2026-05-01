@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Enum as SAEnum, ForeignKey, String
+from sqlalchemy import CheckConstraint, ForeignKey, String
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 

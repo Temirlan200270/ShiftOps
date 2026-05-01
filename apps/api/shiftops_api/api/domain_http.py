@@ -7,13 +7,11 @@ envelope handled by :func:`shiftops_api.api.errors.install_error_handlers`.
 
 from __future__ import annotations
 
-from typing import NoReturn, TypeVar
+from typing import NoReturn
 
 from fastapi import HTTPException, status
 
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
-
-T = TypeVar("T")
 
 # Codes that must return specific HTTP statuses — anything else defaults to 400.
 _STATUS_BY_CODE: dict[str, int] = {
@@ -60,7 +58,7 @@ def raise_for_domain_failure(result: Failure[DomainError]) -> NoReturn:
     raise http_exception_for_domain_error(result.error)
 
 
-def unwrap_domain_result(result: Result[T, DomainError]) -> T:
+def unwrap_domain_result[T](result: Result[T, DomainError]) -> T:
     match result:
         case Success(value=value):
             return value

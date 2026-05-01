@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.application.auth.deps import CurrentUser, require_role, require_user
 from shiftops_api.application.team.change_member_role import (
     ChangeMemberRoleUseCase,
@@ -20,7 +21,6 @@ from shiftops_api.application.team.deactivate_member import (
     evaluate_deactivation_eligibility,
 )
 from shiftops_api.application.team.permissions import is_platform_super_admin
-from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_session

@@ -45,7 +45,7 @@ from aiogram.types import (
     Update,
     WebAppInfo,
 )
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.application.auth.deps import CurrentUser
@@ -65,7 +65,7 @@ from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.db.engine import get_sessionmaker
-from shiftops_api.infra.db.models import Organization, TelegramAccount, User
+from shiftops_api.infra.db.models import TelegramAccount, User
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.telegram.bot_profile import (
     SlashMenuProfile,

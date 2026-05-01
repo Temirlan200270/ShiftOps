@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
-from shiftops_api.infra.db.models import Organization, User as UserModel
+from shiftops_api.infra.db.models import Organization
+from shiftops_api.infra.db.models import User as UserModel
 from shiftops_api.infra.db.rls import set_org_guc
 
 

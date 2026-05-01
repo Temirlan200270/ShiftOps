@@ -116,7 +116,7 @@ async def purge_deleted_orgs_tick() -> dict[str, int]:
 
 # Re-export `scheduler` from the broker module so the worker entrypoint
 # (`taskiq scheduler ...`) can find the `LabelScheduleSource`.
-__all__ = ["recurring_shifts_tick", "purge_deleted_orgs_tick"]
+__all__ = ["purge_deleted_orgs_tick", "recurring_shifts_tick"]
 
 
 # Defensive import: the worker might import only `infra.queue` (via the

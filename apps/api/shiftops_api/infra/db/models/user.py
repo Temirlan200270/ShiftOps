@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Enum as SAEnum, ForeignKey, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shiftops_api.domain.enums import UserRole
-
 from shiftops_api.infra.db.base import Base
 from shiftops_api.infra.db.mixins import TimestampMixin, UuidPkMixin
 
