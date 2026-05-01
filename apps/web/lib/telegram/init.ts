@@ -11,7 +11,7 @@
  * `getInitDataRaw()` is what the back-end's `/api/v1/auth/exchange` expects.
  */
 
-interface TelegramWebApp {
+export interface TelegramWebApp {
   initData: string;
   initDataUnsafe: { user?: { id?: number; language_code?: string } };
   ready: () => void;
@@ -19,12 +19,38 @@ interface TelegramWebApp {
   /** https://core.telegram.org/bots/webapps#events-available-for-web-apps */
   onEvent?: (eventType: string, handler: () => void) => void;
   offEvent?: (eventType: string, handler: () => void) => void;
+  version?: string;
   HapticFeedback?: {
     impactOccurred?: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void;
     notificationOccurred?: (style: "error" | "success" | "warning") => void;
   };
   themeParams?: Record<string, string>;
   colorScheme?: "light" | "dark";
+  /** Bot API 7.10+ — header / background tint for native chrome */
+  setHeaderColor?: (color: string) => void;
+  setBackgroundColor?: (color: string) => void;
+  /** https://core.telegram.org/bots/webapps#cloudstorage */
+  CloudStorage?: {
+    setItem?: (
+      key: string,
+      value: string,
+      callback?: (err: unknown, success?: boolean) => void,
+    ) => void;
+    getItem?: (key: string, callback?: (err: unknown, value?: string) => void) => void;
+    removeItem?: (key: string, callback?: (err: unknown, success?: boolean) => void) => void;
+  };
+  /** https://core.telegram.org/bots/webapps#biometricmanager */
+  BiometricManager?: {
+    init?: (callback?: () => void) => void;
+    requestAccess?: (
+      params: { reason: string },
+      callback?: (granted?: boolean) => void,
+    ) => void;
+    authenticate?: (
+      params: { reason: string },
+      callback?: (success?: boolean, token?: string) => void,
+    ) => void;
+  };
   MainButton?: {
     show: () => void;
     hide: () => void;

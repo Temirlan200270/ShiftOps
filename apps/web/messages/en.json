@@ -64,7 +64,9 @@
     "warningTitle": "Close with violations?",
     "warningBody": "{count, plural, one {# required task} other {# required tasks}} not completed. Confirm?",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "biometricReason": "Confirm closing the shift",
+    "biometricCancelled": "Shift not closed — biometric was cancelled"
   },
   "summary": {
     "title": "Shift report",
@@ -149,6 +151,17 @@
     "bySystem": "System",
     "loadMore": "Load more",
     "loadingMore": "Loading…"
+  },
+  "settings": {
+    "openCta": "Settings",
+    "title": "Settings",
+    "subtitle": "Optional Telegram Mini App features.",
+    "biometric": {
+      "title": "Biometrics when closing a shift",
+      "body": "Optional Face ID / fingerprint before closing a shift. This is not a legal signature—only an on-device check.",
+      "toggle": "Require biometrics",
+      "unsupported": "Biometrics are not available in this Telegram client—the option is disabled."
+    }
   },
   "team": {
     "title": "Team",

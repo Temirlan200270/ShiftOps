@@ -11,8 +11,10 @@ import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { closeShift } from "@/lib/api/shifts";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
+import { usePreferencesStore } from "@/lib/stores/preferences-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
+import { authenticateShiftClose, isShiftCloseBiometricSupported } from "@/lib/telegram/biometric";
 import { haptic, notify } from "@/lib/telegram/init";
 import type { Criticality, TaskCard, TaskStatus } from "@/lib/types";
 
@@ -144,6 +146,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const tClose = useTranslations("close");
   const tErr = useTranslations("errors");
+  const biometricEnabled = usePreferencesStore((s) => s.shiftCloseBiometricEnabled);
 
   const allTasks = React.useMemo(() => sortTasks(shift?.tasks ?? []), [shift?.tasks]);
   const groups = React.useMemo(() => groupTasks(shift?.tasks ?? []), [shift?.tasks]);
@@ -164,6 +167,15 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const handleClose = React.useCallback(
     async (confirmViolations: boolean) => {
       if (!shift) return;
+
+      if (biometricEnabled && isShiftCloseBiometricSupported()) {
+        const ok = await authenticateShiftClose(tClose("biometricReason"));
+        if (!ok) {
+          toast({ variant: "default", title: tClose("biometricCancelled") });
+          return;
+        }
+      }
+
       setClosing(true);
       const result = await closeShift({ shiftId: shift.id, confirmViolations });
       setClosing(false);
@@ -199,7 +211,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         description: localiseApiFailure(result, tErr),
       });
     },
-    [shift, setShift, onClosed, tErr],
+    [shift, setShift, onClosed, tErr, biometricEnabled, tClose],
   );
 
   if (!shift) return <></>;

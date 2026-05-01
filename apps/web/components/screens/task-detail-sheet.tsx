@@ -7,10 +7,18 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { completeTask, requestWaiver } from "@/lib/api/shifts";
+import { enqueuePhotoUpload } from "@/lib/offline/queue";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
+import {
+  cloudStorageGet,
+  cloudStorageRemove,
+  cloudStorageSet,
+  isCloudStorageAvailable,
+  taskCommentDraftKey,
+  taskWaiverDraftKey,
+} from "@/lib/telegram/cloud-storage";
 import { haptic, notify } from "@/lib/telegram/init";
-import { enqueuePhotoUpload } from "@/lib/offline/queue";
 
 interface TaskDetailSheetProps {
   taskId: string | null;
@@ -26,6 +34,7 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
   const [submitting, setSubmitting] = React.useState(false);
   const [waiverMode, setWaiverMode] = React.useState(false);
   const [waiverReason, setWaiverReason] = React.useState("");
+  const [draftReady, setDraftReady] = React.useState(false);
   const tTasks = useTranslations("tasks");
   const tErr = useTranslations("errors");
 
@@ -36,12 +45,57 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
 
   React.useEffect(() => {
     if (!taskId) {
+      setDraftReady(false);
       setPhoto(null);
       setComment("");
       setWaiverMode(false);
       setWaiverReason("");
+      return;
     }
+
+    setDraftReady(false);
+    setPhoto(null);
+    setWaiverMode(false);
+    setComment("");
+    setWaiverReason("");
+
+    if (!isCloudStorageAvailable()) {
+      setDraftReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const [c, w] = await Promise.all([
+        cloudStorageGet(taskCommentDraftKey(taskId)),
+        cloudStorageGet(taskWaiverDraftKey(taskId)),
+      ]);
+      if (cancelled) return;
+      if (c) setComment(c);
+      if (w) setWaiverReason(w);
+      setDraftReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [taskId]);
+
+  React.useEffect(() => {
+    if (!taskId || !draftReady || !isCloudStorageAvailable()) return;
+    const t = window.setTimeout(() => {
+      void cloudStorageSet(taskCommentDraftKey(taskId), comment);
+    }, 480);
+    return () => window.clearTimeout(t);
+  }, [comment, taskId, draftReady]);
+
+  React.useEffect(() => {
+    if (!taskId || !draftReady || !isCloudStorageAvailable()) return;
+    const t = window.setTimeout(() => {
+      void cloudStorageSet(taskWaiverDraftKey(taskId), waiverReason);
+    }, 480);
+    return () => window.clearTimeout(t);
+  }, [waiverReason, taskId, draftReady]);
 
   const handlePickPhoto = React.useCallback(() => {
     fileInputRef.current?.click();
@@ -73,6 +127,7 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
       await enqueuePhotoUpload({ taskId: task.id, photo, comment });
       toast({ variant: "default", title: tErr("uploadRetrying") });
       setSubmitting(false);
+      void cloudStorageRemove(taskCommentDraftKey(task.id));
       onClose();
       return;
     }
@@ -85,6 +140,7 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
 
     if (result.ok) {
       notify("success");
+      void cloudStorageRemove(taskCommentDraftKey(task.id));
       if (result.data.suspicious) {
         toast({ variant: "warning", title: tTasks("suspiciousFlagged") });
       }
@@ -108,6 +164,7 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
     setSubmitting(false);
     if (result.ok) {
       notify("success");
+      void cloudStorageRemove(taskWaiverDraftKey(task.id));
       toast({ variant: "default", title: tTasks("waiverPendingHint") });
       onClose();
     } else {

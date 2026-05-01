@@ -9,6 +9,7 @@ import {
   PlayCircle,
   Radio,
   ScrollText,
+  Settings,
   Sparkles,
   Upload,
   Users,
@@ -22,6 +23,7 @@ import { BusinessHoursScreen } from "@/components/screens/business-hours-screen"
 import { CsvImportScreen } from "@/components/screens/csv-import-screen";
 import { HistoryScreen, type HistoryFilters } from "@/components/screens/history-screen";
 import { LiveMonitorScreen } from "@/components/screens/live-monitor-screen";
+import { SettingsScreen } from "@/components/screens/settings-screen";
 import { TaskListScreen } from "@/components/screens/task-list-screen";
 import { SummaryScreen } from "@/components/screens/summary-screen";
 import { TeamScreen } from "@/components/screens/team-screen";
@@ -36,6 +38,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
+import { useTelegramShiftChrome } from "@/lib/telegram/shift-chrome";
 
 type View =
   | "dashboard"
@@ -49,7 +52,8 @@ type View =
   | "csvImport"
   | "businessHours"
   | "liveMonitor"
-  | "team";
+  | "team"
+  | "settings";
 
 export function DashboardScreen(): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
@@ -68,6 +72,7 @@ export function DashboardScreen(): React.JSX.Element {
   const tLive = useTranslations("live");
   const tTeam = useTranslations("team");
   const tAudit = useTranslations("audit");
+  const tSettings = useTranslations("settings");
   const role = useAuthStore((s) => s.me?.role ?? "operator");
   const isAdmin = role === "admin" || role === "owner";
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
@@ -196,6 +201,9 @@ export function DashboardScreen(): React.JSX.Element {
   if (view === "team" && isAdmin) {
     return <TeamScreen onBack={() => setView("dashboard")} />;
   }
+  if (view === "settings") {
+    return <SettingsScreen onBack={() => setView("dashboard")} />;
+  }
 
   const tasks = shift?.tasks ?? [];
   const total = tasks.length;
@@ -290,6 +298,11 @@ export function DashboardScreen(): React.JSX.Element {
       >
         <History className="size-4" />
         {tHist("openHistoryCta")}
+      </Button>
+
+      <Button variant="ghost" size="block" className="mt-2" onClick={() => setView("settings")}>
+        <Settings className="size-4" />
+        {tSettings("openCta")}
       </Button>
 
       {isAdmin ? (

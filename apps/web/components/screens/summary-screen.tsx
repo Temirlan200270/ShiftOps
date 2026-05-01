@@ -11,11 +11,13 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import confetti from "canvas-confetti";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useShiftStore } from "@/lib/stores/shift-store";
+import { haptic } from "@/lib/telegram/init";
 import { SCORE_WEIGHTS, type ScoreBreakdown } from "@/lib/types";
 
 interface SummaryScreenProps {
@@ -45,6 +47,34 @@ export function SummaryScreen({ onBack }: SummaryScreenProps): React.JSX.Element
   const shift = useShiftStore((s) => s.shift);
   const tSum = useTranslations("summary");
   const tDash = useTranslations("dashboard");
+
+  React.useEffect(() => {
+    if (!shift) return;
+    if (shift.status !== "closed_clean") return;
+    if (shift.score === null || shift.score < 99.95) return;
+    if (typeof window === "undefined") return;
+
+    const id = window.setTimeout(() => {
+      try {
+        const key = `shiftops_confetti_${shift.id}`;
+        if (window.sessionStorage.getItem(key)) return;
+        window.sessionStorage.setItem(key, "1");
+      } catch {
+        /* sessionStorage unavailable — still celebrate once per mount */
+      }
+      confetti({
+        particleCount: 72,
+        spread: 54,
+        startVelocity: 26,
+        ticks: 200,
+        origin: { y: 0.58 },
+        scalar: 0.95,
+      });
+      haptic("heavy");
+    }, 280);
+
+    return () => window.clearTimeout(id);
+  }, [shift?.id, shift?.status, shift?.score]);
 
   if (!shift) return <></>;
 
