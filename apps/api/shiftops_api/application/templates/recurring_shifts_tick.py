@@ -57,6 +57,17 @@ from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 _log = logging.getLogger(__name__)
 TRAILING_TOLERANCE_MIN = 5
 
+# ``_already_exists`` must ignore ``aborted`` rows. Deactivating a member runs
+# :func:`~shiftops_api.application.shifts.abort_open_shifts_for_operator.abort_open_shifts_for_operator`,
+# which aborts their scheduled/active shifts; the day slot would otherwise stay
+# "occupied" and the tick would never materialise a replacement for a new user.
+RECURRING_SLOT_BLOCKING_STATUSES: tuple[str, ...] = (
+    ShiftStatus.SCHEDULED.value,
+    ShiftStatus.ACTIVE.value,
+    ShiftStatus.CLOSED_CLEAN.value,
+    ShiftStatus.CLOSED_WITH_VIOLATIONS.value,
+)
+
 
 def is_window_open(
     cfg: RecurrenceConfig,
@@ -288,6 +299,7 @@ class CreateRecurringShiftsTickUseCase:
                 .where(Shift.location_id == location_id)
                 .where(Shift.scheduled_start >= day_start_local.astimezone(UTC))
                 .where(Shift.scheduled_start < day_end_local.astimezone(UTC))
+                .where(Shift.status.in_(RECURRING_SLOT_BLOCKING_STATUSES))
                 .limit(1)
             )
         ).first()

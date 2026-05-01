@@ -23,9 +23,11 @@ import pytest
 
 from shiftops_api.application.templates.recurrence import RecurrenceConfig
 from shiftops_api.application.templates.recurring_shifts_tick import (
+    RECURRING_SLOT_BLOCKING_STATUSES,
     TRAILING_TOLERANCE_MIN,
     is_window_open,
 )
+from shiftops_api.domain.enums import ShiftStatus
 
 
 def _cfg(**overrides: object) -> RecurrenceConfig:
@@ -55,6 +57,15 @@ def _cfg_as_if_legacy_db(**overrides: object) -> RecurrenceConfig:
     data = _cfg().model_dump()
     data.update(overrides)
     return RecurrenceConfig.model_construct(**data)
+
+
+def test_aborted_shift_does_not_block_recurring_slot() -> None:
+    """After deactivation, shifts become ``aborted``; the daily tick must still
+    be able to insert a replacement for the same template/location/calendar day.
+    """
+
+    assert ShiftStatus.ABORTED.value not in RECURRING_SLOT_BLOCKING_STATUSES
+    assert ShiftStatus.SCHEDULED.value in RECURRING_SLOT_BLOCKING_STATUSES
 
 
 def test_window_opens_at_lead_time_boundary() -> None:
