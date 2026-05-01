@@ -3,23 +3,22 @@ name: Deploy
 # Production deployment pipeline.
 #
 # Phase 1 (current): Fly.io backend + Vercel frontend.
-#   - Triggered by `v*` tags so only intentional releases ship.
-#   - Backend: `flyctl deploy` builds the image remotely on Fly's builder
-#     (no need to push to GHCR, saves bandwidth and time).
-#   - Migrations: `release_command` in apps/api/fly.toml runs `alembic upgrade head`
-#     on Fly before the new version receives traffic. No separate SSH step in CI.
-#   - Frontend: `.github/workflows/vercel-web.yml` runs Vercel on every push
-#     to `main` (see that file; avoid double-builds with Vercel's Git import).
-#     This `deploy.yml` also deploys the web app on `v*` tags after the
-#     backend, so a tagged release updates API + web together.
+#   - Tag push ``v*`` or ``workflow_dispatch``: full release — Fly API (with
+#     ``release_command`` → ``alembic upgrade head``) + Vercel web + Sentry.
+#   - Push to ``main`` when ``apps/api/**`` changes: **backend only** — same Fly
+#     deploy + migrations, без фронта (фронт уже уезжает через vercel-web.yml).
+#   - Migrations always run in Fly ``release_command`` (see apps/api/fly.toml).
 #
 # Phase 2 (later, when we move to Hetzner): a separate workflow file
-# `deploy-hetzner.yml` will replace this — keeping them as siblings makes
+# ``deploy-hetzner.yml`` will replace this — keeping them as siblings makes
 # the migration a one-line concurrency change rather than a rewrite.
 
 on:
   push:
-    tags: ["v*"]
+    branches:
+      - main
+    tags:
+      - "v*"
   workflow_dispatch:
 
 concurrency:
@@ -27,9 +26,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  meta:
+    name: Decide deploy scope
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_api: ${{ steps.decide.outputs.deploy_api }}
+      full_release: ${{ steps.decide.outputs.full_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+
+      - id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+          FULL=false
+          API=false
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            FULL=true
+            API=true
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            FULL=true
+            API=true
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            if [[ "${{ steps.filter.outputs.api }}" == "true" ]]; then
+              API=true
+            fi
+          fi
+          echo "deploy_api=$API" >> "$GITHUB_OUTPUT"
+          echo "full_release=$FULL" >> "$GITHUB_OUTPUT"
+
   backend:
     name: Deploy backend (Fly.io)
     runs-on: ubuntu-latest
+    needs: meta
+    if: needs.meta.outputs.deploy_api == 'true'
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +142,8 @@ jobs:
     name: Deploy frontend (Vercel)
     runs-on: ubuntu-latest
     environment: production
-    needs: backend
+    needs: [meta, backend]
+    if: needs.meta.outputs.full_release == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -148,11 +189,12 @@ jobs:
           echo "Deployed: $DEPLOY_URL"
           echo "VERCEL_DEPLOY_URL=$DEPLOY_URL" >> "$GITHUB_ENV"
 
+  # Runs only when ``frontend`` ran (tag / dispatch). On ``main`` API-only pushes
+  # ``frontend`` is skipped → this job is skipped (no duplicate Sentry for every merge).
   release-notes:
     name: Notify Sentry
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
-    if: ${{ always() && needs.backend.result == 'success' }}
+    needs: [meta, backend, frontend]
     env:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}

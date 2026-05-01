@@ -276,13 +276,17 @@ fly certs show api.shiftops.app --app shiftops-api
 
 ### 7. CI/CD пайплайн
 
-`.github/workflows/deploy.yml` стартует по тегам `v*` или вручную:
+`.github/workflows/deploy.yml`:
+
+- **Тег `v*` или вручную (workflow_dispatch):** backend → frontend (Vercel prod) → Sentry.
+- **Пуш в `main`, если в коммите затронут `apps/api/**`:** только **backend** (те же миграции и webhook); фронт на пуш в `main` собирает `vercel-web.yml`.
+
+Шаги при полном релизе:
 
 1. **backend** — `flyctl deploy --remote-only` (миграции в `release_command`), затем
    переустановка Telegram-webhook'а.
-2. **frontend** — стартует после успеха backend'а, вызывает
-   `vercel deploy --prebuilt --prod`.
-3. **release-notes** — тегает релиз в Sentry.
+2. **frontend** — только для тега / ручного запуска; `vercel deploy --prebuilt --prod`.
+3. **release-notes** — Sentry, только когда отработал frontend.
 
 Требуемые GitHub Actions secrets:
 
