@@ -50,18 +50,19 @@ export function useTelegramShiftChrome(input: {
   shift: ShiftSummary | null;
   surface: "dashboard" | "tasks" | "other";
 }): void {
+  const { shift, surface } = input;
+
   const criticalPending = React.useMemo(() => {
-    if (!input.shift || input.shift.status !== "active") return 0;
-    return input.shift.tasks.filter(
+    if (!shift || shift.status !== "active") return 0;
+    return shift.tasks.filter(
       (t) => t.criticality === "critical" && t.status === "pending",
     ).length;
-  }, [input.shift?.tasks, input.shift?.status]);
+  }, [shift]);
 
   React.useEffect(() => {
     const tg = getTelegramWebApp();
     if (!tg) return;
 
-    const { shift, surface } = input;
     if (!shift || surface === "other") {
       resetNativeChrome(tg);
       return;
@@ -85,5 +86,5 @@ export function useTelegramShiftChrome(input: {
     }
 
     return () => resetNativeChrome(tg);
-  }, [input.shift?.id, input.shift?.status, input.surface, criticalPending]);
+  }, [shift, surface, criticalPending]);
 }

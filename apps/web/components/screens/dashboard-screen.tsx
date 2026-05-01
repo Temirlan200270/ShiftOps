@@ -126,6 +126,10 @@ export function DashboardScreen(): React.JSX.Element {
     }
   }, [shift, setShift, tErr]);
 
+  const chromeSurface =
+    view === "tasks" ? "tasks" : view === "dashboard" ? "dashboard" : "other";
+  useTelegramShiftChrome({ shift, surface: chromeSurface });
+
   if (view === "tasks" && shift) {
     return (
       <TaskListScreen

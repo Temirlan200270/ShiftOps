@@ -74,7 +74,7 @@ export function SummaryScreen({ onBack }: SummaryScreenProps): React.JSX.Element
     }, 280);
 
     return () => window.clearTimeout(id);
-  }, [shift?.id, shift?.status, shift?.score]);
+  }, [shift]);
 
   if (!shift) return <></>;
 
