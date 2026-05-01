@@ -33,7 +33,7 @@
   тепловой картой (DOW × hour в локальной TZ локации), топом
   нарушителей и разбивкой по локациям; экран `analytics-screen.tsx`.
 
-  V1.x (расширенная owner-аналитика): произвольный период `from`/`to`,
+  ~~V1.x (расширенная owner-аналитика): произвольный период `from`/`to`,
   тумблер сравнения с предыдущим окном (`compare`), drill-down по
   нарушителю (`OperatorProfileSheet` → `HistoryScreen` с фильтрами
   `user_id`/`location_id`/`from`/`to`), новые карточки разрезов:
@@ -41,7 +41,9 @@
   SLA «опоздание старта» (порог `analytics_sla_late_start_min`,
   default 15 мин) и сравнение оператор vs бармен. На каждый блок
   бэкенд возвращает density-флаг `ok|low|empty`, чтобы экран показывал
-  подсказку «мало данных» там, где выводы статистически нестабильны.
+  подсказку «мало данных» там, где выводы статистически нестабильны.~~ ✅
+  Готово: единый `/v1/analytics/overview` + `analytics-screen.tsx`
+  (`apps/api/shiftops_api/application/analytics/overview.py`).
 - ~~Импорт расписания из CSV.~~ ✅ Готово: `/v1/schedule/import`
   с dry-run, построчной валидацией, резолвом локации/шаблона/оператора
   батчами и проверкой дублей; экран `csv-import-screen.tsx`.
@@ -79,17 +81,15 @@
 
 Пакет работ:
 
-- **DB:** Alembic — `users.job_title` (nullable, короткая строка), только подпись
-  в UI; RBAC по-прежнему `users.role`.
-- **API:** расширить `POST /v1/team/members/{user_id}/role` опциональным
-  `job_title` (нормализация/trim, max length); ответ без ломания контракта.
-- **TWA:** экран команды — показ `job_title` под именем; в sheet смены роли
+- ~~**DB:** Alembic — `users.job_title` (nullable, короткая строка), только подпись
+  в UI; RBAC по-прежнему `users.role`.~~ ✅ `0014_users_job_title`, до 80 символов.
+- ~~**API:** расширить `POST /v1/team/members/{user_id}/role` опциональным
+  `job_title` (нормализация/trim, max length); ответ без ломания контракта.~~ ✅
+- ~~**TWA:** экран команды — показ `job_title` под именем; в sheet смены роли
   поле ввода должности; опционально визуальные бейджи групп
-  owner / admin / line (`operator`+`bartender`).
-- **Аудит:** сегодня смена роли **не** пишет в `audit_events` (в отличие от
-  шаблонов/смен). При внедрении `job_title` добавить `write_audit` на смену
-  роли и/или должности (стабильный `event_type`, payload с `from`/`to`), чтобы
-  владелец видел историю в `/v1/audit/...`.
+  owner / admin / line (`operator`+`bartender`).~~ ✅ бейджи по роли на строке.
+- ~~**Аудит:** … добавить `write_audit` на смену
+  роли и/или должности (`member.updated`, payload `from`/`to`).~~ ✅
 
 **Бот:** `/set_role` и соседние команды остаются fallback (см. `TELEGRAM_BOT.md`).
 

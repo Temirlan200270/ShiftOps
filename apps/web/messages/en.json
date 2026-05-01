@@ -193,6 +193,7 @@
     "membersLoading": "Loading roster…",
     "membersLoadFailed": "Could not load the member list. Try again later.",
     "memberYou": "(you)",
+    "jobTitleLine": "Job title",
     "actions": {
       "open": "Actions",
       "label": "Member actions",
@@ -205,6 +206,8 @@
       "selectAdmin": "Administrator",
       "selectOperator": "Operator",
       "selectBartender": "Bartender",
+      "jobTitleLabel": "Job title (label)",
+      "jobTitleHint": "Does not affect permissions. Clear the field to remove the label. Unchanged text is not sent to the server.",
       "save": "Save",
       "saving": "Saving…",
       "saved": "Role updated",
@@ -225,7 +228,8 @@
       "cannot_change_owner_role": "Owner role is managed via /org_set_owner in the bot.",
       "user_not_found": "User not found.",
       "already_inactive": "User is already inactive.",
-      "invalid_target_role": "Unsupported role."
+      "invalid_target_role": "Unsupported role.",
+      "invalid_job_title": "Job title is too long (max 80 characters)."
     }
   },
   "onboarding": {

@@ -33,7 +33,8 @@ type ManageErrorKey =
   | "cannot_change_owner_role"
   | "user_not_found"
   | "already_inactive"
-  | "invalid_target_role";
+  | "invalid_target_role"
+  | "invalid_job_title";
 
 const KNOWN_MANAGE_ERRORS = new Set<ManageErrorKey>([
   "cannot_manage_self",
@@ -43,6 +44,7 @@ const KNOWN_MANAGE_ERRORS = new Set<ManageErrorKey>([
   "user_not_found",
   "already_inactive",
   "invalid_target_role",
+  "invalid_job_title",
 ]);
 
 function extractErrorCode(raw: string | null | undefined): string | null {
@@ -117,6 +119,8 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const [roleSheet, setRoleSheet] = React.useState<TeamMemberRow | null>(null);
   const [removeSheet, setRemoveSheet] = React.useState<TeamMemberRow | null>(null);
   const [pendingRole, setPendingRole] = React.useState<ManageableRole>("operator");
+  const [pendingJobTitle, setPendingJobTitle] = React.useState("");
+  const initialJobTitleRef = React.useRef("");
   const [savingRole, setSavingRole] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
 
@@ -270,6 +274,9 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
     const initial: ManageableRole =
       m.role === "admin" ? "admin" : m.role === "bartender" ? "bartender" : "operator";
     setPendingRole(initial);
+    const jt = m.job_title ?? "";
+    setPendingJobTitle(jt);
+    initialJobTitleRef.current = jt;
     setRoleSheet(m);
   }, []);
 
@@ -281,7 +288,14 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const handleSaveRole = React.useCallback(async () => {
     if (!roleSheet) return;
     setSavingRole(true);
-    const r = await changeMemberRole(roleSheet.id, pendingRole);
+    const trimmed = pendingJobTitle.trim();
+    const initialTrim = (initialJobTitleRef.current ?? "").trim();
+    const patchJobTitle = trimmed !== initialTrim;
+    const r = await changeMemberRole(
+      roleSheet.id,
+      pendingRole,
+      patchJobTitle ? { set: true, value: trimmed || null } : undefined,
+    );
     setSavingRole(false);
     if (r.ok) {
       notify("success");
@@ -296,7 +310,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
         description: translateManageError(code, r.message),
       });
     }
-  }, [pendingRole, reloadMembers, roleSheet, t, tErr, translateManageError]);
+  }, [pendingJobTitle, pendingRole, reloadMembers, roleSheet, t, tErr, translateManageError]);
 
   const handleConfirmRemove = React.useCallback(async () => {
     if (!removeSheet) return;
@@ -406,6 +420,12 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                       {member.tg_username ? (
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           @{member.tg_username}
+                        </p>
+                      ) : null}
+                      {member.job_title ? (
+                        <p className="text-xs text-muted-foreground mt-0.5 break-words">
+                          <span className="text-muted-foreground/80">{t("jobTitleLine")}: </span>
+                          {member.job_title}
                         </p>
                       ) : null}
                     </div>
@@ -716,6 +736,26 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                   />
                   {t("changeRole.selectBartender")}
                 </label>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground block mb-1" htmlFor="member-job-title">
+                  {t("changeRole.jobTitleLabel")}
+                </label>
+                <input
+                  id="member-job-title"
+                  type="text"
+                  maxLength={80}
+                  autoComplete="organization-title"
+                  className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm"
+                  value={pendingJobTitle}
+                  onChange={(e) => {
+                    setPendingJobTitle(e.target.value);
+                  }}
+                  placeholder=""
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                  {t("changeRole.jobTitleHint")}
+                </p>
               </div>
               <Button
                 type="button"

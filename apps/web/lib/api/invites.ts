@@ -26,6 +26,8 @@ export interface TeamMemberRow {
   id: string;
   full_name: string;
   role: "owner" | "admin" | "operator" | string;
+  /** Display-only job title (optional). */
+  job_title?: string | null;
   is_active: boolean;
   tg_user_id: number | null;
   tg_username: string | null;
@@ -63,8 +65,16 @@ export async function createInvite(payload: {
 export async function changeMemberRole(
   userId: string,
   role: ManageableRole,
-): Promise<ApiResult<{ ok: string; role: string }>> {
-  return api.post<{ ok: string; role: string }>(`/v1/team/members/${userId}/role`, { role });
+  jobTitle?: { set: true; value: string | null },
+): Promise<ApiResult<{ ok: string; role: string; job_title: string | null }>> {
+  const body: { role: ManageableRole; job_title?: string | null } = { role };
+  if (jobTitle?.set === true) {
+    body.job_title = jobTitle.value;
+  }
+  return api.post<{ ok: string; role: string; job_title: string | null }>(
+    `/v1/team/members/${userId}/role`,
+    body,
+  );
 }
 
 export async function removeMember(

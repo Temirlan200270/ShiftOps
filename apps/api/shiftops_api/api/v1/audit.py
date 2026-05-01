@@ -90,6 +90,7 @@ async def list_audit_events(
     shift_ids: set[uuid.UUID] = set()
     template_ids: set[uuid.UUID] = set()
     location_ids: set[uuid.UUID] = set()
+    member_user_ids: set[uuid.UUID] = set()
 
     def _maybe_uuid(v: object) -> uuid.UUID | None:
         if not isinstance(v, str):
@@ -109,6 +110,9 @@ async def list_audit_events(
         lid = _maybe_uuid(p.get("location_id"))
         if lid is not None:
             location_ids.add(lid)
+        mid = _maybe_uuid(p.get("target_user_id"))
+        if mid is not None:
+            member_user_ids.add(mid)
 
     # Batch-resolve names so we don't do N+1 queries.
     shift_lookup: dict[uuid.UUID, tuple[str | None, str | None]] = {}
@@ -141,6 +145,15 @@ async def list_audit_events(
         ).all()
         location_lookup = {r[0]: r[1] for r in loc_rows}
 
+    member_name_lookup: dict[uuid.UUID, str] = {}
+    if member_user_ids:
+        mu_rows = (
+            await session.execute(
+                select(User.id, User.full_name).where(User.id.in_(member_user_ids))
+            )
+        ).all()
+        member_name_lookup = {r[0]: r[1] for r in mu_rows}
+
     def _audit_accent(event_type: str, payload: dict[str, Any]) -> str:
         """UI accent for border/icon; keep in sync with web ``auditAccentClass``."""
 
@@ -168,6 +181,8 @@ async def list_audit_events(
             return "neutral"
         if event_type in ("template.created", "template.updated"):
             return "neutral"
+        if event_type == "member.updated":
+            return "info"
         return "neutral"
 
     def _human_message(
@@ -245,6 +260,31 @@ async def list_audit_events(
             if payload.get("suspicious") is True:
                 return "Отметил задачу выполненной (фото помечено как подозрительное)."
             return "Отметил задачу выполненной."
+
+        if event_type == "member.updated":
+            tid = _maybe_uuid(payload.get("target_user_id"))
+            who = member_name_lookup.get(tid, "участник") if tid else "участник"
+            bits: list[str] = []
+            rp = payload.get("role")
+            if isinstance(rp, dict):
+                rf = rp.get("from")
+                rt = rp.get("to")
+                if isinstance(rf, str) and isinstance(rt, str):
+                    bits.append(f"роль: {rf} → {rt}")
+            jp = payload.get("job_title")
+            if isinstance(jp, dict):
+                jf = jp.get("from")
+                jt = jp.get("to")
+                if jf != jt:
+                    def _jt_label(v: object) -> str:
+                        if v is None or v == "":
+                            return "—"
+                        return str(v)
+
+                    bits.append(f"должность: {_jt_label(jf)} → {_jt_label(jt)}")
+            if bits:
+                return f"Изменил участника «{who}»: " + "; ".join(bits) + "."
+            return f"Обновил участника «{who}»."
 
         # Fallback: still avoid JSON and keep it human-ish.
         return f"Действие: {event_type}."

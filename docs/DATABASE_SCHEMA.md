@@ -124,7 +124,7 @@ erDiagram
     }
 ```
 
-**План V1.1:** колонка `users.job_title` (`VARCHAR`, nullable) — подпись для UI
+**V1.1:** колонка `users.job_title` (`VARCHAR(80)`, nullable) — подпись для UI
 («Шеф-повар» и т.п.), **без** влияния на RBAC; организация уже задаётся
 `users.organization_id`.
 

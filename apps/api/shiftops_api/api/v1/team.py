@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shiftops_api.api.domain_http import raise_for_domain_failure
 from shiftops_api.application.auth.deps import CurrentUser, require_role, require_user
 from shiftops_api.application.team.change_member_role import (
+    JOB_TITLE_UNCHANGED,
     ChangeMemberRoleUseCase,
     evaluate_role_change_eligibility,
 )
@@ -56,6 +57,7 @@ class TeamMemberOut(BaseModel):
     id: uuid.UUID
     full_name: str
     role: str
+    job_title: str | None = None
     is_active: bool
     tg_user_id: int | None = Field(default=None)
     tg_username: str | None = None
@@ -73,6 +75,10 @@ class TeamMemberOut(BaseModel):
 
 class ChangeMemberRoleIn(BaseModel):
     role: Literal["admin", "operator", "bartender"]
+    job_title: str | None = Field(
+        default=None,
+        description="Omit this field to leave job_title unchanged; null clears it.",
+    )
 
 
 @router.get(
@@ -141,6 +147,7 @@ async def list_team_members(
                 id=u.id,
                 full_name=u.full_name,
                 role=u.role.value,
+                job_title=u.job_title,
                 is_active=u.is_active,
                 tg_user_id=int(tg_id) if tg_id is not None else None,
                 tg_username=tg_username,
@@ -182,13 +189,19 @@ async def change_member_role(
     current: CurrentUser = Depends(_require_manager),
 ) -> dict[str, str]:
     uc = ChangeMemberRoleUseCase(session)
+    jt = payload.job_title if "job_title" in payload.model_fields_set else JOB_TITLE_UNCHANGED
     result = await uc.execute(
         actor=current,
         target_user_id=user_id,
         new_role=payload.role,
+        job_title=jt,
     )
     if isinstance(result, Failure):
         raise_for_domain_failure(result)
     assert isinstance(result, Success)
     await session.commit()
-    return {"ok": "true", "role": result.value.role}
+    return {
+        "ok": "true",
+        "role": result.value.role,
+        "job_title": result.value.job_title,
+    }

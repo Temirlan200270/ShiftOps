@@ -11,6 +11,7 @@ import {
   ShieldX,
   Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 
 export type AuditAccent = "neutral" | "positive" | "warning" | "danger" | "info";
@@ -79,6 +80,9 @@ export function auditEventIcon(eventType: string, accent: AuditAccent): LucideIc
   }
   if (eventType === "task.completed") {
     return accent === "warning" ? AlertTriangle : CircleCheck;
+  }
+  if (eventType === "member.updated") {
+    return Users;
   }
   if (eventType.includes("schedule") || eventType.includes("import")) {
     return CalendarClock;
