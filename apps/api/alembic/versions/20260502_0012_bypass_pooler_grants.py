@@ -9,7 +9,9 @@ Supabase pooler URIs almost always use a LOGIN role named ``postgres`` or
 ``postgres.<project_ref>``. This revision grants bypass membership to every such
 role that exists, idempotently.
 
-Revision ID: 0012_grant_rls_bypass_pooler_roles
+Revision ID must stay <= 32 chars (``alembic_version.version_num`` width).
+
+Revision ID: 0012_bypass_pooler_grants
 Revises: 0011_grant_rls_bypass_membership
 Create Date: 2026-05-02
 
@@ -21,7 +23,7 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0012_grant_rls_bypass_pooler_roles"
+revision: str = "0012_bypass_pooler_grants"
 down_revision: str | None = "0011_grant_rls_bypass_membership"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

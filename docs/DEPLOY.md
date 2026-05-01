@@ -64,7 +64,7 @@ free-tier Upstash (10к команд/день), Vercel hobby — всё $0. Пл
    `ALEMBIC_DATABASE_URL` с **другим** логином, чем в `DATABASE_URL` (миграции выдали роль одному
    пользователю, API ходит под другим). Либо убери `ALEMBIC_DATABASE_URL` с Fly, либо выполни
    `GRANT` для пользователя из **transaction pooler** (`DATABASE_URL`). Миграция
-   `0012_grant_rls_bypass_pooler_roles` дополнительно выдаёт членство ролям `postgres` / `postgres.*`.
+   `0012_bypass_pooler_grants` дополнительно выдаёт членство ролям `postgres` / `postgres.*`.
 
 #### 1.1a Off-site backup (Nightly pg_dump) — обязательно для free tier
 

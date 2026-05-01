@@ -14,7 +14,7 @@ Postgres (CI uses plain TCP without SSL).
 ``DATABASE_URL`` (transaction pooler), migration ``0011`` alone grants bypass to the wrong role.
 Prefer **omitting** ``ALEMBIC_DATABASE_URL`` on Fly so Alembic uses ``DATABASE_URL_SYNC``, or run
 ``GRANT shiftops_rls_bypass TO "<runtime user from DATABASE_URL>"`` after deploy. Migration
-``0012_grant_rls_bypass_pooler_roles`` grants to typical Supabase ``postgres`` / ``postgres.*`` logins.
+``0012_bypass_pooler_grants`` grants to typical Supabase ``postgres`` / ``postgres.*`` logins.
 
 **``Tenant or user not found``** on the pooler: reset the DB password in Supabase and paste fresh
 Session + Transaction URIs from the dashboard.
