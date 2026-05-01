@@ -139,10 +139,14 @@
     "openCta": "Audit trail",
     "title": "Audit trail",
     "subtitle": "Recent changes and actions in your organization.",
+    "timezoneHint": "Event times: {zone}",
+    "time": {
+      "today": "Today, {time}",
+      "yesterday": "Yesterday, {time}"
+    },
     "emptyTitle": "No events yet",
     "emptyHint": "When someone edits a template, starts/closes a shift, or imports a schedule, it will show up here.",
-    "by": "By: {name}",
-    "bySystem": "System event",
+    "bySystem": "System",
     "loadMore": "Load more",
     "loadingMore": "Loading…"
   },

@@ -7,6 +7,8 @@ export interface AuditEventRow {
   createdAt: string;
   actorUserId: string | null;
   actorName: string | null;
+  eventType: string;
+  accent: string;
   message: string;
 }
 
@@ -20,6 +22,8 @@ interface AuditEventDTO {
   created_at: string;
   actor_user_id: string | null;
   actor_name: string | null;
+  event_type?: string;
+  accent?: string;
   message: string;
 }
 
@@ -34,6 +38,8 @@ function fromDto(dto: AuditEventDTO): AuditEventRow {
     createdAt: dto.created_at,
     actorUserId: dto.actor_user_id,
     actorName: dto.actor_name,
+    eventType: dto.event_type ?? "unknown",
+    accent: dto.accent ?? "neutral",
     message: dto.message,
   };
 }

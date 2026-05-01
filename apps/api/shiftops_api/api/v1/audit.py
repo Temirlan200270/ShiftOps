@@ -33,6 +33,10 @@ class AuditEventOut(BaseModel):
     created_at: datetime = Field(description="UTC timestamp")
     actor_user_id: uuid.UUID | None
     actor_name: str | None
+    event_type: str = Field(description="Stable machine code for UI (icons, accents)")
+    accent: str = Field(
+        description="UI hint: neutral | positive | warning | danger | info",
+    )
     message: str
 
 
@@ -137,6 +141,33 @@ async def list_audit_events(
         ).all()
         location_lookup = {r[0]: r[1] for r in loc_rows}
 
+    def _audit_accent(event_type: str, payload: dict[str, Any]) -> str:
+        """UI accent for border/icon; keep in sync with web ``auditAccentClass``."""
+
+        if event_type == "shift.started":
+            return "positive"
+        if event_type == "shift.closed":
+            if payload.get("final_status") == "closed_with_violations":
+                return "warning"
+            return "positive"
+        if event_type == "template.deleted":
+            return "danger"
+        if event_type == "waiver.requested":
+            return "warning"
+        if event_type == "waiver.reject":
+            return "danger"
+        if event_type == "waiver.approve":
+            return "positive"
+        if event_type == "schedule.imported":
+            return "info"
+        if event_type == "task.completed":
+            if payload.get("suspicious") is True:
+                return "warning"
+            return "neutral"
+        if event_type in ("template.created", "template.updated"):
+            return "neutral"
+        return "neutral"
+
     def _human_message(
         *,
         event_type: str,
@@ -194,6 +225,20 @@ async def list_audit_events(
                 return f"Импортировал расписание: создано смен {created} из {total} строк."
             return "Импортировал расписание."
 
+        if event_type == "waiver.requested":
+            return "Запросил отступление (waiver) по задаче."
+
+        if event_type == "waiver.approve":
+            return "Одобрил отступление по задаче."
+
+        if event_type == "waiver.reject":
+            return "Отклонил отступление по задаче."
+
+        if event_type == "task.completed":
+            if payload.get("suspicious") is True:
+                return "Отметил задачу выполненной (фото помечено как подозрительное)."
+            return "Отметил задачу выполненной."
+
         # Fallback: still avoid JSON and keep it human-ish.
         return f"Действие: {event_type}."
 
@@ -203,6 +248,8 @@ async def list_audit_events(
             created_at=row[1].astimezone(UTC),
             actor_user_id=row[3],
             actor_name=row[4],
+            event_type=row[2],
+            accent=_audit_accent(row[2], row[5] or {}),
             message=_human_message(event_type=row[2], payload=(row[5] or {})),
         )
         for row in items_raw
