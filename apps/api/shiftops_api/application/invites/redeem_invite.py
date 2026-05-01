@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shiftops_api.application.shifts.abort_open_shifts_for_operator import (
     abort_open_shifts_for_operator,
 )
+from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import Invite, Location, Organization, TelegramAccount, User
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
@@ -34,6 +35,27 @@ def _display_name(tg: types.User) -> str:
     if tg.username:
         return f"@{tg.username}"
     return "ShiftOps user"
+
+
+def _user_role_from_invite_cell(role: str) -> UserRole:
+    """Map persisted invite ``role`` to :class:`UserRole`.
+
+    Cells should hold lowercase values per CHECK constraints; normalize
+    casing and accept legacy enum-like names (``ADMIN``) so ORM never
+    writes a value that violates ``ck_users_role_allowed``.
+    """
+
+    raw = (role or "").strip()
+    if not raw:
+        raise ValueError("empty invite role")
+    try:
+        return UserRole(raw.lower())
+    except ValueError:
+        pass
+    try:
+        return UserRole[raw.upper()]
+    except KeyError as exc:
+        raise ValueError(f"unknown invite role {raw!r}") from exc
 
 
 class RedeemInviteUseCase:
@@ -58,6 +80,11 @@ class RedeemInviteUseCase:
             return Failure(DomainError("invite_already_used", "this link was already used"))
         if row.expires_at < now:
             return Failure(DomainError("invite_expired", "this link has expired"))
+
+        try:
+            resolved_role = _user_role_from_invite_cell(row.role)
+        except ValueError:
+            return Failure(DomainError("invite_not_found", "invalid or expired link"))
 
         org = await self._session.get(Organization, row.organization_id)
         if org is None or not org.is_active or org.deleted_at is not None:
@@ -89,7 +116,7 @@ class RedeemInviteUseCase:
                     )
 
                 user_model.is_active = True
-                user_model.role = row.role
+                user_model.role = resolved_role
                 user_model.full_name = display
                 user_model.locale = (tg.language_code or "ru")[:8]
                 existing_tg.tg_username = tg.username
@@ -114,7 +141,7 @@ class RedeemInviteUseCase:
                 return Success(
                     RedeemOk(
                         full_name=display,
-                        role=row.role,
+                        role=resolved_role.value,
                         organization_name=org.name,
                         location_label=location_label,
                     )
@@ -123,7 +150,7 @@ class RedeemInviteUseCase:
         new_user = User(
             id=uuid.uuid4(),
             organization_id=row.organization_id,
-            role=row.role,
+            role=resolved_role,
             full_name=display,
             locale=(tg.language_code or "ru")[:8],
             is_active=True,
@@ -152,7 +179,7 @@ class RedeemInviteUseCase:
         return Success(
             RedeemOk(
                 full_name=display,
-                role=row.role,
+                role=resolved_role.value,
                 organization_name=org.name,
                 location_label=location_label,
             )

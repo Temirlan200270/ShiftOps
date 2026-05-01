@@ -84,7 +84,10 @@ def _get_fsm_storage() -> BaseStorage:
         try:
             _fsm_storage_singleton = RedisStorage.from_url(
                 get_settings().redis_url,
-                key_builder=DefaultKeyBuilder(with_bot_id=True, with_dest_id=True),
+                key_builder=DefaultKeyBuilder(
+                    with_bot_id=True,
+                    with_destiny=True,
+                ),
             )
         except Exception:
             _log.warning("telegram.fsm.redis_unavailable_fallback_memory", exc_info=True)
