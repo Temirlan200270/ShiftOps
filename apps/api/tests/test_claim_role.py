@@ -34,3 +34,4 @@ def test_admin_covers_line_templates() -> None:
     assert user_may_operate_template_role(u, UserRole.OPERATOR)
     assert user_may_operate_template_role(u, UserRole.BARTENDER)
     assert user_may_operate_template_role(u, UserRole.ADMIN)
+    assert user_may_operate_template_role(u, UserRole.OWNER)
