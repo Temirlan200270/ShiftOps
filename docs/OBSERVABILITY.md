@@ -158,6 +158,8 @@ scrape_configs:
 
 - `ShiftOpsAuthExchange5xx`: 5xx на `POST /api/v1/auth/exchange` 2 минуты подряд
   (часто `privileged_rls_unavailable` / сломанный bypass).
+- `ShiftOpsAuthExchangeUserInactive`: растёт `shiftops_auth_exchange_failures_total{reason="user_inactive"}`
+  (учётная запись деактивирована; логи `auth.exchange.user_inactive`, `team.member_deactivated`).
 - `ShiftOpsPrivilegedRlsUnavailable`: растёт `shiftops_privileged_rls_unavailable_total`
   (не удалось `SET LOCAL ROLE shiftops_rls_bypass`; см. логи `rls.privileged_unavailable`).
 - `ShiftOpsRecurringTickStalled`: воркер не обновлял gauge 10 минут (scheduler/worker умер).

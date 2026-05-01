@@ -180,10 +180,17 @@ PRIVILEGED_RLS_UNAVAILABLE_TOTAL = Counter(
     labelnames=("reason",),
 )
 
+AUTH_EXCHANGE_FAILURES_TOTAL = Counter(
+    "shiftops_auth_exchange_failures_total",
+    "POST /auth/exchange returned 401 (bucketed reason for cardinality).",
+    labelnames=("reason",),
+)
+
 
 __all__ = [
     "ATTACHMENTS_UPLOADED_TOTAL",
     "ATTACHMENT_PHASH_COLLISIONS_TOTAL",
+    "AUTH_EXCHANGE_FAILURES_TOTAL",
     "CSV_IMPORT_ROWS_TOTAL",
     "PRIVILEGED_RLS_BYPASS_TOTAL",
     "PRIVILEGED_RLS_UNAVAILABLE_TOTAL",

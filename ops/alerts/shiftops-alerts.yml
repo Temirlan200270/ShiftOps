@@ -31,6 +31,19 @@ groups:
             ALEMBIC_DATABASE_URL vs DATABASE_URL user mismatch, and
             GRANT shiftops_rls_bypass TO <runtime_user>. Logs: rls.privileged_unavailable (db_user).
 
+      - alert: ShiftOpsAuthExchangeUserInactive
+        expr: |
+          sum(rate(shiftops_auth_exchange_failures_total{reason="user_inactive"}[15m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Users hitting deactivated accounts on auth exchange"
+          description: >
+            `users.is_active = false` blocks JWT exchange. Check Fly logs for
+            `auth.exchange.user_inactive` and `team.member_deactivated`. Users can re-activate via a new invite.
+
   - name: shiftops-worker
     rules:
       - alert: ShiftOpsRecurringTickStalled

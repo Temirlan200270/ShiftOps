@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,11 +30,30 @@ from shiftops_api.infra.auth.jwt_service import JwtService
 from shiftops_api.infra.db.models import TelegramAccount
 from shiftops_api.infra.db.models import User as UserModel
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
+from shiftops_api.infra.metrics import AUTH_EXCHANGE_FAILURES_TOTAL
 from shiftops_api.infra.telegram.init_data import (
     InitDataValidator,
     InvalidInitData,
     ValidatedInitData,
 )
+
+_log = structlog.get_logger("shiftops.auth.exchange")
+
+
+def _exchange_failure_metric_reason(raw: str) -> str:
+    if raw == "user_inactive":
+        return "user_inactive"
+    if raw == "ask_admin_to_invite":
+        return "ask_admin_to_invite"
+    if raw.startswith("invalid_init_data"):
+        return "invalid_init_data"
+    return "other"
+
+
+def _record_exchange_failure(raw_reason: str) -> None:
+    bucket = _exchange_failure_metric_reason(raw_reason)
+    AUTH_EXCHANGE_FAILURES_TOTAL.labels(reason=bucket).inc()
+    _log.warning("auth.exchange.failure", reason=raw_reason, reason_bucket=bucket)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +87,9 @@ class ExchangeInitDataUseCase:
         try:
             parsed: ValidatedInitData = self._validator.validate(init_data)
         except InvalidInitData as exc:
-            return AuthFailure(reason=f"invalid_init_data: {exc}")
+            r = f"invalid_init_data: {exc}"
+            _record_exchange_failure(r)
+            return AuthFailure(reason=r)
 
         # Bypass RLS for the auth lookup — we don't know the org yet, and the
         # bot token + HMAC signature already authorise us.
@@ -80,10 +102,18 @@ class ExchangeInitDataUseCase:
         )
         row = (await self._session.execute(stmt)).first()
         if row is None:
+            _record_exchange_failure("ask_admin_to_invite")
             return AuthFailure(reason="ask_admin_to_invite")
 
         user_model, tg_account = row
         if not user_model.is_active:
+            _log.warning(
+                "auth.exchange.user_inactive",
+                user_id=str(user_model.id),
+                organization_id=str(user_model.organization_id),
+                tg_user_id=tg_account.tg_user_id,
+            )
+            _record_exchange_failure("user_inactive")
             return AuthFailure(reason="user_inactive")
 
         # Refresh denormalised TG fields if changed.

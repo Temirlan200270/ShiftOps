@@ -18,6 +18,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,8 @@ from shiftops_api.application.auth.deps import CurrentUser
 from shiftops_api.application.team.permissions import can_manage_member
 from shiftops_api.domain.result import DomainError, Failure, Result, Success
 from shiftops_api.infra.db.models import TelegramAccount, User
+
+_log = structlog.get_logger("shiftops.team")
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +65,13 @@ class DeactivateMemberUseCase:
 
         target.is_active = False
         await self._session.flush()
+        _log.info(
+            "team.member_deactivated",
+            target_user_id=str(target.id),
+            actor_user_id=str(actor.id),
+            organization_id=str(actor.organization_id),
+            target_role=target.role,
+        )
         return Success(MemberDeactivated(user_id=target.id))
 
 

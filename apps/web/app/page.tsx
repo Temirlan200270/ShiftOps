@@ -102,9 +102,13 @@ export default function Page(): React.JSX.Element {
               {handshakeErrorCode === "invalid_init_data" ||
               /auth_date too old/i.test(handshakeError)
                 ? tSplash("initDataExpiredHint")
-                : handshakeError}
+                : handshakeErrorCode === "user_inactive"
+                  ? tSplash("userInactiveHint")
+                  : handshakeError}
             </p>
-            {handshakeErrorCode !== "invalid_init_data" && !/auth_date too old/i.test(handshakeError) ? (
+            {handshakeErrorCode !== "invalid_init_data" &&
+            handshakeErrorCode !== "user_inactive" &&
+            !/auth_date too old/i.test(handshakeError) ? (
               <Button
                 variant="secondary"
                 size="md"
