@@ -156,6 +156,15 @@ scrape_configs:
 
 Файл с готовыми Prometheus rules лежит в `ops/alerts/shiftops-alerts.yml`:
 
+- `ShiftOpsAuthExchange5xx`: 5xx на `POST /api/v1/auth/exchange` 2 минуты подряд
+  (часто `privileged_rls_unavailable` / сломанный bypass).
+- `ShiftOpsPrivilegedRlsUnavailable`: растёт `shiftops_privileged_rls_unavailable_total`
+  (не удалось `SET LOCAL ROLE shiftops_rls_bypass`; см. логи `rls.privileged_unavailable`).
 - `ShiftOpsRecurringTickStalled`: воркер не обновлял gauge 10 минут (scheduler/worker умер).
 - `ShiftOpsRecurringTickSeesZeroTemplates`: воркер 5 минут видит 0 шаблонов
   (типичный симптом сломанного privileged RLS bypass / grants).
+
+**CI / релиз:** в `.github/workflows/ci.yml` после `alembic upgrade head` проверяется,
+что `alembic current` помечен как `(head)`; отдельный шаг гоняет
+`tests/test_rls_isolation.py` до остального suite. В `deploy.yml` после Fly deploy —
+SSH-проверка, что продовая БД тоже на head.

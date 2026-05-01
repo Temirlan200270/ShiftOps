@@ -27,7 +27,10 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.config import get_settings
-from shiftops_api.infra.metrics import PRIVILEGED_RLS_BYPASS_TOTAL
+from shiftops_api.infra.metrics import (
+    PRIVILEGED_RLS_BYPASS_TOTAL,
+    PRIVILEGED_RLS_UNAVAILABLE_TOTAL,
+)
 
 _log = structlog.get_logger("shiftops.rls")
 
@@ -70,6 +73,7 @@ async def enter_privileged_rls_mode(session: AsyncSession, *, reason: str) -> No
         # Most common causes:
         # - migration 0010 not applied (role doesn't exist)
         # - missing GRANT shiftops_rls_bypass TO <runtime_user>
+        PRIVILEGED_RLS_UNAVAILABLE_TOTAL.labels(reason=reason).inc()
         _log.error(
             "rls.privileged_unavailable",
             reason=reason,

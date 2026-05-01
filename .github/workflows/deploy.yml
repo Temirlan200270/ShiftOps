@@ -72,6 +72,18 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl machine list --app shiftops-api
 
+      # release_command already runs `alembic upgrade head`; this confirms the running
+      # machine sees the same head (catches partial deploys / wrong secrets).
+      - name: Verify Alembic at head (post-deploy)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          flyctl ssh console -a shiftops-api \
+            -C "sh -lc 'cd /app && alembic current'" 2>&1 | tee alembic-fly.txt
+          grep -E '\(head\)' alembic-fly.txt \
+            || { echo "::error::Production DB not at Alembic head — inspect release_command and alembic-fly.txt"; exit 1; }
+
       - name: Set Telegram webhook
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN_PROD }}

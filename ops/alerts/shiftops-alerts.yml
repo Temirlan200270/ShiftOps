@@ -1,4 +1,35 @@
 groups:
+  - name: shiftops-api
+    rules:
+      # `handler` comes from prometheus_fastapi_instrumentator (OpenAPI path template).
+      # If the alert never fires, scrape /metrics and confirm the label on http_requests_total.
+      - alert: ShiftOpsAuthExchange5xx
+        expr: |
+          sum(rate(http_requests_total{handler="/api/v1/auth/exchange",status="5xx"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: page
+          component: api
+        annotations:
+          summary: "Auth exchange returning 5xx"
+          description: >
+            POST /api/v1/auth/exchange has a non-zero 5xx rate for 2m (Telegram initData → JWT).
+            Often `privileged_rls_unavailable` if BYPASSRLS membership is missing; check logs for
+            `rls.privileged_unavailable` and shiftops_privileged_rls_unavailable_total.
+
+      - alert: ShiftOpsPrivilegedRlsUnavailable
+        expr: |
+          sum(rate(shiftops_privileged_rls_unavailable_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: page
+          component: api
+        annotations:
+          summary: "Privileged RLS bypass failed (SET LOCAL ROLE)"
+          description: >
+            The API cannot assume shiftops_rls_bypass — see migration 0010/0011 and
+            GRANT shiftops_rls_bypass TO <runtime_user>. Logs: rls.privileged_unavailable.
+
   - name: shiftops-worker
     rules:
       - alert: ShiftOpsRecurringTickStalled

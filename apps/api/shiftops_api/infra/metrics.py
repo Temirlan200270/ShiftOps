@@ -174,12 +174,19 @@ PRIVILEGED_RLS_BYPASS_TOTAL = Counter(
     labelnames=("reason",),
 )
 
+PRIVILEGED_RLS_UNAVAILABLE_TOTAL = Counter(
+    "shiftops_privileged_rls_unavailable_total",
+    "SET LOCAL ROLE to the BYPASSRLS helper failed (missing role/grant or DB error).",
+    labelnames=("reason",),
+)
+
 
 __all__ = [
     "ATTACHMENTS_UPLOADED_TOTAL",
     "ATTACHMENT_PHASH_COLLISIONS_TOTAL",
     "CSV_IMPORT_ROWS_TOTAL",
     "PRIVILEGED_RLS_BYPASS_TOTAL",
+    "PRIVILEGED_RLS_UNAVAILABLE_TOTAL",
     "REALTIME_WS_CONNECTIONS",
     "RECURRING_SHIFTS_CREATED_TOTAL",
     "RECURRING_TICK_CREATED_LAST",

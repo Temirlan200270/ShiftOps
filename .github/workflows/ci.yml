@@ -59,6 +59,11 @@ jobs:
         run: ruff check .
       - name: Alembic upgrade head
         run: alembic upgrade head
+      - name: Verify database at Alembic head
+        run: |
+          alembic current | tee alembic-current.txt
+          grep -E '\(head\)' alembic-current.txt \
+            || { echo "::error::Database revision is not head — migrations incomplete or branched"; exit 1; }
       # POSTGRES_USER is a superuser and (PG16+) cannot be demoted in-container.
       # Superusers always bypass RLS. Run integration tests as a normal role.
       - name: Install PostgreSQL client
@@ -79,11 +84,21 @@ jobs:
           GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO shiftops_app;
           GRANT shiftops_rls_bypass TO shiftops_app;
           SQL
+      # Fail fast on broken FORCE RLS / bypass grants before the rest of the suite.
+      - name: Pytest (RLS integration gate)
+        env:
+          DATABASE_URL: postgresql+asyncpg://shiftops_app:shiftops@localhost:5432/shiftops
+          DATABASE_URL_SYNC: postgresql+psycopg://shiftops_app:shiftops@localhost:5432/shiftops
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret-please-change-32chars
+          TG_BOT_TOKEN: ""
+          TG_WEBHOOK_SECRET: ""
+        run: pytest -q tests/test_rls_isolation.py --maxfail=1
       - name: Pytest
         env:
           DATABASE_URL: postgresql+asyncpg://shiftops_app:shiftops@localhost:5432/shiftops
           DATABASE_URL_SYNC: postgresql+psycopg://shiftops_app:shiftops@localhost:5432/shiftops
-        run: pytest -q
+        run: pytest -q --ignore=tests/test_rls_isolation.py
 
   web-lint-test:
     name: Web · eslint + vitest + build
