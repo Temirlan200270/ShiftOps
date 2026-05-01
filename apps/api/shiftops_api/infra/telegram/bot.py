@@ -25,6 +25,7 @@ from __future__ import annotations
 import html
 import logging
 import uuid
+from urllib.parse import urlparse
 
 import structlog
 from aiogram import Bot, Dispatcher, F, Router
@@ -74,10 +75,23 @@ _router = Router(name="shiftops.bot")
 _storage = MemoryStorage()
 
 
+def _is_valid_telegram_web_app_url(url: str) -> bool:
+    """Telegram rejects WebApp buttons with http://, localhost, or non-public hosts."""
+    parsed = urlparse((url or "").strip())
+    if parsed.scheme != "https":
+        return False
+    host = (parsed.hostname or "").lower()
+    if host in ("localhost", "127.0.0.1", "::1") or host.startswith("127."):
+        return False
+    return bool(host)
+
+
 def _web_app_entry_keyboard() -> ReplyKeyboardMarkup | None:
     """One-tap open of the TWA after onboarding; avoids users hunting the menu."""
     url = (get_settings().web_public_url or "").strip()
-    if not url:
+    if not _is_valid_telegram_web_app_url(url):
+        if url:
+            _start_log.warning("web_app_entry_keyboard_skipped_invalid_url", url=url)
         return None
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="Открыть ShiftOps", web_app=WebAppInfo(url=url))]],
@@ -169,8 +183,13 @@ async def handle_start(message: Message) -> None:
                 if result.error.code == "already_active_member" and existing is not None:
                     await _push_slash_menu(message, existing[1])
                     already_kb = _web_app_entry_keyboard()
+                    already_hint = (
+                        "откройте приложение кнопкой ниже."
+                        if already_kb
+                        else "откройте мини-приложение через меню бота."
+                    )
                     await message.answer(
-                        "Вы уже в организации — откройте приложение кнопкой ниже.",
+                        f"Вы уже в организации — {already_hint}",
                         reply_markup=already_kb,
                     )
                 else:
@@ -195,12 +214,19 @@ async def handle_start(message: Message) -> None:
                 else ""
             )
             welcome_kb = _web_app_entry_keyboard()
+            open_hint = (
+                "<b>Сначала нажмите кнопку «Открыть ShiftOps» ниже</b> "
+                "(или пункт меню бота с мини-приложением) — так Telegram передаст нам ваш профиль."
+                if welcome_kb
+                else "<b>Откройте мини-приложение</b> через меню бота (кнопка слева от поля ввода "
+                "или в профиле бота) — так Telegram передаст нам ваш профиль. "
+                "Если кнопки нет, администратору нужно задать публичный HTTPS URL TWA на сервере."
+            )
             await message.answer(
                 f"✅ Добро пожаловать в <b>{result.value.organization_name}</b>.\n"
                 f"{loc_line}"
                 f"Ваша роль: <b>{result.value.role}</b>.\n"
-                f"<b>Сначала нажмите кнопку «Открыть ShiftOps» ниже</b> "
-                f"(или пункт меню бота с мини-приложением) — так Telegram передаст нам ваш профиль.",
+                f"{open_hint}",
                 reply_markup=welcome_kb,
             )
             await session.commit()
@@ -239,10 +265,12 @@ async def handle_start(message: Message) -> None:
             tg_user_id=message.from_user.id,
             user_id=str(user.id),
         )
-        await message.answer(
-            f"С возвращением, {user.full_name}. Откройте ShiftOps кнопкой ниже или через меню бота.",
-            reply_markup=back_kb,
+        back_greet = (
+            f"С возвращением, {user.full_name}. Откройте ShiftOps кнопкой ниже или через меню бота."
+            if back_kb
+            else f"С возвращением, {user.full_name}. Откройте ShiftOps через меню бота (мини-приложение)."
         )
+        await message.answer(back_greet, reply_markup=back_kb)
 
 
 async def _existing_tg_user(
