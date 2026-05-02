@@ -7,7 +7,6 @@ so we do not spam the admin group on every minute tick.
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -89,4 +88,4 @@ class VacantBeforeStartAlertTickUseCase:
         )
 
 
-__all__ = ["VacantBeforeStartAlertTickUseCase", "VacantBeforeStartAlertReport"]
+__all__ = ["VacantBeforeStartAlertReport", "VacantBeforeStartAlertTickUseCase"]

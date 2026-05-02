@@ -42,8 +42,8 @@ import {
   startShift,
   type VacantShift,
 } from "@/lib/api/shifts";
+import { useCapabilities } from "@/lib/hooks/use-capabilities";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
-import { useAuthStore } from "@/lib/stores/auth-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
@@ -64,6 +64,17 @@ type View =
   | "swapRequests"
   | "team"
   | "settings";
+
+const ADMIN_ONLY_VIEWS: View[] = [
+  "audit",
+  "analytics",
+  "businessHours",
+  "csvImport",
+  "liveMonitor",
+  "team",
+  "templatesList",
+  "templateEdit",
+];
 
 export function DashboardScreen(): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
@@ -86,8 +97,7 @@ export function DashboardScreen(): React.JSX.Element {
   const tTeam = useTranslations("team");
   const tAudit = useTranslations("audit");
   const tSettings = useTranslations("settings");
-  const role = useAuthStore((s) => s.me?.role ?? "operator");
-  const isAdmin = role === "admin" || role === "owner";
+  const caps = useCapabilities();
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
   const [historyFilters, setHistoryFilters] = React.useState<HistoryFilters | null>(null);
   const [swapDeepLinkProposerId, setSwapDeepLinkProposerId] = React.useState<string | null>(null);
@@ -102,6 +112,12 @@ export function DashboardScreen(): React.JSX.Element {
       window.history.replaceState({}, "", window.location.pathname || "/");
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!caps.canAccessAdminModules && ADMIN_ONLY_VIEWS.includes(view)) {
+      setView("dashboard");
+    }
+  }, [caps.canAccessAdminModules, view]);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -223,10 +239,10 @@ export function DashboardScreen(): React.JSX.Element {
       />
     );
   }
-  if (view === "audit") {
+  if (view === "audit" && caps.canAccessAdminModules) {
     return <AuditScreen onBack={() => setView("dashboard")} />;
   }
-  if (view === "templatesList" && isAdmin) {
+  if (view === "templatesList" && caps.canAccessAdminModules) {
     return (
       <TemplatesListScreen
         onBack={() => setView("dashboard")}
@@ -237,7 +253,7 @@ export function DashboardScreen(): React.JSX.Element {
       />
     );
   }
-  if (view === "templateEdit" && isAdmin) {
+  if (view === "templateEdit" && caps.canAccessAdminModules) {
     return (
       <TemplateEditScreen
         templateId={editingTemplateId}
@@ -249,7 +265,7 @@ export function DashboardScreen(): React.JSX.Element {
       />
     );
   }
-  if (view === "analytics" && isAdmin) {
+  if (view === "analytics" && caps.canAccessAdminModules) {
     return (
       <AnalyticsScreen
         onBack={() => setView("dashboard")}
@@ -260,16 +276,16 @@ export function DashboardScreen(): React.JSX.Element {
       />
     );
   }
-  if (view === "csvImport" && isAdmin) {
+  if (view === "csvImport" && caps.canAccessAdminModules) {
     return <CsvImportScreen onBack={() => setView("dashboard")} />;
   }
-  if (view === "businessHours" && isAdmin) {
+  if (view === "businessHours" && caps.canAccessAdminModules) {
     return <BusinessHoursScreen onBack={() => setView("dashboard")} />;
   }
-  if (view === "liveMonitor" && isAdmin) {
+  if (view === "liveMonitor" && caps.canAccessAdminModules) {
     return <LiveMonitorScreen onBack={() => setView("dashboard")} />;
   }
-  if (view === "team" && isAdmin) {
+  if (view === "team" && caps.canAccessAdminModules) {
     return <TeamScreen onBack={() => setView("dashboard")} />;
   }
   if (view === "settings") {
@@ -454,7 +470,7 @@ export function DashboardScreen(): React.JSX.Element {
         {tSettings("openCta")}
       </Button>
 
-      {isAdmin ? (
+      {caps.canAccessAdminModules ? (
         <>
           <Button
             variant="ghost"

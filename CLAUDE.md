@@ -128,7 +128,7 @@ git push origin v0.1.0
 `APP_ENV`, `API_PUBLIC_URL`, `API_CORS_ORIGINS`, `DATABASE_URL` (asyncpg, pooler), `DATABASE_URL_SYNC` (psycopg, pooler), `REDIS_URL`, `JWT_SECRET`, `TG_BOT_TOKEN`, `TG_BOT_USERNAME`, `TG_WEBHOOK_SECRET`, `TG_ARCHIVE_CHAT_ID`, `SUPER_ADMIN_TG_ID` (опц., платформенный super-admin), `STORAGE_PROVIDER`, `SENTRY_DSN`, `DB_DISABLE_ASYNCPG_STATEMENT_CACHE` (опц., при DuplicatePreparedStatement на pooler)
 
 ### Ключевые env-переменные фронтенда (Vercel)
-`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TG_BOT_USERNAME`
+`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_TG_BOT_USERNAME`, `NEXT_PUBLIC_SUPER_ADMIN_TG_ID` (optional — same numeric Telegram user id as API `SUPER_ADMIN_TG_ID`; enables full TWA admin UI / “god mode” regardless of org role)
 
 ### CORS
 Превью-URL `*.vercel.app` разрешаются через `allow_origin_regex` в `main.py`. Прод-домены — в `API_CORS_ORIGINS`.

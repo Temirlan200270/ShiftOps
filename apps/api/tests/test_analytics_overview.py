@@ -38,9 +38,9 @@ from shiftops_api.application.analytics.overview import (
     HeatmapCell,
     KpiBlock,
     LocationRow,
+    PostRow,
     RoleSplitBlock,
     SlaBlock,
-    PostRow,
     TemplateRow,
     ViolatorRow,
 )

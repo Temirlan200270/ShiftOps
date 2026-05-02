@@ -18,6 +18,7 @@ import {
   type ManageableRole,
   type TeamMemberRow,
 } from "@/lib/api/invites";
+import { useCapabilities } from "@/lib/hooks/use-capabilities";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { toast } from "@/lib/stores/toast-store";
 import { haptic, notify } from "@/lib/telegram/init";
@@ -58,6 +59,7 @@ function extractErrorCode(raw: string | null | undefined): string | null {
 function rowHasTeamActions(
   member: TeamMemberRow,
   me: { id: string; role: string } | null | undefined,
+  canManageTeamMembers: boolean,
 ): boolean {
   const isSelf = member.id === me?.id;
   if (member.can_change_role === true || member.can_deactivate === true) {
@@ -71,33 +73,35 @@ function rowHasTeamActions(
   }
   // Старый API без полей can_*: иначе `undefined || undefined` скрывает меню.
   // Сервер всё равно проверит права на POST; здесь только подсказка UI для owner.
-  return me?.role === "owner" && !isSelf;
+  return canManageTeamMembers && !isSelf;
 }
 
 function sheetCanRemoveMember(
   member: TeamMemberRow,
   me: { id: string; role: string } | null | undefined,
+  canManageTeamMembers: boolean,
 ): boolean {
   if (member.can_deactivate === true) return true;
   if (typeof member.can_deactivate === "boolean") return false;
-  return me?.role === "owner" && member.id !== me?.id;
+  return canManageTeamMembers && member.id !== me?.id;
 }
 
 function sheetCanChangeRoleMember(
   member: TeamMemberRow,
   me: { id: string; role: string } | null | undefined,
+  canManageTeamMembers: boolean,
 ): boolean {
   if (member.can_change_role === true) return true;
   if (typeof member.can_change_role === "boolean") return false;
   if (member.role === "owner") return false;
-  return me?.role === "owner" && member.id !== me?.id;
+  return canManageTeamMembers && member.id !== me?.id;
 }
 
 export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   const t = useTranslations("team");
   const tErr = useTranslations("errors");
   const me = useAuthStore((s) => s.me);
-  const isOwner = me?.role === "owner";
+  const { canManageTeamMembers } = useCapabilities();
   const canToggleInactiveMembers = me?.role === "owner" || me?.role === "admin";
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
   const [members, setMembers] = React.useState<TeamMemberRow[] | null>(null);
@@ -136,10 +140,10 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
   );
 
   React.useEffect(() => {
-    if (!isOwner) {
+    if (!canManageTeamMembers) {
       setRole("operator");
     }
-  }, [isOwner]);
+  }, [canManageTeamMembers]);
 
   React.useEffect(() => {
     void (async () => {
@@ -393,7 +397,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                           ? t("roleBartender")
                           : member.role;
                 const isSelf = member.id === me?.id;
-                const showActions = rowHasTeamActions(member, me);
+                const showActions = rowHasTeamActions(member, me, canManageTeamMembers);
                 return (
                   <li
                     key={member.id}
@@ -486,7 +490,7 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-2">
-              {isOwner ? (
+              {canManageTeamMembers ? (
                 <>
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -646,15 +650,16 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                 type="button"
                 variant="secondary"
                 size="block"
-                disabled={!sheetCanChangeRoleMember(actionMember, me)}
+                disabled={!sheetCanChangeRoleMember(actionMember, me, canManageTeamMembers)}
                 onClick={() => {
-                  if (sheetCanChangeRoleMember(actionMember, me)) openRoleEditor(actionMember);
+                  if (sheetCanChangeRoleMember(actionMember, me, canManageTeamMembers))
+                    openRoleEditor(actionMember);
                 }}
               >
                 <UserCog className="size-4" />
                 {t("actions.changeRole")}
               </Button>
-              {!sheetCanChangeRoleMember(actionMember, me) &&
+              {!sheetCanChangeRoleMember(actionMember, me, canManageTeamMembers) &&
               (actionMember.cannot_change_role_reason ||
                 (actionMember.role === "owner" &&
                   typeof actionMember.can_change_role !== "boolean")) ? (
@@ -670,15 +675,17 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
                 type="button"
                 variant="danger"
                 size="block"
-                disabled={!sheetCanRemoveMember(actionMember, me)}
+                disabled={!sheetCanRemoveMember(actionMember, me, canManageTeamMembers)}
                 onClick={() => {
-                  if (sheetCanRemoveMember(actionMember, me)) openRemoveConfirm(actionMember);
+                  if (sheetCanRemoveMember(actionMember, me, canManageTeamMembers))
+                    openRemoveConfirm(actionMember);
                 }}
               >
                 <Trash2 className="size-4" />
                 {t("actions.remove")}
               </Button>
-              {!sheetCanRemoveMember(actionMember, me) && actionMember.cannot_deactivate_reason ? (
+              {!sheetCanRemoveMember(actionMember, me, canManageTeamMembers) &&
+              actionMember.cannot_deactivate_reason ? (
                 <p className="text-xs text-muted-foreground -mt-1">
                   {translateManageError(
                     actionMember.cannot_deactivate_reason,
