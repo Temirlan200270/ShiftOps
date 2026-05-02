@@ -86,6 +86,16 @@ class TemplateRowOut(BaseModel):
     average_score: float | None
 
 
+class PostRowOut(BaseModel):
+    location_id: UUID
+    location_name: str
+    slot_index: int
+    station_label: str | None
+    shifts_total: int
+    shifts_with_violations: int
+    average_score: float | None
+
+
 class CriticalityRowOut(BaseModel):
     criticality: str
     tasks_total: int
@@ -119,6 +129,7 @@ class DensityOut(BaseModel):
     heatmap: str
     violators: str
     templates: str
+    posts: str
 
 
 class OverviewResponse(BaseModel):
@@ -130,6 +141,7 @@ class OverviewResponse(BaseModel):
     top_violators: list[ViolatorRowOut]
     locations: list[LocationRowOut]
     templates: list[TemplateRowOut]
+    posts: list[PostRowOut]
     criticality: list[CriticalityRowOut]
     antifake: AntifakeOut | None
     sla_late_start: SlaOut | None
@@ -233,6 +245,18 @@ def _serialise(dto: OverviewDTO) -> OverviewResponse:
             )
             for t in dto.templates
         ],
+        posts=[
+            PostRowOut(
+                location_id=p.location_id,
+                location_name=p.location_name,
+                slot_index=p.slot_index,
+                station_label=p.station_label,
+                shifts_total=p.shifts_total,
+                shifts_with_violations=p.shifts_with_violations,
+                average_score=_to_float(p.average_score),
+            )
+            for p in dto.posts
+        ],
         criticality=[
             CriticalityRowOut(
                 criticality=c.criticality,
@@ -278,6 +302,7 @@ def _serialise(dto: OverviewDTO) -> OverviewResponse:
                 heatmap=dto.density.heatmap,
                 violators=dto.density.violators,
                 templates=dto.density.templates,
+                posts=dto.density.posts,
             )
             if dto.density is not None
             else None

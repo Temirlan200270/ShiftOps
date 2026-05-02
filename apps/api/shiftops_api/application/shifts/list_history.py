@@ -66,6 +66,9 @@ class HistoryRowDTO:
     tasks_total: int
     tasks_done: int
     handover_summary: str | None
+    slot_index: int
+    station_label: str | None
+    delay_reason: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +91,9 @@ class ListHistoryUseCase:
         location_id: uuid.UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        slot_index: int | None = None,
+        station_label: str | None = None,
+        station_label_empty: bool = False,
     ) -> Result[HistoryPageDTO, DomainError]:
         limit = min(max(limit, 1), MAX_PAGE_SIZE)
 
@@ -128,6 +134,12 @@ class ListHistoryUseCase:
             stmt = stmt.where(Shift.scheduled_start >= date_from)
         if date_to is not None:
             stmt = stmt.where(Shift.scheduled_start <= date_to)
+        if slot_index is not None:
+            stmt = stmt.where(Shift.slot_index == slot_index)
+        if station_label_empty:
+            stmt = stmt.where(Shift.station_label.is_(None))
+        elif station_label is not None:
+            stmt = stmt.where(Shift.station_label == station_label)
 
         rows = (await self._session.execute(stmt)).all()
         has_more = len(rows) > limit
@@ -181,6 +193,9 @@ class ListHistoryUseCase:
                     tasks_total=tally.total,
                     tasks_done=tally.done_or_waived,
                     handover_summary=shift.handover_summary,
+                    slot_index=int(shift.slot_index),
+                    station_label=shift.station_label,
+                    delay_reason=shift.delay_reason,
                 )
             )
 

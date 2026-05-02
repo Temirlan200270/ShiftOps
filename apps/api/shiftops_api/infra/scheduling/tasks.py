@@ -15,10 +15,14 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+import redis.asyncio as redis_async
 from sqlalchemy import delete, select
 from taskiq import TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 
+from shiftops_api.application.monitor.vacant_before_start_alert_tick import (
+    VacantBeforeStartAlertTickUseCase,
+)
 from shiftops_api.application.templates.recurring_shifts_tick import (
     CreateRecurringShiftsTickUseCase,
 )
@@ -70,6 +74,38 @@ async def recurring_shifts_tick() -> dict[str, int]:
         "created": report.created,
         "skipped": report.skipped,
         "aborted_expired_vacant": report.aborted_expired_vacant,
+    }
+
+
+@broker.task(
+    task_name="shiftops.vacant_before_start_alert_tick",
+    schedule=[{"cron": "* * * * *"}],
+)
+async def vacant_before_start_alert_tick() -> dict[str, int]:
+    """Cron: every minute. Ping admin chat if a vacant pool slot opens within the window."""
+
+    settings = get_settings()
+    redis = redis_async.from_url(settings.redis_url)
+    factory = get_sessionmaker()
+    try:
+        async with factory() as session:
+            use_case = VacantBeforeStartAlertTickUseCase(session=session, redis=redis)
+            report = await use_case.execute()
+    finally:
+        await redis.aclose()
+
+    _log.info(
+        "vacant_before_start_alert.summary",
+        extra={
+            "candidates": report.candidates,
+            "sent": report.sent,
+            "skipped_no_admin_chat": report.skipped_no_admin_chat,
+        },
+    )
+    return {
+        "candidates": report.candidates,
+        "sent": report.sent,
+        "skipped_no_admin_chat": report.skipped_no_admin_chat,
     }
 
 

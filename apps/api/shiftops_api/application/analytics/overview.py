@@ -75,6 +75,8 @@ _HEATMAP_LOW_THRESHOLD = 20
 _VIOLATOR_MIN_SHIFTS = 3
 _VIOLATORS_LOW_ROWS = 3
 _TEMPLATES_LOW_ROWS = 2
+_POSTS_LOW_ROWS = 2
+_POSTS_LOW_MEDIAN_SHIFTS = 3
 
 DensityFlag = Literal["empty", "low", "ok"]
 
@@ -130,6 +132,19 @@ class TemplateRow:
 
 
 @dataclass(frozen=True, slots=True)
+class PostRow:
+    """One physical post (location × slot × station label) in the window."""
+
+    location_id: uuid.UUID
+    location_name: str
+    slot_index: int
+    station_label: str | None
+    shifts_total: int
+    shifts_with_violations: int
+    average_score: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
 class CriticalityRow:
     criticality: str  # "critical" | "required" | "optional"
     tasks_total: int
@@ -167,6 +182,7 @@ class DensityBlock:
     heatmap: DensityFlag
     violators: DensityFlag
     templates: DensityFlag
+    posts: DensityFlag
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +194,7 @@ class OverviewDTO:
     top_violators: list[ViolatorRow]
     locations: list[LocationRow]
     templates: list[TemplateRow] = field(default_factory=list)
+    posts: list[PostRow] = field(default_factory=list)
     criticality: list[CriticalityRow] = field(default_factory=list)
     antifake: AntifakeBlock | None = None
     sla_late_start: SlaBlock | None = None
@@ -252,6 +269,7 @@ class AnalyticsOverviewUseCase:
                 top_violators=current.top_violators,
                 locations=current.locations,
                 templates=current.templates,
+                posts=current.posts,
                 criticality=current.criticality,
                 antifake=current.antifake,
                 sla_late_start=current.sla_late_start,
@@ -276,12 +294,17 @@ class AnalyticsOverviewUseCase:
         )
         locations = await self._locations(range_from, range_to)
         templates = await self._templates(range_from, range_to, location_id)
+        posts = await self._posts(range_from, range_to, location_id)
         criticality = await self._criticality(range_from, range_to, location_id)
         antifake = await self._antifake(range_from, range_to, location_id)
         sla = await self._sla(range_from, range_to, location_id)
         role_split = await self._role_split(range_from, range_to, location_id)
         density = self._density(
-            kpis=kpis, heatmap=heatmap, violators=violators, templates=templates
+            kpis=kpis,
+            heatmap=heatmap,
+            violators=violators,
+            templates=templates,
+            posts=posts,
         )
         return OverviewDTO(
             range_from=range_from,
@@ -291,6 +314,7 @@ class AnalyticsOverviewUseCase:
             top_violators=violators,
             locations=locations,
             templates=templates,
+            posts=posts,
             criticality=criticality,
             antifake=antifake,
             sla_late_start=sla,
@@ -540,6 +564,64 @@ class AnalyticsOverviewUseCase:
             for row in rows
         ]
 
+    async def _posts(
+        self,
+        range_from: datetime,
+        range_to: datetime,
+        location_id: uuid.UUID | None,
+    ) -> list[PostRow]:
+        violation_subq = (
+            select(TaskInstance.shift_id).where(self._violation_filter()).distinct().subquery()
+        )
+        violation_flag = case(
+            (violation_subq.c.shift_id.isnot(None), 1),
+            else_=0,
+        )
+
+        stmt = (
+            select(
+                Location.id.label("location_id"),
+                Location.name.label("location_name"),
+                Shift.slot_index.label("slot_index"),
+                Shift.station_label.label("station_label"),
+                func.count(Shift.id).label("shifts_total"),
+                func.coalesce(func.sum(violation_flag), 0).label("violations"),
+                func.avg(Shift.score).label("avg_score"),
+            )
+            .select_from(Shift)
+            .join(Location, Location.id == Shift.location_id)
+            .join(
+                violation_subq,
+                violation_subq.c.shift_id == Shift.id,
+                isouter=True,
+            )
+            .where(self._closed_shift_filter(range_from, range_to, location_id))
+            .group_by(
+                Location.id,
+                Location.name,
+                Shift.slot_index,
+                Shift.station_label,
+            )
+            .order_by(
+                Location.name.asc(),
+                Shift.slot_index.asc(),
+                func.coalesce(Shift.station_label, "").asc(),
+            )
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [
+            PostRow(
+                location_id=row.location_id,
+                location_name=row.location_name,
+                slot_index=int(row.slot_index or 0),
+                station_label=row.station_label,
+                shifts_total=int(row.shifts_total or 0),
+                shifts_with_violations=int(row.violations or 0),
+                average_score=_quantize_score(row.avg_score),
+            )
+            for row in rows
+        ]
+
     async def _criticality(
         self,
         range_from: datetime,
@@ -738,6 +820,7 @@ class AnalyticsOverviewUseCase:
         heatmap: list[HeatmapCell],
         violators: list[ViolatorRow],
         templates: list[TemplateRow],
+        posts: list[PostRow],
     ) -> DensityBlock:
         kpi_d: DensityFlag = (
             "empty"
@@ -758,15 +841,39 @@ class AnalyticsOverviewUseCase:
         tpl_d: DensityFlag = (
             "empty" if not templates else ("low" if len(templates) < _TEMPLATES_LOW_ROWS else "ok")
         )
+        post_d: DensityFlag = _posts_density_flag(posts)
         return DensityBlock(
             kpis=kpi_d,
             heatmap=heat_d,
             violators=viol_d,
             templates=tpl_d,
+            posts=post_d,
         )
 
 
 # --- Helpers --------------------------------------------------------------
+
+
+def _median_float(values: list[int]) -> float | None:
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2:
+        return float(s[mid])
+    return (s[mid - 1] + s[mid]) / 2.0
+
+
+def _posts_density_flag(posts: list[PostRow]) -> DensityFlag:
+    if not posts:
+        return "empty"
+    if len(posts) < _POSTS_LOW_ROWS:
+        return "low"
+    med = _median_float([p.shifts_total for p in posts])
+    if med is not None and med < _POSTS_LOW_MEDIAN_SHIFTS:
+        return "low"
+    return "ok"
 
 
 def _quantize_score(value: object) -> Decimal | None:
@@ -806,6 +913,7 @@ __all__ = [
     "KpiBlock",
     "LocationRow",
     "OverviewDTO",
+    "PostRow",
     "RoleSplitBlock",
     "SlaBlock",
     "TemplateRow",

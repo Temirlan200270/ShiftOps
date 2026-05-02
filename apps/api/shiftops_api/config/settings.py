@@ -111,6 +111,14 @@ class Settings(BaseSettings):
     # start is a real lateness, not a clock-skew false positive.
     analytics_sla_late_start_min: int = 15
 
+    # Live monitor: vacant scheduled slots with no operator within this window
+    # of scheduled_end are listed as "at risk" (plus overdue / unclaimed-started).
+    live_vacant_horizon_min: int = Field(default=120, ge=5, le=24 * 60)
+
+    # Vacant pool: alert admin/owner TG if scheduled_start is within this window
+    # and nobody has claimed the slot yet (proactive ping before guests arrive).
+    vacant_before_start_alert_min: int = Field(default=30, ge=5, le=24 * 60)
+
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.1
 

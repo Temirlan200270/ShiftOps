@@ -42,6 +42,16 @@ _STATUS_BY_CODE: dict[str, int] = {
     "shift_not_active": status.HTTP_409_CONFLICT,
     "shift_taken": status.HTTP_409_CONFLICT,
     "shift_not_claimed": status.HTTP_409_CONFLICT,
+    # swap
+    "swap_request_not_found": status.HTTP_404_NOT_FOUND,
+    "swap_not_counterparty": status.HTTP_403_FORBIDDEN,
+    "swap_not_proposer": status.HTTP_403_FORBIDDEN,
+    "swap_not_pending": status.HTTP_409_CONFLICT,
+    "swap_shifts_changed": status.HTTP_409_CONFLICT,
+    "swap_duplicate_pending": status.HTTP_409_CONFLICT,
+    "invalid_direction": status.HTTP_400_BAD_REQUEST,
+    "swap_link_not_scheduled": status.HTTP_409_CONFLICT,
+    "swap_link_shift_unassigned": status.HTTP_409_CONFLICT,
 }
 
 _DEFAULT_STATUS = status.HTTP_400_BAD_REQUEST

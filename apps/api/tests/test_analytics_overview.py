@@ -40,6 +40,7 @@ from shiftops_api.application.analytics.overview import (
     LocationRow,
     RoleSplitBlock,
     SlaBlock,
+    PostRow,
     TemplateRow,
     ViolatorRow,
 )
@@ -105,6 +106,18 @@ def _template() -> TemplateRow:
     )
 
 
+def _post(*, shifts_total: int = 5) -> PostRow:
+    return PostRow(
+        location_id=uuid.uuid4(),
+        location_name="Main",
+        slot_index=0,
+        station_label="Terrace",
+        shifts_total=shifts_total,
+        shifts_with_violations=0,
+        average_score=Decimal("88.00"),
+    )
+
+
 def _make_use_case(
     *,
     kpis: KpiBlock = _kpi(),
@@ -112,6 +125,7 @@ def _make_use_case(
     violators: list[ViolatorRow] | None = None,
     locations: list[LocationRow] | None = None,
     templates: list[TemplateRow] | None = None,
+    posts: list[PostRow] | None = None,
     criticality: list[CriticalityRow] | None = None,
     antifake: AntifakeBlock | None = None,
     sla: SlaBlock | None = None,
@@ -133,6 +147,7 @@ def _make_use_case(
     )
     use_case._locations = AsyncMock(return_value=locations or [])  # type: ignore[method-assign]
     use_case._templates = AsyncMock(return_value=templates or [])  # type: ignore[method-assign]
+    use_case._posts = AsyncMock(return_value=posts or [])  # type: ignore[method-assign]
     use_case._criticality = AsyncMock(return_value=criticality or [])  # type: ignore[method-assign]
     use_case._antifake = AsyncMock(  # type: ignore[method-assign]
         return_value=antifake
@@ -282,6 +297,7 @@ def test_density_kpis_empty_when_no_shifts() -> None:
         heatmap=[],
         violators=[],
         templates=[],
+        posts=[],
     )
     assert d.kpis == "empty"
 
@@ -292,6 +308,7 @@ def test_density_kpis_low_when_below_threshold() -> None:
         heatmap=[],
         violators=[],
         templates=[],
+        posts=[],
     )
     assert d.kpis == "low"
 
@@ -304,6 +321,7 @@ def test_density_kpis_ok_when_threshold_met() -> None:
         ],
         violators=[_violator(total=3) for _ in range(3)],
         templates=[_template(), _template()],
+        posts=[_post(shifts_total=5), _post(shifts_total=5)],
     )
     assert d.kpis == "ok"
 
@@ -317,6 +335,7 @@ def test_density_heatmap_low_when_few_closed_shifts() -> None:
         heatmap=cells,
         violators=[],
         templates=[],
+        posts=[],
     )
     assert d.heatmap == "low"
 
@@ -330,6 +349,7 @@ def test_density_heatmap_ok_when_enough_closed_shifts() -> None:
         heatmap=cells,
         violators=[],
         templates=[],
+        posts=[],
     )
     assert d.heatmap == "ok"
 
@@ -344,6 +364,7 @@ def test_density_violators_low_when_few_qualified() -> None:
         heatmap=[],
         violators=[*qualified, unqualified],
         templates=[],
+        posts=[],
     )
     assert d.violators == "low"
 
@@ -354,8 +375,55 @@ def test_density_templates_low_when_only_one_template() -> None:
         heatmap=[],
         violators=[],
         templates=[_template()],
+        posts=[],
     )
     assert d.templates == "low"
+
+
+def test_density_posts_empty_when_no_rows() -> None:
+    d = AnalyticsOverviewUseCase._density(
+        kpis=_kpi(total=10, clean=10),
+        heatmap=[],
+        violators=[],
+        templates=[_template(), _template()],
+        posts=[],
+    )
+    assert d.posts == "empty"
+
+
+def test_density_posts_low_when_few_rows_or_low_median() -> None:
+    d = AnalyticsOverviewUseCase._density(
+        kpis=_kpi(total=10, clean=10),
+        heatmap=[],
+        violators=[],
+        templates=[_template(), _template()],
+        posts=[_post(shifts_total=2)],
+    )
+    assert d.posts == "low"
+
+    d2 = AnalyticsOverviewUseCase._density(
+        kpis=_kpi(total=10, clean=10),
+        heatmap=[],
+        violators=[],
+        templates=[_template(), _template()],
+        posts=[_post(shifts_total=2), _post(shifts_total=2)],
+    )
+    assert d2.posts == "low"
+
+
+def test_density_posts_ok_when_enough_rows_and_median() -> None:
+    d = AnalyticsOverviewUseCase._density(
+        kpis=_kpi(total=30, clean=30),
+        heatmap=[],
+        violators=[],
+        templates=[_template(), _template()],
+        posts=[
+            _post(shifts_total=5),
+            _post(shifts_total=5),
+            replace(_post(shifts_total=5), slot_index=1, station_label="Hall"),
+        ],
+    )
+    assert d.posts == "ok"
 
 
 # --- SLA / role-split / serialisation hooks -------------------------------

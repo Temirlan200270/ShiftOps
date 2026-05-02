@@ -29,6 +29,7 @@ import {
   CalendarRange,
   ChevronRight,
   Layers,
+  LayoutGrid,
   MapPin,
   Radio,
   ShieldAlert,
@@ -50,6 +51,7 @@ import {
   type AnalyticsHeatmapCell,
   type AnalyticsKpi,
   type AnalyticsOverview,
+  type AnalyticsPost,
   type AnalyticsViolator,
   type DensityFlag,
 } from "@/lib/api/analytics";
@@ -691,6 +693,12 @@ export function AnalyticsScreen({
 
           <TemplatesCard data={data} />
 
+          <PostsCard
+            data={data}
+            range={range}
+            onOpenInHistory={onOpenInHistory}
+          />
+
           <CriticalityCard data={data} />
 
           <RoleSplitCard data={data} />
@@ -943,6 +951,105 @@ function TemplatesCard({ data }: { data: AnalyticsOverview }): React.JSX.Element
         <LowDataNote
           flag={data.density?.templates ?? "ok"}
           message={tA("lowData.templates")}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function PostsCard({
+  data,
+  range,
+  onOpenInHistory,
+}: {
+  data: AnalyticsOverview;
+  range: RangeState;
+  onOpenInHistory?: (filters: HistoryFilters) => void;
+}): React.JSX.Element {
+  const tA = useTranslations("analytics");
+
+  const openRow = (row: AnalyticsPost): void => {
+    if (!onOpenInHistory) return;
+    onOpenInHistory({
+      locationId: row.locationId,
+      locationName: row.locationName,
+      slotIndex: row.slotIndex,
+      stationLabel: row.stationLabel ?? undefined,
+      stationLabelEmpty: row.stationLabel === null,
+      from: range.from,
+      to: range.to,
+    });
+  };
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <LayoutGrid className="size-4 text-primary" />
+          {tA("posts.title")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-1">
+        {data.posts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{tA("posts.empty")}</p>
+        ) : (
+          <ul className="space-y-2">
+            {data.posts.map((row) => {
+              const violationsRate =
+                row.shiftsTotal > 0
+                  ? Math.round((row.shiftsWithViolations / row.shiftsTotal) * 100)
+                  : null;
+              const postTitle = row.stationLabel
+                ? tA("posts.line", { label: row.stationLabel, index: row.slotIndex })
+                : tA("posts.slotOnly", { index: row.slotIndex });
+              return (
+                <li key={`${row.locationId}-${row.slotIndex}-${row.stationLabel ?? ""}`}>
+                  <button
+                    type="button"
+                    disabled={!onOpenInHistory}
+                    onClick={() => openRow(row)}
+                    className={
+                      "w-full flex items-center gap-3 p-2 -mx-2 rounded-md text-left " +
+                      (onOpenInHistory
+                        ? "bg-elevated/30 hover:bg-elevated"
+                        : "bg-elevated/30 cursor-default opacity-80")
+                    }
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{row.locationName}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{postTitle}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {tA("posts.shifts", { count: row.shiftsTotal })}
+                        {violationsRate !== null && row.shiftsWithViolations > 0 ? (
+                          <>
+                            {" · "}
+                            <span className="text-warning">
+                              {tA("posts.violationsRate", { rate: violationsRate })}
+                            </span>
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 flex items-center gap-1">
+                      <p
+                        className={`text-base font-semibold tabular-nums ${scoreColor(row.averageScore)}`}
+                      >
+                        {formatScore(row.averageScore)}
+                      </p>
+                      {onOpenInHistory ? (
+                        <ChevronRight className="size-4 text-muted-foreground" />
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="text-[10px] text-muted-foreground mt-3">{tA("posts.help")}</p>
+        <LowDataNote
+          flag={data.density?.posts ?? "ok"}
+          message={tA("lowData.posts")}
         />
       </CardContent>
     </Card>

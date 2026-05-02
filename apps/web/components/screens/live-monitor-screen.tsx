@@ -32,11 +32,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-  fetchActiveShifts,
+  fetchMonitorSnapshot,
   useRealtimeStream,
   type ActiveShift,
   type RealtimeEvent,
   type RealtimeStatus,
+  type VacantAtRiskShift,
 } from "@/lib/api/monitor";
 import { toast } from "@/lib/stores/toast-store";
 import { nowServerMs } from "@/lib/time/server-time";
@@ -99,6 +100,7 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
   const tErr = useTranslations("errors");
 
   const [shifts, setShifts] = React.useState<ActiveShift[]>([]);
+  const [vacantAtRisk, setVacantAtRisk] = React.useState<VacantAtRiskShift[]>([]);
   const [feed, setFeed] = React.useState<FeedItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [lastEventAt, setLastEventAt] = React.useState<number | null>(null);
@@ -109,14 +111,15 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
   React.useEffect(() => {
     let alive = true;
     void (async () => {
-      const result = await fetchActiveShifts();
+      const result = await fetchMonitorSnapshot();
       if (!alive) return;
       setLoading(false);
       if (!result.ok) {
         toast({ variant: "critical", title: tErr("generic"), description: result.message });
         return;
       }
-      setShifts(result.data);
+      setShifts(result.data.active);
+      setVacantAtRisk(result.data.vacantAtRisk);
     })();
     return () => {
       alive = false;
@@ -134,6 +137,7 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
 
       if (event.type === "shift.opened") {
         const data = event.data as Extract<RealtimeEvent, { type: "shift.opened" }>["data"];
+        setVacantAtRisk((prev) => prev.filter((v) => v.shiftId !== data.shift_id));
         setShifts((prev) => {
           if (prev.some((s) => s.shiftId === data.shift_id)) return prev;
           const next: ActiveShift = {
@@ -248,7 +252,7 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
         <Card className="animate-pulse">
           <CardContent className="p-6 h-40" />
         </Card>
-      ) : shifts.length === 0 ? (
+      ) : shifts.length === 0 && vacantAtRisk.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-sm font-medium mb-1">{tLive("empty")}</p>
@@ -256,6 +260,39 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
           </CardContent>
         </Card>
       ) : (
+        <>
+        {vacantAtRisk.length > 0 ? (
+          <section className="mb-6">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-warning mb-2">
+              {tLive("vacantTitle")}
+            </h2>
+            <p className="text-[11px] text-muted-foreground mb-2">{tLive("vacantSubtitle")}</p>
+            <ul className="space-y-2">
+              {vacantAtRisk.map((v) => (
+                <li key={v.shiftId}>
+                  <Card accent="warning">
+                    <CardContent className="p-3">
+                      <p className="text-sm font-medium">{v.templateName}</p>
+                      <p className="text-[11px] text-muted-foreground">{v.locationName}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {v.stationLabel
+                          ? `${v.stationLabel} · slot ${v.slotIndex}`
+                          : `slot ${v.slotIndex}`}
+                      </p>
+                      <p className="text-[11px] text-warning mt-1">
+                        {tLive(`vacantKind.${v.kind}`)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1 tabular-nums">
+                        {new Date(v.scheduledStart).toLocaleString()} →{" "}
+                        {new Date(v.scheduledEnd).toLocaleTimeString()}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         <ul className="space-y-2 mb-4">
           {shifts.map((shift) => {
             const total = Math.max(1, shift.progressTotal);
@@ -295,6 +332,7 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
             );
           })}
         </ul>
+        </>
       )}
 
       {feed.length > 0 ? (

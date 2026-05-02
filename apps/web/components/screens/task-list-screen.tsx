@@ -144,6 +144,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [closing, setClosing] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const tDash = useTranslations("dashboard");
   const tClose = useTranslations("close");
   const tErr = useTranslations("errors");
   const biometricEnabled = usePreferencesStore((s) => s.shiftCloseBiometricEnabled);
@@ -164,6 +165,13 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
     (t) => t.criticality === "required" && !isDoneStatus(t.status),
   ).length;
 
+  const [delayReason, setDelayReason] = React.useState("");
+
+  const showDelayField = React.useMemo(() => {
+    if (!shift) return false;
+    return Date.now() > new Date(shift.scheduledEnd).getTime();
+  }, [shift]);
+
   const handleClose = React.useCallback(
     async (confirmViolations: boolean) => {
       if (!shift) return;
@@ -177,7 +185,11 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
       }
 
       setClosing(true);
-      const result = await closeShift({ shiftId: shift.id, confirmViolations });
+      const result = await closeShift({
+        shiftId: shift.id,
+        confirmViolations,
+        delayReason: showDelayField ? delayReason.trim() || null : null,
+      });
       setClosing(false);
       if (result.ok) {
         // Merge the close-time delta onto the in-memory shift so the summary
@@ -211,7 +223,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         description: localiseApiFailure(result, tErr),
       });
     },
-    [shift, setShift, onClosed, tErr, biometricEnabled, tClose],
+    [shift, setShift, onClosed, tErr, biometricEnabled, tClose, showDelayField, delayReason],
   );
 
   if (!shift) return <></>;
@@ -226,6 +238,17 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         </Button>
         <div className="flex-1">
           <h1 className="text-lg font-semibold">{shift.templateName}</h1>
+          {shift.stationLabel ? (
+            <p className="text-[11px] text-muted-foreground">
+              {tDash("stationLabel", { label: shift.stationLabel })} ·{" "}
+              {tDash("slotIndexShort", { index: shift.slotIndex })}
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              {tDash("slotIndexShort", { index: shift.slotIndex })}
+            </p>
+          )}
+          <p className="text-[11px] text-muted-foreground">{tDash("operatorOnShift", { name: shift.operatorFullName })}</p>
           <p className="text-xs text-muted-foreground">
             {done}/{total} · {progress}%
           </p>
@@ -233,6 +256,24 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
       </header>
 
       <Progress value={progress} className="mb-4" />
+
+      {showDelayField ? (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs text-muted-foreground">{tClose("delayReasonHint")}</p>
+          <label className="block text-sm font-medium" htmlFor="shift-delay-reason">
+            {tClose("delayReasonLabel")}
+          </label>
+          <textarea
+            id="shift-delay-reason"
+            className="w-full min-h-[72px] rounded-md border border-border bg-background px-3 py-2 text-sm"
+            value={delayReason}
+            onChange={(e) => setDelayReason(e.target.value)}
+            placeholder={tClose("delayReasonPlaceholder")}
+            maxLength={500}
+            rows={3}
+          />
+        </div>
+      ) : null}
 
       {hasSections
         ? groups.map((group) => (

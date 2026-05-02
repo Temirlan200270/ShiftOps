@@ -139,6 +139,7 @@ git push origin v0.1.0
 |------|-----------|
 | `docs/PRD.md` | Продуктовые требования |
 | `docs/ARCHITECTURE.md` | Диаграммы, слои, ADR |
+| `docs/CODEMAP.md` | Карта репозитория: дерево верхнего уровня, якорные файлы |
 | `docs/DATABASE_SCHEMA.md` | ERD, DDL, RLS-политики |
 | `docs/AUTH_FLOW.md` | initData → JWT → RLS |
 | `docs/TELEGRAM_BOT.md` | Команды, диплинки, матрица уведомлений |

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowLeftRight,
   BarChart3,
   CalendarDays,
   Clock3,
@@ -24,6 +25,7 @@ import { CsvImportScreen } from "@/components/screens/csv-import-screen";
 import { HistoryScreen, type HistoryFilters } from "@/components/screens/history-screen";
 import { LiveMonitorScreen } from "@/components/screens/live-monitor-screen";
 import { SettingsScreen } from "@/components/screens/settings-screen";
+import { SwapRequestsScreen } from "@/components/screens/swap-requests-screen";
 import { TaskListScreen } from "@/components/screens/task-list-screen";
 import { SummaryScreen } from "@/components/screens/summary-screen";
 import { TeamScreen } from "@/components/screens/team-screen";
@@ -59,6 +61,7 @@ type View =
   | "csvImport"
   | "businessHours"
   | "liveMonitor"
+  | "swapRequests"
   | "team"
   | "settings";
 
@@ -79,6 +82,7 @@ export function DashboardScreen(): React.JSX.Element {
   const tCsv = useTranslations("csvImport");
   const tOrgBh = useTranslations("orgBusinessHours");
   const tLive = useTranslations("live");
+  const tSwap = useTranslations("swap");
   const tTeam = useTranslations("team");
   const tAudit = useTranslations("audit");
   const tSettings = useTranslations("settings");
@@ -86,6 +90,18 @@ export function DashboardScreen(): React.JSX.Element {
   const isAdmin = role === "admin" || role === "owner";
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
   const [historyFilters, setHistoryFilters] = React.useState<HistoryFilters | null>(null);
+  const [swapDeepLinkProposerId, setSwapDeepLinkProposerId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const sp = params.get("swap_proposer_shift");
+    if (sp && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sp)) {
+      setSwapDeepLinkProposerId(sp);
+      setView("swapRequests");
+      window.history.replaceState({}, "", window.location.pathname || "/");
+    }
+  }, []);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -259,6 +275,18 @@ export function DashboardScreen(): React.JSX.Element {
   if (view === "settings") {
     return <SettingsScreen onBack={() => setView("dashboard")} />;
   }
+  if (view === "swapRequests") {
+    return (
+      <SwapRequestsScreen
+        onBack={() => {
+          setSwapDeepLinkProposerId(null);
+          setView("dashboard");
+        }}
+        deepLinkProposerShiftId={swapDeepLinkProposerId}
+        onConsumedDeepLink={() => setSwapDeepLinkProposerId(null)}
+      />
+    );
+  }
 
   const tasks = shift?.tasks ?? [];
   const total = tasks.length;
@@ -274,6 +302,23 @@ export function DashboardScreen(): React.JSX.Element {
       <header className="mb-6">
         <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString()}</p>
         <h1 className="text-2xl font-semibold mt-1">{shift?.templateName ?? "ShiftOps"}</h1>
+        {shift ? (
+          <div className="mt-2 space-y-0.5">
+            {shift.stationLabel ? (
+              <p className="text-sm text-muted-foreground">
+                {tDash("stationLabel", { label: shift.stationLabel })} ·{" "}
+                {tDash("slotIndexShort", { index: shift.slotIndex })}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {tDash("slotIndexShort", { index: shift.slotIndex })}
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {tDash("operatorOnShift", { name: shift.operatorFullName })}
+            </p>
+          </div>
+        ) : null}
       </header>
 
       {loading && !shift ? (
@@ -392,6 +437,16 @@ export function DashboardScreen(): React.JSX.Element {
       >
         <History className="size-4" />
         {tHist("openHistoryCta")}
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="block"
+        className="mt-2"
+        onClick={() => setView("swapRequests")}
+      >
+        <ArrowLeftRight className="size-4" />
+        {tSwap("openCta")}
       </Button>
 
       <Button variant="ghost" size="block" className="mt-2" onClick={() => setView("settings")}>

@@ -58,6 +58,16 @@ export interface AnalyticsTemplate {
   averageScore: number | null;
 }
 
+export interface AnalyticsPost {
+  locationId: string;
+  locationName: string;
+  slotIndex: number;
+  stationLabel: string | null;
+  shiftsTotal: number;
+  shiftsWithViolations: number;
+  averageScore: number | null;
+}
+
 export interface AnalyticsCriticality {
   criticality: "critical" | "required" | "optional" | string;
   tasksTotal: number;
@@ -91,6 +101,7 @@ export interface AnalyticsDensity {
   heatmap: DensityFlag;
   violators: DensityFlag;
   templates: DensityFlag;
+  posts: DensityFlag;
 }
 
 export interface AnalyticsOverview {
@@ -102,6 +113,7 @@ export interface AnalyticsOverview {
   topViolators: AnalyticsViolator[];
   locations: AnalyticsLocation[];
   templates: AnalyticsTemplate[];
+  posts: AnalyticsPost[];
   criticality: AnalyticsCriticality[];
   antifake: AnalyticsAntifake | null;
   slaLateStart: AnalyticsSla | null;
@@ -151,6 +163,16 @@ interface TemplateDTO {
   average_score: number | null;
 }
 
+interface PostDTO {
+  location_id: string;
+  location_name: string;
+  slot_index: number;
+  station_label: string | null;
+  shifts_total: number;
+  shifts_with_violations: number;
+  average_score: number | null;
+}
+
 interface CriticalityDTO {
   criticality: string;
   tasks_total: number;
@@ -184,6 +206,7 @@ interface DensityDTO {
   heatmap: DensityFlag;
   violators: DensityFlag;
   templates: DensityFlag;
+  posts?: DensityFlag;
 }
 
 interface OverviewDTO {
@@ -196,6 +219,7 @@ interface OverviewDTO {
   locations?: LocationDTO[];
   /** v2 fields — absent on older `/overview` responses. */
   templates?: TemplateDTO[];
+  posts?: PostDTO[];
   criticality?: CriticalityDTO[];
   antifake: AntifakeDTO | null;
   sla_late_start: SlaDTO | null;
@@ -222,6 +246,7 @@ function overviewFromDto(dto: OverviewDTO): AnalyticsOverview {
   const topViolators = dto.top_violators ?? [];
   const locations = dto.locations ?? [];
   const templates = dto.templates ?? [];
+  const posts = dto.posts ?? [];
   const criticality = dto.criticality ?? [];
 
   return {
@@ -256,6 +281,15 @@ function overviewFromDto(dto: OverviewDTO): AnalyticsOverview {
       shiftsTotal: t.shifts_total,
       shiftsWithViolations: t.shifts_with_violations,
       averageScore: t.average_score,
+    })),
+    posts: posts.map((p) => ({
+      locationId: p.location_id,
+      locationName: p.location_name,
+      slotIndex: p.slot_index,
+      stationLabel: p.station_label,
+      shiftsTotal: p.shifts_total,
+      shiftsWithViolations: p.shifts_with_violations,
+      averageScore: p.average_score,
     })),
     criticality: criticality.map((c) => ({
       criticality: c.criticality,
@@ -293,6 +327,7 @@ function overviewFromDto(dto: OverviewDTO): AnalyticsOverview {
           heatmap: dto.density.heatmap,
           violators: dto.density.violators,
           templates: dto.density.templates,
+          posts: dto.density.posts ?? "ok",
         }
       : null,
     previous: dto.previous ? overviewFromDto(dto.previous) : null,

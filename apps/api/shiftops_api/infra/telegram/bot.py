@@ -254,6 +254,45 @@ async def handle_start(message: Message) -> None:
             await _push_slash_menu(message, joined[1] if joined else None)
             return
 
+        if payload.startswith("swap_req_"):
+            raw = payload.removeprefix("swap_req_").strip()
+            try:
+                swap_shift_id = uuid.UUID(raw)
+            except ValueError:
+                await message.answer("Ссылка на обмен повреждена.")
+                return
+            web_base = (get_settings().web_public_url or "").strip().rstrip("/")
+            if not _is_valid_telegram_web_app_url(web_base):
+                await message.answer(
+                    "Не задан корректный HTTPS URL мини-приложения. Обратитесь к администратору."
+                )
+                return
+            deep_url = f"{web_base}/?swap_proposer_shift={swap_shift_id}"
+            swap_kb = ReplyKeyboardMarkup(
+                keyboard=[
+                    [
+                        KeyboardButton(
+                            text="Открыть обмен (ShiftOps)",
+                            web_app=WebAppInfo(url=deep_url),
+                        )
+                    ]
+                ],
+                resize_keyboard=True,
+            )
+            if existing is None:
+                await message.answer(
+                    "🔗 <b>Обмен сменами</b>\n\n"
+                    "Чтобы ответить на запрос, сначала примите приглашение в ShiftOps от администратора, "
+                    "затем снова откройте эту ссылку из чата.",
+                )
+                return
+            await message.answer(
+                "🔗 Коллега предлагает обменяться сменой. Откройте приложение — выберите свою "
+                "запланированную смену и отправьте запрос.",
+                reply_markup=swap_kb,
+            )
+            return
+
         if existing is None:
             web_app_url = get_settings().web_public_url
             await _push_slash_menu(message, None)

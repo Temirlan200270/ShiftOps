@@ -42,6 +42,25 @@ export interface ActiveShift {
   progressCriticalPending: number;
 }
 
+export type VacantRiskKind = "overdue" | "unclaimed_started" | "ending_soon";
+
+export interface VacantAtRiskShift {
+  shiftId: string;
+  locationId: string;
+  locationName: string;
+  templateName: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+  stationLabel: string | null;
+  slotIndex: number;
+  kind: VacantRiskKind;
+}
+
+export interface MonitorSnapshot {
+  active: ActiveShift[];
+  vacantAtRisk: VacantAtRiskShift[];
+}
+
 interface ActiveShiftDTO {
   shift_id: string;
   location_id: string;
@@ -57,27 +76,68 @@ interface ActiveShiftDTO {
   progress_critical_pending: number;
 }
 
-export async function fetchActiveShifts(): Promise<ApiResult<ActiveShift[]>> {
-  const result = await api.get<ActiveShiftDTO[]>("/v1/realtime/active-shifts");
+interface VacantAtRiskDTO {
+  shift_id: string;
+  location_id: string;
+  location_name: string;
+  template_name: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  station_label: string | null;
+  slot_index: number;
+  kind: VacantRiskKind;
+}
+
+interface MonitorSnapshotDTO {
+  active: ActiveShiftDTO[];
+  vacant_at_risk: VacantAtRiskDTO[];
+}
+
+function mapActive(dto: ActiveShiftDTO): ActiveShift {
+  return {
+    shiftId: dto.shift_id,
+    locationId: dto.location_id,
+    locationName: dto.location_name,
+    templateName: dto.template_name,
+    operatorId: dto.operator_id,
+    operatorName: dto.operator_name,
+    scheduledStart: dto.scheduled_start,
+    scheduledEnd: dto.scheduled_end,
+    actualStart: dto.actual_start,
+    progressTotal: dto.progress_total,
+    progressDone: dto.progress_done,
+    progressCriticalPending: dto.progress_critical_pending,
+  };
+}
+
+export async function fetchMonitorSnapshot(): Promise<ApiResult<MonitorSnapshot>> {
+  const result = await api.get<MonitorSnapshotDTO>("/v1/realtime/monitor-snapshot");
   if (!result.ok) return result;
   return {
     ok: true,
     status: result.status,
-    data: result.data.map((dto) => ({
-      shiftId: dto.shift_id,
-      locationId: dto.location_id,
-      locationName: dto.location_name,
-      templateName: dto.template_name,
-      operatorId: dto.operator_id,
-      operatorName: dto.operator_name,
-      scheduledStart: dto.scheduled_start,
-      scheduledEnd: dto.scheduled_end,
-      actualStart: dto.actual_start,
-      progressTotal: dto.progress_total,
-      progressDone: dto.progress_done,
-      progressCriticalPending: dto.progress_critical_pending,
-    })),
+    data: {
+      active: result.data.active.map(mapActive),
+      vacantAtRisk: result.data.vacant_at_risk.map((v) => ({
+        shiftId: v.shift_id,
+        locationId: v.location_id,
+        locationName: v.location_name,
+        templateName: v.template_name,
+        scheduledStart: v.scheduled_start,
+        scheduledEnd: v.scheduled_end,
+        stationLabel: v.station_label,
+        slotIndex: v.slot_index,
+        kind: v.kind,
+      })),
+    },
   };
+}
+
+/** @deprecated Prefer fetchMonitorSnapshot — kept for older callers. */
+export async function fetchActiveShifts(): Promise<ApiResult<ActiveShift[]>> {
+  const snap = await fetchMonitorSnapshot();
+  if (!snap.ok) return snap;
+  return { ok: true, status: snap.status, data: snap.data.active };
 }
 
 // All event payloads we care about on the wire. The server can always

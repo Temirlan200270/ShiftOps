@@ -21,6 +21,8 @@
     "claimCta": "Take this shift",
     "slotHint": "{location} · {template}",
     "stationLabel": "Post: {label}",
+    "operatorOnShift": "Operator: {name}",
+    "slotIndexShort": "Slot {index}",
     "shiftStatus": {
       "scheduled": "Starting soon",
       "active": "Active shift",
@@ -71,7 +73,10 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "biometricReason": "Confirm closing the shift",
-    "biometricCancelled": "Shift not closed — biometric was cancelled"
+    "biometricCancelled": "Shift not closed — biometric was cancelled",
+    "delayReasonLabel": "Reason for delay (overtime)",
+    "delayReasonPlaceholder": "e.g. late handover from the morning shift",
+    "delayReasonHint": "Planned end time has passed — add a short note for the manager."
   },
   "summary": {
     "title": "Shift report",
@@ -273,7 +278,67 @@
     "filterDateChip": "{from} – {to}",
     "clearFilters": "Clear filters",
     "handoverCta": "Handover summary",
-    "handoverTitle": "Shift handover"
+    "handoverTitle": "Shift handover",
+    "postMeta": "{label} · slot {index}",
+    "postMetaNoLabel": "Slot {index}",
+    "delayReason": "Delay: {reason}",
+    "filterPostSlot": "Post filter",
+    "filterSlotIndex": "Slot #",
+    "filterStationLabel": "Station name",
+    "applyPostFilter": "Apply",
+    "clearPostFilter": "Clear post filter",
+    "filterPostChipSlot": "Slot {index}",
+    "filterPostChipStation": "Station: {name}",
+    "filterPostChipNoLabel": "Unlabeled post",
+    "invalidSlotNumber": "Enter a valid slot number (0 or greater)."
+  },
+  "swap": {
+    "openCta": "Shift swap requests",
+    "title": "Swap shifts",
+    "subtitle": "Exchange scheduled shifts with a colleague.",
+    "back": "Back",
+    "newRequest": "New request",
+    "myShiftLabel": "Your scheduled shift",
+    "counterpartyShiftLabel": "Colleague's shift ID",
+    "counterpartyShiftHint": "Ask them to copy the shift ID from their app (scheduled shift).",
+    "messageLabel": "Message (optional)",
+    "submit": "Send request",
+    "submitting": "Sending…",
+    "noScheduled": "You have no scheduled shifts to offer.",
+    "incoming": "Incoming",
+    "outgoing": "Outgoing",
+    "emptyIncoming": "No incoming requests.",
+    "emptyOutgoing": "No outgoing requests.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Cancel",
+    "invalidUuid": "Colleague's shift ID must be a valid UUID.",
+    "created": "Swap request sent",
+    "resolved": "Updated",
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "rowHint": "{from} → {to}",
+    "shiftsPair": "Your shift {mine} · Their shift {theirs}",
+    "deepLinkTitle": "Respond to swap invite",
+    "deepLinkLoading": "Loading invite…",
+    "deepLinkProposer": "From",
+    "deepLinkInvalid": "This invite is invalid or no longer available.",
+    "yourShiftToOffer": "Your shift to exchange",
+    "pickShiftPlaceholder": "Choose your shift…",
+    "submitDeepLink": "Send swap request",
+    "noScheduledForCounterparty": "You have no scheduled shifts. Ask your admin to assign one.",
+    "slotShort": "Slot {index}",
+    "shareInviteCta": "Share invite link",
+    "shareInviteHint": "Opens Telegram so you can forward the link to a colleague — no copy-paste.",
+    "shareNoBot": "Bot username is not configured (NEXT_PUBLIC_TG_BOT_USERNAME).",
+    "shareTitle": "Shift swap invite",
+    "shareCopiedOrShared": "Link shared or copied",
+    "shareFailed": "Could not share or copy the link"
   },
   "templates": {
     "openManageCta": "Manage templates",
@@ -447,6 +512,15 @@
       "shifts": "{count, plural, one {# shift} other {# shifts}}",
       "violationsRate": "{rate}% with violations"
     },
+    "posts": {
+      "title": "By post (station)",
+      "help": "Closed shifts grouped by location, slot index, and station label. Tap a row to open history with the same date range. If a post was renamed in the template, older shifts may still show the previous label as a separate row.",
+      "empty": "No post-level rows in range.",
+      "line": "{label} · slot {index}",
+      "slotOnly": "Slot {index}",
+      "shifts": "{count, plural, one {# shift} other {# shifts}}",
+      "violationsRate": "{rate}% with violations"
+    },
     "criticality": {
       "title": "By task criticality",
       "help": "Critical tasks hard-block close, so any miss here is a process gap.",
@@ -489,7 +563,8 @@
       "kpis": "Few closed shifts — KPIs may swing wildly.",
       "heatmap": "Heatmap is sparse. With more shifts the pattern stabilises.",
       "violators": "Few operators with enough shifts to rank.",
-      "templates": "Only a couple of templates — comparison may be unfair."
+      "templates": "Only a couple of templates — comparison may be unfair.",
+      "posts": "Few posts or few shifts per post — averages may be unstable."
     },
     "loading": "Loading analytics…",
     "empty": "No closed shifts in this range.",
@@ -568,6 +643,13 @@
     "statusOffline": "Offline",
     "empty": "No active shifts right now.",
     "emptyHint": "When operators start shifts, they appear here in real time.",
+    "vacantTitle": "Unclaimed slots (at risk)",
+    "vacantSubtitle": "Scheduled but no operator — overdue, shift window started, or ending soon.",
+    "vacantKind": {
+      "overdue": "Past scheduled end — still unclaimed",
+      "unclaimed_started": "Shift window started — not claimed",
+      "ending_soon": "Ending soon — not claimed"
+    },
     "criticalLeft": "{count, plural, one {# critical pending} other {# critical pending}}",
     "lastEventAt": "Last update {time}",
     "events": {

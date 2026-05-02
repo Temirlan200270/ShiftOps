@@ -10,6 +10,7 @@ erDiagram
     organizations ||--o{ users : has
     organizations ||--o{ templates : has
     organizations ||--o{ audit_events : tracks
+    organizations ||--o{ shift_swap_requests : has
     locations ||--o{ shifts : runs
     templates ||--o{ template_tasks : contains
     shifts ||--o{ task_instances : generates
@@ -87,6 +88,19 @@ erDiagram
         text status
         numeric score
         text close_notes
+        text delay_reason "optional overtime / delay note on close"
+    }
+    shift_swap_requests {
+        uuid id PK
+        uuid organization_id FK
+        uuid proposer_user_id FK
+        uuid counterparty_user_id FK
+        uuid proposer_shift_id FK
+        uuid counterparty_shift_id FK
+        text status
+        text message
+        timestamptz created_at
+        timestamptz resolved_at
     }
     task_instances {
         uuid id PK
@@ -214,6 +228,9 @@ JSONB с графиком работы заведения для справки 
 - `attachments (task_instance_id) where suspicious = true` — частичный
   индекс под админские запросы.
 - `audit_events (organization_id, created_at desc)`.
+- `shift_swap_requests (organization_id)`, входящие запросы по
+  `(counterparty_user_id, status)`, уникальность активных `pending` на
+  пару смен — см. миграцию (partial unique indexes).
 
 ## Row-Level Security
 

@@ -62,3 +62,4 @@ class Shift(UuidPkMixin, TimestampMixin, Base):
     )
     close_notes: Mapped[str | None] = mapped_column(Text)
     handover_summary: Mapped[str | None] = mapped_column(Text)
+    delay_reason: Mapped[str | None] = mapped_column(Text)

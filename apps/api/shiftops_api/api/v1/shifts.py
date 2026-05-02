@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -21,9 +21,18 @@ from shiftops_api.application.shifts.list_history import (
     MAX_PAGE_SIZE,
     ListHistoryUseCase,
 )
+from shiftops_api.application.shifts.list_my_scheduled import ListMyScheduledShiftsUseCase
 from shiftops_api.application.shifts.list_my_shift import ListMyShiftUseCase
 from shiftops_api.application.shifts.request_waiver import RequestWaiverUseCase
 from shiftops_api.application.shifts.start_shift import StartShiftUseCase
+from shiftops_api.application.shifts.swap_link_preview import SwapLinkPreviewUseCase
+from shiftops_api.application.shifts.swap_shift_requests import (
+    AcceptSwapShiftRequestUseCase,
+    CancelSwapShiftRequestUseCase,
+    CreateSwapShiftRequestUseCase,
+    DeclineSwapShiftRequestUseCase,
+    ListSwapShiftRequestsUseCase,
+)
 from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import is_line_staff
 from shiftops_api.domain.result import Failure, Success
@@ -44,6 +53,9 @@ class ShiftSummary(BaseModel):
     scheduled_end: str
     actual_start: str | None
     actual_end: str | None
+    operator_full_name: str
+    slot_index: int
+    station_label: str | None = None
 
 
 class TaskCard(BaseModel):
@@ -94,6 +106,13 @@ class ScoreBreakdown(BaseModel):
     photo_quality: float
 
 
+class CloseShiftIn(BaseModel):
+    """Body for POST /shifts/{id}/close (optional — defaults match legacy query-only clients)."""
+
+    confirm_violations: bool = False
+    delay_reason: str | None = None
+
+
 class CloseShiftResponse(BaseModel):
     shift_id: UUID
     final_status: str
@@ -118,6 +137,9 @@ class HistoryRow(BaseModel):
     tasks_total: int
     tasks_done: int
     handover_summary: str | None = None
+    slot_index: int
+    station_label: str | None = None
+    delay_reason: str | None = None
 
 
 class HistoryResponse(BaseModel):
@@ -168,6 +190,21 @@ async def list_history(
         date | None,
         Query(alias="to", description="Inclusive end date (UTC)."),
     ] = None,
+    slot_index: Annotated[
+        int | None,
+        Query(ge=0, description="Filter by slot index (multi-post templates)."),
+    ] = None,
+    station_label: Annotated[
+        str | None,
+        Query(max_length=64, description="Exact match on station_label."),
+    ] = None,
+    station_label_empty: Annotated[
+        bool,
+        Query(
+            description="When true, only shifts with no station_label (NULL). "
+            "Ignored when a non-empty station_label is sent.",
+        ),
+    ] = False,
     user: CurrentUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> HistoryResponse:
@@ -194,6 +231,9 @@ async def list_history(
         location_id=location_id,
         date_from=rf_dt,
         date_to=rt_dt,
+        slot_index=slot_index,
+        station_label=station_label.strip() if station_label else None,
+        station_label_empty=station_label_empty and not (station_label and station_label.strip()),
     )
     if isinstance(result, Failure):
         if result.error.code == "forbidden":
@@ -226,6 +266,9 @@ async def list_history(
                 tasks_total=row.tasks_total,
                 tasks_done=row.tasks_done,
                 handover_summary=row.handover_summary,
+                slot_index=row.slot_index,
+                station_label=row.station_label,
+                delay_reason=row.delay_reason,
             )
             for row in page.items
         ],
@@ -399,7 +442,7 @@ async def request_waiver(
 @router.post("/{shift_id}/close", response_model=CloseShiftResponse)
 async def close_shift(
     shift_id: UUID,
-    confirm_violations: bool = False,
+    body: CloseShiftIn = Body(default_factory=CloseShiftIn),
     user: CurrentUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> CloseShiftResponse:
@@ -407,9 +450,15 @@ async def close_shift(
     result = await use_case.execute(
         shift_id=shift_id,
         user=user,
-        confirm_violations=confirm_violations,
+        confirm_violations=body.confirm_violations,
+        delay_reason=body.delay_reason,
     )
     if isinstance(result, Failure):
+        if result.error.code == "delay_reason_too_long":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error.code,
+            )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result.error.code)
     assert isinstance(result, Success)
     closed = result.value
@@ -427,3 +476,180 @@ async def close_shift(
         missed_required=closed.missed_required,
         missed_critical=closed.missed_critical,
     )
+
+
+class MyScheduledShiftOut(BaseModel):
+    id: UUID
+    template_name: str
+    location_name: str
+    scheduled_start: str
+    scheduled_end: str
+    station_label: str | None
+    slot_index: int
+
+
+@router.get("/my-scheduled", response_model=list[MyScheduledShiftOut])
+async def my_scheduled_shifts(
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[MyScheduledShiftOut]:
+    use_case = ListMyScheduledShiftsUseCase(session=session)
+    result = await use_case.execute(user=user)
+    assert isinstance(result, Success)
+    return [
+        MyScheduledShiftOut(
+            id=row.id,
+            template_name=row.template_name,
+            location_name=row.location_name,
+            scheduled_start=row.scheduled_start.isoformat(),
+            scheduled_end=row.scheduled_end.isoformat(),
+            station_label=row.station_label,
+            slot_index=row.slot_index,
+        )
+        for row in result.value
+    ]
+
+
+class SwapLinkPreviewOut(BaseModel):
+    shift_id: UUID
+    template_name: str
+    location_name: str
+    scheduled_start: str
+    scheduled_end: str
+    station_label: str | None
+    slot_index: int
+    proposer_user_id: UUID
+    proposer_full_name: str
+
+
+@router.get(
+    "/{shift_id}/swap-link-preview",
+    response_model=SwapLinkPreviewOut,
+    summary="Context for a swap invite deep link (proposer shift)",
+)
+async def swap_link_preview(
+    shift_id: UUID,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> SwapLinkPreviewOut:
+    use_case = SwapLinkPreviewUseCase(session=session)
+    result = await use_case.execute(user=user, proposer_shift_id=shift_id)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+    assert isinstance(result, Success)
+    p = result.value
+    return SwapLinkPreviewOut(
+        shift_id=p.shift_id,
+        template_name=p.template_name,
+        location_name=p.location_name,
+        scheduled_start=p.scheduled_start,
+        scheduled_end=p.scheduled_end,
+        station_label=p.station_label,
+        slot_index=p.slot_index,
+        proposer_user_id=p.proposer_user_id,
+        proposer_full_name=p.proposer_full_name,
+    )
+
+
+class SwapRequestCreateIn(BaseModel):
+    proposer_shift_id: UUID
+    counterparty_shift_id: UUID
+    message: str | None = None
+
+
+class SwapRequestOut(BaseModel):
+    id: UUID
+    status: str
+    message: str | None
+    created_at: str
+    resolved_at: str | None
+    proposer_user_id: UUID
+    proposer_name: str
+    counterparty_user_id: UUID
+    counterparty_name: str
+    proposer_shift_id: UUID
+    counterparty_shift_id: UUID
+
+
+@router.post("/swap-requests", response_model=dict[str, UUID])
+async def create_swap_request(
+    body: SwapRequestCreateIn,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, UUID]:
+    use_case = CreateSwapShiftRequestUseCase(session=session)
+    result = await use_case.execute(
+        user=user,
+        proposer_shift_id=body.proposer_shift_id,
+        counterparty_shift_id=body.counterparty_shift_id,
+        message=body.message,
+    )
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+    assert isinstance(result, Success)
+    return {"id": result.value}
+
+
+@router.get("/swap-requests", response_model=list[SwapRequestOut])
+async def list_swap_requests(
+    direction: Annotated[Literal["in", "out"], Query()],
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[SwapRequestOut]:
+    use_case = ListSwapShiftRequestsUseCase(session=session)
+    result = await use_case.execute(user=user, direction=direction)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+    assert isinstance(result, Success)
+    return [
+        SwapRequestOut(
+            id=r.id,
+            status=r.status,
+            message=r.message,
+            created_at=r.created_at.isoformat(),
+            resolved_at=r.resolved_at.isoformat() if r.resolved_at else None,
+            proposer_user_id=r.proposer_user_id,
+            proposer_name=r.proposer_name,
+            counterparty_user_id=r.counterparty_user_id,
+            counterparty_name=r.counterparty_name,
+            proposer_shift_id=r.proposer_shift_id,
+            counterparty_shift_id=r.counterparty_shift_id,
+        )
+        for r in result.value
+    ]
+
+
+@router.post("/swap-requests/{request_id}/accept", status_code=status.HTTP_204_NO_CONTENT)
+async def accept_swap_request(
+    request_id: UUID,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    use_case = AcceptSwapShiftRequestUseCase(session=session)
+    result = await use_case.execute(user=user, request_id=request_id)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+
+
+@router.post("/swap-requests/{request_id}/decline", status_code=status.HTTP_204_NO_CONTENT)
+async def decline_swap_request(
+    request_id: UUID,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    use_case = DeclineSwapShiftRequestUseCase(session=session)
+    result = await use_case.execute(user=user, request_id=request_id)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+
+
+@router.delete("/swap-requests/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_swap_request(
+    request_id: UUID,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    use_case = CancelSwapShiftRequestUseCase(session=session)
+    result = await use_case.execute(user=user, request_id=request_id)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)

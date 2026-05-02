@@ -33,6 +33,8 @@ from shiftops_api.domain.score import (
 )
 from shiftops_api.infra.db.models import Attachment, Shift, TaskInstance, TemplateTask
 
+_MAX_DELAY_REASON_LEN = 500
+
 
 @dataclass(frozen=True, slots=True)
 class ClosedShift:
@@ -55,6 +57,7 @@ class CloseShiftUseCase:
         shift_id: uuid.UUID,
         user: CurrentUser,
         confirm_violations: bool,
+        delay_reason: str | None = None,
     ) -> Result[ClosedShift, DomainError]:
         shift = (
             await self._session.execute(select(Shift).where(Shift.id == shift_id))
@@ -70,6 +73,13 @@ class CloseShiftUseCase:
 
         if shift.status != ShiftStatus.ACTIVE:
             return Failure(DomainError("shift_not_active"))
+
+        normalized_delay: str | None = None
+        if delay_reason is not None:
+            stripped = delay_reason.strip()
+            if len(stripped) > _MAX_DELAY_REASON_LEN:
+                return Failure(DomainError("delay_reason_too_long"))
+            normalized_delay = stripped or None
 
         rows = (
             await self._session.execute(
@@ -168,6 +178,7 @@ class CloseShiftUseCase:
         # Persist *which* formula scored this shift. Future formula tweaks
         # never silently restate past scores — see docs/SCORE_FORMULA.md.
         shift.score_formula_version = score_result.formula_version
+        shift.delay_reason = normalized_delay
         shift.handover_summary = _build_handover_summary(
             template_task_rows=rows,
             required_missed=required_missed,
@@ -197,6 +208,7 @@ class CloseShiftUseCase:
                 },
                 "formula_version": score_result.formula_version,
                 "required_missed": [str(t) for t in required_missed],
+                **({"delay_reason": normalized_delay} if normalized_delay else {}),
             },
         )
         await self._session.commit()

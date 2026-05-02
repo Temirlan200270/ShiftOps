@@ -67,4 +67,8 @@ export interface ShiftSummary {
   scoreBreakdown: ScoreBreakdown | null;
   formulaVersion: number | null;
   tasks: TaskCard[];
+  /** Operator on the shift (from server; same as current user for /me). */
+  operatorFullName: string;
+  slotIndex: number;
+  stationLabel: string | null;
 }

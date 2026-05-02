@@ -31,12 +31,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
+from typing import Literal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketState
 
 from shiftops_api.application.auth.deps import CurrentUser, require_role
-from shiftops_api.application.monitor.active_shifts import ListActiveShiftsUseCase
+from shiftops_api.application.monitor.active_shifts import (
+    ActiveShiftDTO,
+    ListActiveShiftsUseCase,
+)
+from shiftops_api.application.monitor.vacant_at_risk_shifts import ListVacantAtRiskShiftsUseCase
 from shiftops_api.domain.enums import UserRole
 from shiftops_api.domain.result import Failure, Success
 from shiftops_api.infra.auth.jwt_service import JwtError, JwtService
@@ -64,19 +69,24 @@ class ActiveShiftOut(BaseModel):
     progress_critical_pending: int
 
 
-@router.get("/active-shifts", response_model=list[ActiveShiftOut])
-async def list_active_shifts(
-    user: CurrentUser = Depends(_admin_or_owner),
-    session: AsyncSession = Depends(get_session),
-) -> list[ActiveShiftOut]:
-    use_case = ListActiveShiftsUseCase(session=session)
-    result = await use_case.execute(user=user)
-    if isinstance(result, Failure):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=result.error.code,
-        )
-    assert isinstance(result, Success)
+class VacantAtRiskOut(BaseModel):
+    shift_id: UUID
+    location_id: UUID
+    location_name: str
+    template_name: str
+    scheduled_start: str
+    scheduled_end: str
+    station_label: str | None
+    slot_index: int
+    kind: Literal["overdue", "unclaimed_started", "ending_soon"]
+
+
+class MonitorSnapshotOut(BaseModel):
+    active: list[ActiveShiftOut]
+    vacant_at_risk: list[VacantAtRiskOut]
+
+
+def _map_active_rows(rows: list[ActiveShiftDTO]) -> list[ActiveShiftOut]:
     return [
         ActiveShiftOut(
             shift_id=row.shift_id,
@@ -92,8 +102,61 @@ async def list_active_shifts(
             progress_done=row.progress_done,
             progress_critical_pending=row.progress_critical_pending,
         )
-        for row in result.value
+        for row in rows
     ]
+
+
+@router.get("/monitor-snapshot", response_model=MonitorSnapshotOut)
+async def monitor_snapshot(
+    user: CurrentUser = Depends(_admin_or_owner),
+    session: AsyncSession = Depends(get_session),
+) -> MonitorSnapshotOut:
+    active_uc = ListActiveShiftsUseCase(session=session)
+    vacant_uc = ListVacantAtRiskShiftsUseCase(session=session)
+    a = await active_uc.execute(user=user)
+    v = await vacant_uc.execute(user=user)
+    if isinstance(a, Failure):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=a.error.code,
+        )
+    if isinstance(v, Failure):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=v.error.code,
+        )
+    assert isinstance(a, Success) and isinstance(v, Success)
+    vacant_out = [
+        VacantAtRiskOut(
+            shift_id=row.shift_id,
+            location_id=row.location_id,
+            location_name=row.location_name,
+            template_name=row.template_name,
+            scheduled_start=row.scheduled_start.isoformat(),
+            scheduled_end=row.scheduled_end.isoformat(),
+            station_label=row.station_label,
+            slot_index=row.slot_index,
+            kind=row.kind,
+        )
+        for row in v.value
+    ]
+    return MonitorSnapshotOut(active=_map_active_rows(a.value), vacant_at_risk=vacant_out)
+
+
+@router.get("/active-shifts", response_model=list[ActiveShiftOut])
+async def list_active_shifts(
+    user: CurrentUser = Depends(_admin_or_owner),
+    session: AsyncSession = Depends(get_session),
+) -> list[ActiveShiftOut]:
+    use_case = ListActiveShiftsUseCase(session=session)
+    result = await use_case.execute(user=user)
+    if isinstance(result, Failure):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=result.error.code,
+        )
+    assert isinstance(result, Success)
+    return _map_active_rows(result.value)
 
 
 _log = logging.getLogger(__name__)

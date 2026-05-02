@@ -31,6 +31,10 @@ export interface HistoryFilters {
   from?: string | null;
   /** ISO date YYYY-MM-DD. */
   to?: string | null;
+  slotIndex?: number | null;
+  stationLabel?: string | null;
+  /** Only shifts with NULL station_label (e.g. drill-down from analytics). */
+  stationLabelEmpty?: boolean;
 }
 
 interface HistoryScreenProps {
@@ -132,6 +136,16 @@ function HistoryRow({
               {new Date(item.scheduledStart).toLocaleDateString()} ·{" "}
               {tDash(`shiftStatus.${item.status}`)}
             </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {item.stationLabel
+                ? tHist("postMeta", { label: item.stationLabel, index: item.slotIndex })
+                : tHist("postMetaNoLabel", { index: item.slotIndex })}
+            </p>
+            {item.delayReason ? (
+              <p className="text-[11px] text-warning mt-0.5 line-clamp-2">
+                {tHist("delayReason", { reason: item.delayReason })}
+              </p>
+            ) : null}
           </div>
           <div className="text-right shrink-0">
             <p className={`text-lg font-semibold tabular-nums ${scoreColor(item.score)}`}>
@@ -148,7 +162,7 @@ function HistoryRow({
           )}
         </CardContent>
       </button>
-      {expanded && item.breakdown ? (
+      {expanded && (item.breakdown || item.handoverSummary) ? (
         <CardContent className="px-4 pb-4 pt-0 border-t border-border/60">
           {item.handoverSummary ? (
             <div className="mt-3">
@@ -157,25 +171,27 @@ function HistoryRow({
               </Button>
             </div>
           ) : null}
-          <ul className="space-y-2 mt-3">
-            {(Object.keys(SCORE_WEIGHTS) as Array<keyof ScoreBreakdown>).map((key) => {
-              const ratio = item.breakdown![key];
-              const points = Math.round(ratio * SCORE_WEIGHTS[key] * 100) / 100;
-              return (
-                <li key={key}>
-                  <div className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="text-muted-foreground">
-                      {tSum(`components.${key}`)}
-                    </span>
-                    <span className="tabular-nums">
-                      {points.toFixed(1)} / {SCORE_WEIGHTS[key]}
-                    </span>
-                  </div>
-                  <Progress value={ratio * 100} className="h-1 mt-1" />
-                </li>
-              );
-            })}
-          </ul>
+          {item.breakdown ? (
+            <ul className="space-y-2 mt-3">
+              {(Object.keys(SCORE_WEIGHTS) as Array<keyof ScoreBreakdown>).map((key) => {
+                const ratio = item.breakdown![key];
+                const points = Math.round(ratio * SCORE_WEIGHTS[key] * 100) / 100;
+                return (
+                  <li key={key}>
+                    <div className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">
+                        {tSum(`components.${key}`)}
+                      </span>
+                      <span className="tabular-nums">
+                        {points.toFixed(1)} / {SCORE_WEIGHTS[key]}
+                      </span>
+                    </div>
+                    <Progress value={ratio * 100} className="h-1 mt-1" />
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </CardContent>
       ) : null}
     </Card>
@@ -197,6 +213,12 @@ export function HistoryScreen({
   const [handoverOpen, setHandoverOpen] = React.useState(false);
   const [handoverText, setHandoverText] = React.useState<string | null>(null);
 
+  const [slotFilterDraft, setSlotFilterDraft] = React.useState("");
+  const [stationFilterDraft, setStationFilterDraft] = React.useState("");
+  const [postSlotIndex, setPostSlotIndex] = React.useState<number | null>(null);
+  const [postStationLabel, setPostStationLabel] = React.useState<string | null>(null);
+  const [postStationLabelEmpty, setPostStationLabelEmpty] = React.useState(false);
+
   // Snapshot the filter values into stable primitives so the effect
   // dependency array doesn't re-run on every parent render (an inline
   // object identity changes each time even when the values don't).
@@ -204,9 +226,60 @@ export function HistoryScreen({
   const filterLocationId = filters?.locationId ?? null;
   const filterFrom = filters?.from ?? null;
   const filterTo = filters?.to ?? null;
+  const postFilterActive =
+    postSlotIndex !== null || postStationLabel !== null || postStationLabelEmpty;
   const filtersActive = Boolean(
-    filterUserId ?? filterLocationId ?? filterFrom ?? filterTo,
+    filterUserId ?? filterLocationId ?? filterFrom ?? filterTo ?? postFilterActive,
   );
+
+  const applyPostFilter = React.useCallback(() => {
+    const raw = slotFilterDraft.trim();
+    let slot: number | null = null;
+    if (raw !== "") {
+      const n = parseInt(raw, 10);
+      if (Number.isNaN(n) || n < 0) {
+        toast({ variant: "critical", title: tHist("invalidSlotNumber") });
+        return;
+      }
+      slot = n;
+    }
+    const st = stationFilterDraft.trim();
+    setPostSlotIndex(slot);
+    setPostStationLabel(st === "" ? null : st);
+    setPostStationLabelEmpty(false);
+  }, [slotFilterDraft, stationFilterDraft, tHist]);
+
+  const clearPostFilter = React.useCallback(() => {
+    setSlotFilterDraft("");
+    setStationFilterDraft("");
+    setPostSlotIndex(null);
+    setPostStationLabel(null);
+    setPostStationLabelEmpty(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!filters) return;
+    const hasPostNav =
+      filters.slotIndex != null ||
+      filters.stationLabel !== undefined ||
+      filters.stationLabelEmpty === true;
+    if (!hasPostNav) return;
+    if (filters.slotIndex != null) {
+      setPostSlotIndex(filters.slotIndex);
+      setSlotFilterDraft(String(filters.slotIndex));
+    }
+    if (filters.stationLabelEmpty) {
+      setPostStationLabelEmpty(true);
+      setPostStationLabel(null);
+      setStationFilterDraft("");
+    } else {
+      setPostStationLabelEmpty(false);
+      if (filters.stationLabel !== undefined) {
+        setPostStationLabel(filters.stationLabel);
+        setStationFilterDraft(filters.stationLabel ?? "");
+      }
+    }
+  }, [filters]);
 
   const loadFirstPage = React.useCallback(async () => {
     setLoading(true);
@@ -215,6 +288,9 @@ export function HistoryScreen({
       locationId: filterLocationId,
       from: filterFrom,
       to: filterTo,
+      slotIndex: postSlotIndex ?? undefined,
+      stationLabel: postStationLabel ?? undefined,
+      stationLabelEmpty: postStationLabelEmpty ? true : undefined,
     });
     if (result.ok) {
       setPage(result.data);
@@ -226,7 +302,16 @@ export function HistoryScreen({
       });
     }
     setLoading(false);
-  }, [tErr, filterUserId, filterLocationId, filterFrom, filterTo]);
+  }, [
+    tErr,
+    filterUserId,
+    filterLocationId,
+    filterFrom,
+    filterTo,
+    postSlotIndex,
+    postStationLabel,
+    postStationLabelEmpty,
+  ]);
 
   const loadMore = React.useCallback(async () => {
     if (!page?.nextCursor || loadingMore) return;
@@ -237,6 +322,9 @@ export function HistoryScreen({
       locationId: filterLocationId,
       from: filterFrom,
       to: filterTo,
+      slotIndex: postSlotIndex ?? undefined,
+      stationLabel: postStationLabel ?? undefined,
+      stationLabelEmpty: postStationLabelEmpty ? true : undefined,
     });
     setLoadingMore(false);
     if (!result.ok) {
@@ -251,7 +339,18 @@ export function HistoryScreen({
       items: [...page.items, ...result.data.items],
       nextCursor: result.data.nextCursor,
     });
-  }, [page, loadingMore, tErr, filterUserId, filterLocationId, filterFrom, filterTo]);
+  }, [
+    page,
+    loadingMore,
+    tErr,
+    filterUserId,
+    filterLocationId,
+    filterFrom,
+    filterTo,
+    postSlotIndex,
+    postStationLabel,
+    postStationLabelEmpty,
+  ]);
 
   React.useEffect(() => {
     void loadFirstPage();
@@ -291,6 +390,35 @@ export function HistoryScreen({
         </div>
       </header>
 
+      <div className="mb-4 rounded-lg border border-border/60 bg-elevated/30 p-3 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">{tHist("filterPostSlot")}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="text"
+            inputMode="numeric"
+            className="w-full sm:flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
+            placeholder={tHist("filterSlotIndex")}
+            value={slotFilterDraft}
+            onChange={(e) => setSlotFilterDraft(e.target.value)}
+          />
+          <input
+            type="text"
+            className="w-full sm:flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
+            placeholder={tHist("filterStationLabel")}
+            value={stationFilterDraft}
+            onChange={(e) => setStationFilterDraft(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => void applyPostFilter()}>
+            {tHist("applyPostFilter")}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={clearPostFilter}>
+            {tHist("clearPostFilter")}
+          </Button>
+        </div>
+      </div>
+
       <Sheet open={handoverOpen} onOpenChange={setHandoverOpen}>
         <SheetTrigger asChild>
           <span hidden />
@@ -314,6 +442,15 @@ export function HistoryScreen({
             <FilterChip
               label={tHist("filterDateChip", { from: filterFrom, to: filterTo })}
             />
+          ) : null}
+          {postSlotIndex !== null ? (
+            <FilterChip label={tHist("filterPostChipSlot", { index: postSlotIndex })} />
+          ) : null}
+          {postStationLabelEmpty ? (
+            <FilterChip label={tHist("filterPostChipNoLabel")} />
+          ) : null}
+          {postStationLabel ? (
+            <FilterChip label={tHist("filterPostChipStation", { name: postStationLabel })} />
           ) : null}
           {onClearFilters ? (
             <button

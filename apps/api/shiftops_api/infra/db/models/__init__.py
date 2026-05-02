@@ -11,6 +11,7 @@ from .invite import Invite
 from .location import Location
 from .organization import Organization
 from .shift import Shift
+from .shift_swap_request import ShiftSwapRequest
 from .task_instance import TaskInstance
 from .telegram_account import TelegramAccount
 from .template import Template
@@ -24,6 +25,7 @@ __all__ = [
     "Location",
     "Organization",
     "Shift",
+    "ShiftSwapRequest",
     "TaskInstance",
     "TelegramAccount",
     "Template",

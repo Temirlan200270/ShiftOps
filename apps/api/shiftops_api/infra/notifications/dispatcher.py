@@ -21,18 +21,19 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shiftops_api.domain.enums import UserRole
+from shiftops_api.domain.enums import ShiftStatus, UserRole
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import (
     Attachment,
     Location,
     Shift,
+    ShiftSwapRequest,
     TaskInstance,
     TelegramAccount,
     Template,
@@ -215,6 +216,45 @@ async def dispatch_shift_opened(*, shift_id: uuid.UUID) -> None:
             location_id=str(location.id),
             template_id=str(template.id),
         ).inc()
+    finally:
+        await session.close()
+
+
+async def dispatch_vacant_before_start_alert(*, shift_id: uuid.UUID) -> None:
+    """Proactive ping: scheduled pool slot still has no operator shortly before open."""
+
+    session = _open_session()
+    try:
+        row = (
+            await session.execute(
+                select(Shift, Location, Template)
+                .join(Location, Location.id == Shift.location_id)
+                .join(Template, Template.id == Shift.template_id)
+                .where(Shift.id == shift_id)
+            )
+        ).first()
+        if row is None:
+            return
+        shift, location, template = row
+        if shift.operator_user_id is not None:
+            return
+        if shift.status != ShiftStatus.SCHEDULED.value:
+            return
+        now = datetime.now(tz=UTC)
+        if shift.scheduled_start <= now:
+            return
+        minutes_left = max(1, int((shift.scheduled_start - now).total_seconds() // 60))
+        post_label = (shift.station_label and shift.station_label.strip()) or f"слот {shift.slot_index}"
+        text = (
+            f"⚠️ Внимание! Пост [{post_label}] всё ещё свободен! Старт через {minutes_left} мин\n"
+            f"«{template.name}» · {location.name}"
+        )
+        admin_chat_id = location.tg_admin_chat_id
+        if admin_chat_id:
+            await send_telegram_message.kiq(admin_chat_id, text)
+        owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
+        for owner_chat in owner_chats:
+            await send_telegram_message.kiq(owner_chat, text)
     finally:
         await session.close()
 
@@ -553,5 +593,47 @@ async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> No
                 await send_telegram_media_group.kiq(admin_chat_id, media)
             for owner_chat in owner_chats:
                 await send_telegram_media_group.kiq(owner_chat, media)
+    finally:
+        await session.close()
+
+
+async def dispatch_swap_request_created(*, request_id: uuid.UUID) -> None:
+    session = _open_session()
+    try:
+        req = await session.get(ShiftSwapRequest, request_id)
+        if req is None:
+            return
+        proposer = await session.get(User, req.proposer_user_id)
+        if proposer is None:
+            return
+        text = (
+            f"🔀 {proposer.full_name} предлагает обмен запланированными сменами. "
+            "Откройте ShiftOps (TWA) → «Запросы на обмен», чтобы принять или отклонить."
+        )
+        dm = await _resolve_operator_dm_id(session, req.counterparty_user_id)
+        if dm:
+            await send_telegram_message.kiq(dm, text)
+    finally:
+        await session.close()
+
+
+async def dispatch_swap_request_resolved(*, request_id: uuid.UUID, accepted: bool) -> None:
+    session = _open_session()
+    try:
+        req = await session.get(ShiftSwapRequest, request_id)
+        if req is None:
+            return
+        proposer = await session.get(User, req.proposer_user_id)
+        counterparty = await session.get(User, req.counterparty_user_id)
+        if proposer is None or counterparty is None:
+            return
+        if accepted:
+            body = f"✅ {counterparty.full_name} принял(а) обмен сменами с {proposer.full_name}."
+        else:
+            body = f"❌ {counterparty.full_name} отклонил(а) обмен сменами."
+        for uid in (req.proposer_user_id, req.counterparty_user_id):
+            dm = await _resolve_operator_dm_id(session, uid)
+            if dm:
+                await send_telegram_message.kiq(dm, body)
     finally:
         await session.close()

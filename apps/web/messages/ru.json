@@ -21,6 +21,8 @@
     "claimCta": "Взять смену",
     "slotHint": "{location} · {template}",
     "stationLabel": "Пост: {label}",
+    "operatorOnShift": "Оператор: {name}",
+    "slotIndexShort": "Слот {index}",
     "shiftStatus": {
       "scheduled": "Скоро начало",
       "active": "Смена активна",
@@ -71,7 +73,10 @@
     "confirm": "Подтвердить",
     "cancel": "Отмена",
     "biometricReason": "Подтвердите закрытие смены",
-    "biometricCancelled": "Без биометрии смена не закрыта"
+    "biometricCancelled": "Без биометрии смена не закрыта",
+    "delayReasonLabel": "Причина задержки (переработка)",
+    "delayReasonPlaceholder": "например, поздняя передача от утренней смены",
+    "delayReasonHint": "Плановое время окончания прошло — кратко опишите для руководителя."
   },
   "summary": {
     "title": "Отчёт смены",
@@ -273,7 +278,67 @@
     "filterDateChip": "{from} – {to}",
     "clearFilters": "Сбросить фильтры",
     "handoverCta": "Сводка (handover)",
-    "handoverTitle": "Сводка смены"
+    "handoverTitle": "Сводка смены",
+    "postMeta": "{label} · слот {index}",
+    "postMetaNoLabel": "Слот {index}",
+    "delayReason": "Задержка: {reason}",
+    "filterPostSlot": "Фильтр по посту",
+    "filterSlotIndex": "Слот №",
+    "filterStationLabel": "Название поста",
+    "applyPostFilter": "Применить",
+    "clearPostFilter": "Сбросить пост",
+    "filterPostChipSlot": "Слот {index}",
+    "filterPostChipStation": "Пост: {name}",
+    "filterPostChipNoLabel": "Пост без метки",
+    "invalidSlotNumber": "Укажите номер слота (целое число ≥ 0)."
+  },
+  "swap": {
+    "openCta": "Обмен сменами",
+    "title": "Обмен сменами",
+    "subtitle": "Поменяйтесь запланированными сменами с коллегой.",
+    "back": "Назад",
+    "newRequest": "Новый запрос",
+    "myShiftLabel": "Ваша запланированная смена",
+    "counterpartyShiftLabel": "ID смены коллеги",
+    "counterpartyShiftHint": "Попросите коллегу скопировать ID смены в приложении (запланированная смена).",
+    "messageLabel": "Сообщение (необязательно)",
+    "submit": "Отправить запрос",
+    "submitting": "Отправка…",
+    "noScheduled": "Нет запланированных смен для обмена.",
+    "incoming": "Входящие",
+    "outgoing": "Исходящие",
+    "emptyIncoming": "Входящих запросов нет.",
+    "emptyOutgoing": "Исходящих запросов нет.",
+    "accept": "Принять",
+    "decline": "Отклонить",
+    "cancel": "Отменить",
+    "invalidUuid": "ID смены коллеги должен быть корректным UUID.",
+    "created": "Запрос на обмен отправлен",
+    "resolved": "Обновлено",
+    "status": {
+      "pending": "Ожидает",
+      "accepted": "Принят",
+      "declined": "Отклонён",
+      "cancelled": "Отменён",
+      "expired": "Истёк"
+    },
+    "rowHint": "{from} → {to}",
+    "shiftsPair": "Ваша смена {mine} · Их смена {theirs}",
+    "deepLinkTitle": "Ответ на приглашение к обмену",
+    "deepLinkLoading": "Загрузка…",
+    "deepLinkProposer": "От",
+    "deepLinkInvalid": "Приглашение недействительно или устарело.",
+    "yourShiftToOffer": "Ваша смена для обмена",
+    "pickShiftPlaceholder": "Выберите смену…",
+    "submitDeepLink": "Отправить запрос на обмен",
+    "noScheduledForCounterparty": "Нет запланированных смен. Попросите администратора назначить слот.",
+    "slotShort": "Слот {index}",
+    "shareInviteCta": "Поделиться ссылкой-приглашением",
+    "shareInviteHint": "Откроется Telegram — перешлите ссылку коллеге, без копирования UUID.",
+    "shareNoBot": "Не задано имя бота (NEXT_PUBLIC_TG_BOT_USERNAME).",
+    "shareTitle": "Приглашение обменяться сменой",
+    "shareCopiedOrShared": "Ссылка отправлена или скопирована",
+    "shareFailed": "Не удалось поделиться или скопировать ссылку"
   },
   "templates": {
     "openManageCta": "Управление шаблонами",
@@ -447,6 +512,15 @@
       "shifts": "{count, plural, one {# смена} few {# смены} other {# смен}}",
       "violationsRate": "{rate}% с нарушениями"
     },
+    "posts": {
+      "title": "По постам",
+      "help": "Закрытые смены по локации, слоту и метке поста. Нажмите строку — откроется история с тем же периодом. Если пост переименовали в шаблоне, старые смены могут отображаться отдельной строкой со старым названием.",
+      "empty": "За период нет строк по постам.",
+      "line": "{label} · слот {index}",
+      "slotOnly": "Слот {index}",
+      "shifts": "{count, plural, one {# смена} few {# смены} other {# смен}}",
+      "violationsRate": "{rate}% с нарушениями"
+    },
     "criticality": {
       "title": "По критичности задач",
       "help": "Критические задачи блокируют закрытие смены — здесь промахи особенно важны.",
@@ -489,7 +563,8 @@
       "kpis": "Смен мало — KPI могут заметно колебаться.",
       "heatmap": "Тепловая карта разрежена. С большим объёмом картина устаканится.",
       "violators": "Слишком мало сотрудников с минимальным объёмом смен.",
-      "templates": "Шаблонов мало — сравнение пока неустойчиво."
+      "templates": "Шаблонов мало — сравнение пока неустойчиво.",
+      "posts": "Мало постов или мало смен на пост — средние могут быть неустойчивы."
     },
     "loading": "Загружаем аналитику…",
     "empty": "За этот период ещё нет закрытых смен.",
@@ -568,6 +643,13 @@
     "statusOffline": "Нет связи",
     "empty": "Сейчас активных смен нет.",
     "emptyHint": "Как только сотрудник начнёт смену, она появится здесь.",
+    "vacantTitle": "Свободные слоты (риск)",
+    "vacantSubtitle": "Запланировано, но оператора нет — просрочка, окно началось или скоро конец.",
+    "vacantKind": {
+      "overdue": "Прошло время окончания — не взяли",
+      "unclaimed_started": "Окно смены началось — не взяли",
+      "ending_soon": "Скоро конец — не взяли"
+    },
     "criticalLeft": "{count, plural, one {# критическая} few {# критические} other {# критических}}",
     "lastEventAt": "Обновлено {time}",
     "events": {

@@ -21,6 +21,7 @@ from shiftops_api.infra.db.models import (
     TaskInstance,
     Template,
     TemplateTask,
+    User,
 )
 
 
@@ -51,6 +52,9 @@ class ShiftSummaryDTO:
     scheduled_end: str
     actual_start: str | None
     actual_end: str | None
+    operator_full_name: str
+    slot_index: int
+    station_label: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,8 +74,9 @@ class ListMyShiftUseCase:
     ) -> Result[CurrentShiftDTO, DomainError]:
         now = datetime.now(tz=UTC)
         active_stmt = (
-            select(Shift, Template)
+            select(Shift, Template, User)
             .join(Template, Template.id == Shift.template_id)
+            .join(User, User.id == Shift.operator_user_id)
             .where(Shift.operator_user_id == user.id)
             .where(Shift.status.in_([ShiftStatus.ACTIVE, ShiftStatus.SCHEDULED]))
             .order_by(Shift.scheduled_start.asc())
@@ -82,16 +87,16 @@ class ListMyShiftUseCase:
 
         # Prefer active over scheduled; otherwise the soonest scheduled in the
         # future.
-        chosen: tuple[Shift, Template] | None = None
-        for shift, tpl in rows:
+        chosen: tuple[Shift, Template, User] | None = None
+        for shift, tpl, op in rows:
             if shift.status == ShiftStatus.ACTIVE:
-                chosen = (shift, tpl)
+                chosen = (shift, tpl, op)
                 break
         if chosen is None:
-            future = [(s, t) for s, t in rows if s.scheduled_start >= now]
+            future = [(s, t, o) for s, t, o in rows if s.scheduled_start >= now]
             chosen = future[0] if future else rows[0]
 
-        shift, template = chosen
+        shift, template, operator = chosen
 
         tasks_stmt = (
             select(TaskInstance, TemplateTask)
@@ -147,6 +152,9 @@ class ListMyShiftUseCase:
                     scheduled_end=shift.scheduled_end.isoformat(),
                     actual_start=shift.actual_start.isoformat() if shift.actual_start else None,
                     actual_end=shift.actual_end.isoformat() if shift.actual_end else None,
+                    operator_full_name=operator.full_name,
+                    slot_index=int(shift.slot_index),
+                    station_label=shift.station_label,
                 ),
                 tasks=cards,
             )

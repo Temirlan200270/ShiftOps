@@ -14,6 +14,9 @@ interface ShiftHeadDTO {
   scheduled_end: string;
   actual_start: string | null;
   actual_end: string | null;
+  operator_full_name: string;
+  slot_index: number;
+  station_label: string | null;
 }
 
 interface TaskCardDTO {
@@ -74,6 +77,9 @@ function fromCurrentShift(dto: CurrentShiftDTO): ShiftSummary {
     // response and history do. We surface null and the UI hides the panel.
     scoreBreakdown: null,
     formulaVersion: null,
+    operatorFullName: dto.shift.operator_full_name,
+    slotIndex: dto.shift.slot_index,
+    stationLabel: dto.shift.station_label,
     tasks: dto.tasks.map((t) => ({
       id: t.id,
       title: t.title,
@@ -259,6 +265,9 @@ export interface HistoryItem {
   tasksTotal: number;
   tasksDone: number;
   handoverSummary: string | null;
+  slotIndex: number;
+  stationLabel: string | null;
+  delayReason: string | null;
 }
 
 export interface HistoryPage {
@@ -280,6 +289,9 @@ interface HistoryRowDTO {
   tasks_total: number;
   tasks_done: number;
   handover_summary?: string | null;
+  slot_index: number;
+  station_label: string | null;
+  delay_reason: string | null;
 }
 
 interface HistoryResponseDTO {
@@ -297,6 +309,10 @@ export async function fetchHistory(input: {
   from?: string | null;
   /** ISO date (YYYY-MM-DD). */
   to?: string | null;
+  slotIndex?: number | null;
+  stationLabel?: string | null;
+  /** When true, only shifts with NULL station_label (must match analytics post rows without a label). */
+  stationLabelEmpty?: boolean;
 } = {}): Promise<ApiResult<HistoryPage>> {
   const params = new URLSearchParams();
   if (input.cursor) params.set("cursor", input.cursor);
@@ -305,6 +321,14 @@ export async function fetchHistory(input: {
   if (input.locationId) params.set("location_id", input.locationId);
   if (input.from) params.set("from", input.from);
   if (input.to) params.set("to", input.to);
+  if (input.slotIndex !== undefined && input.slotIndex !== null) {
+    params.set("slot_index", String(input.slotIndex));
+  }
+  if (input.stationLabelEmpty) {
+    params.set("station_label_empty", "true");
+  } else if (input.stationLabel) {
+    params.set("station_label", input.stationLabel);
+  }
   const qs = params.toString();
   const path = `/v1/shifts/history${qs ? `?${qs}` : ""}`;
   const result = await api.get<HistoryResponseDTO>(path);
@@ -327,6 +351,9 @@ export async function fetchHistory(input: {
         tasksTotal: row.tasks_total,
         tasksDone: row.tasks_done,
         handoverSummary: row.handover_summary ?? null,
+        slotIndex: row.slot_index,
+        stationLabel: row.station_label,
+        delayReason: row.delay_reason,
       })),
       nextCursor: result.data.next_cursor,
     },
@@ -336,11 +363,12 @@ export async function fetchHistory(input: {
 export async function closeShift(input: {
   shiftId: string;
   confirmViolations: boolean;
+  delayReason?: string | null;
 }): Promise<ApiResult<ClosedShiftPatch>> {
-  const qs = input.confirmViolations ? "?confirm_violations=true" : "";
-  const result = await api.post<CloseShiftDTO>(
-    `/v1/shifts/${input.shiftId}/close${qs}`,
-  );
+  const result = await api.post<CloseShiftDTO>(`/v1/shifts/${input.shiftId}/close`, {
+    confirm_violations: input.confirmViolations,
+    delay_reason: input.delayReason ?? null,
+  });
   if (!result.ok) return result;
   const closed = result.data;
   return {
@@ -356,4 +384,175 @@ export async function closeShift(input: {
       missedCritical: closed.missed_critical,
     },
   };
+}
+
+export interface MyScheduledShift {
+  id: string;
+  templateName: string;
+  locationName: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+  stationLabel: string | null;
+  slotIndex: number;
+}
+
+interface MyScheduledShiftDTO {
+  id: string;
+  template_name: string;
+  location_name: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  station_label: string | null;
+  slot_index: number;
+}
+
+export async function fetchMyScheduledShifts(): Promise<ApiResult<MyScheduledShift[]>> {
+  const result = await api.get<MyScheduledShiftDTO[]>("/v1/shifts/my-scheduled");
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    status: result.status,
+    data: result.data.map((row) => ({
+      id: row.id,
+      templateName: row.template_name,
+      locationName: row.location_name,
+      scheduledStart: row.scheduled_start,
+      scheduledEnd: row.scheduled_end,
+      stationLabel: row.station_label,
+      slotIndex: row.slot_index,
+    })),
+  };
+}
+
+export interface SwapLinkPreview {
+  shiftId: string;
+  templateName: string;
+  locationName: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+  stationLabel: string | null;
+  slotIndex: number;
+  proposerUserId: string;
+  proposerFullName: string;
+}
+
+interface SwapLinkPreviewDTO {
+  shift_id: string;
+  template_name: string;
+  location_name: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  station_label: string | null;
+  slot_index: number;
+  proposer_user_id: string;
+  proposer_full_name: string;
+}
+
+export async function fetchSwapLinkPreview(
+  proposerShiftId: string,
+): Promise<ApiResult<SwapLinkPreview>> {
+  const result = await api.get<SwapLinkPreviewDTO>(
+    `/v1/shifts/${proposerShiftId}/swap-link-preview`,
+  );
+  if (!result.ok) return result;
+  const p = result.data;
+  return {
+    ok: true,
+    status: result.status,
+    data: {
+      shiftId: p.shift_id,
+      templateName: p.template_name,
+      locationName: p.location_name,
+      scheduledStart: p.scheduled_start,
+      scheduledEnd: p.scheduled_end,
+      stationLabel: p.station_label,
+      slotIndex: p.slot_index,
+      proposerUserId: p.proposer_user_id,
+      proposerFullName: p.proposer_full_name,
+    },
+  };
+}
+
+export interface SwapRequestRow {
+  id: string;
+  status: string;
+  message: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  proposerUserId: string;
+  proposerName: string;
+  counterpartyUserId: string;
+  counterpartyName: string;
+  proposerShiftId: string;
+  counterpartyShiftId: string;
+}
+
+interface SwapRequestRowDTO {
+  id: string;
+  status: string;
+  message: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  proposer_user_id: string;
+  proposer_name: string;
+  counterparty_user_id: string;
+  counterparty_name: string;
+  proposer_shift_id: string;
+  counterparty_shift_id: string;
+}
+
+function mapSwapRow(row: SwapRequestRowDTO): SwapRequestRow {
+  return {
+    id: row.id,
+    status: row.status,
+    message: row.message,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+    proposerUserId: row.proposer_user_id,
+    proposerName: row.proposer_name,
+    counterpartyUserId: row.counterparty_user_id,
+    counterpartyName: row.counterparty_name,
+    proposerShiftId: row.proposer_shift_id,
+    counterpartyShiftId: row.counterparty_shift_id,
+  };
+}
+
+export async function fetchSwapRequests(
+  direction: "in" | "out",
+): Promise<ApiResult<SwapRequestRow[]>> {
+  const result = await api.get<SwapRequestRowDTO[]>(
+    `/v1/shifts/swap-requests?direction=${direction}`,
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    status: result.status,
+    data: result.data.map(mapSwapRow),
+  };
+}
+
+export async function createSwapRequest(input: {
+  proposerShiftId: string;
+  counterpartyShiftId: string;
+  message?: string | null;
+}): Promise<ApiResult<{ id: string }>> {
+  const result = await api.post<{ id: string }>("/v1/shifts/swap-requests", {
+    proposer_shift_id: input.proposerShiftId,
+    counterparty_shift_id: input.counterpartyShiftId,
+    message: input.message ?? null,
+  });
+  if (!result.ok) return result;
+  return { ok: true, status: result.status, data: { id: result.data.id } };
+}
+
+export async function acceptSwapRequest(requestId: string): Promise<ApiResult<void>> {
+  return api.post<void>(`/v1/shifts/swap-requests/${requestId}/accept`);
+}
+
+export async function declineSwapRequest(requestId: string): Promise<ApiResult<void>> {
+  return api.post<void>(`/v1/shifts/swap-requests/${requestId}/decline`);
+}
+
+export async function cancelSwapRequest(requestId: string): Promise<ApiResult<void>> {
+  return api.delete<void>(`/v1/shifts/swap-requests/${requestId}`);
 }
