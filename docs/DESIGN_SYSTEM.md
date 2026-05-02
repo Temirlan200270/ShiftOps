@@ -4,25 +4,35 @@
 > анимация. Бармен должен чувствовать, что пользуется prosumer-инструментом
 > за 20$/мес, а не корпоративной анкетой.
 
+## Источник правды и референс
+
+| Что | Где |
+|-----|-----|
+| **Прод TWA** | Токены в [`apps/web/app/globals.css`](../apps/web/app/globals.css) как CSS-переменные (HSL-триплеты) → Tailwind в [`apps/web/tailwind.config.ts`](../apps/web/tailwind.config.ts). |
+| **Интерактивный макет** | [`shiftops-demo.html`](shiftops-demo.html) — один HTML-файл с локальным роутером и **мок-данными**. Используйте для визуального согласования и копирайта; **не** копируйте оттуда логику, дублирование API или CDN-стек в приложение. |
+| **Сценарии и состояния** | [`UX_FLOW.md`](UX_FLOW.md) — конечные автоматы и edge cases. |
+
+Палитра семантики (primary / success / warning / critical) совпадает с макетом в `shiftops-demo.html`. Фон приложения: **чёрный + мягкий radial** (как в демо), карточки — нейтральные «neo-noir» поверхности без сине-серой дымки прежнего `#0B1220`.
+
 ## Токены
 
 ### Цвет
 
-| Токен | Hex | Использование |
+Реализация в коде — переменные `--bg`, `--surface`, `--elevated`, `--foreground`, `--primary`, … Ниже ориентиры в Hex для спеки и макетов.
+
+| Токен (концепт) | Hex (ориентир) | В TWA / Tailwind |
 | - | - | - |
-| `bg-base` | `#0B1220` | Фон страницы |
-| `bg-elevated` | `#0F172A` | Sticky-бары, скрим модалок |
-| `surface` | `#16213A` | Фон карточек (с alpha 60% + `backdrop-blur-md` для glass) |
-| `border` | `rgba(255,255,255,0.06)` | Все hairline-границы |
+| Страница (база) | `#000000` | Фон `body`: чёрный + `radial-gradient` (см. `globals.css`); при необходимости сплошной заливки — `background` / `--bg` |
+| Карточка / surface | `#12121a` → `#0a0a0e` градиент в демо | `bg-surface` → `--surface` |
+| Поднятая зона / sticky | чуть светлее surface | `bg-elevated` → `--elevated` |
+| Border hairline | `rgba(255,255,255,0.06)` | `--border` |
 | `primary` | `#4F7CFF` | CTA, активные состояния, фокус-кольцо |
-| `primary-hover` | `#3E63DD` | Hover/pressed CTA |
+| `primary` (hover, вариант) | `#3E63DD` | Hover/pressed CTA в компонентах |
 | `success` | `#30A46C` | Положительные состояния, галочки |
 | `warning` | `#F5A524` | Предупреждения, «похоже на прошлое фото» |
-| `critical` | `#E5484D` | Акценты на критических задачах, ошибки |
-| `text-primary` | `#F8FAFC` | Основной текст |
-| `text-secondary` | `#CBD5E1` | Подзаголовки, подсказки |
-| `text-muted` | `#94A3B8` | Лейблы, таймстемпы |
-| `text-disabled` | `#64748B` | Disabled-состояния |
+| `critical` | `#E5484D` | Критические задачи, ошибки |
+| Основной текст | `#F8FAFC` | `text-foreground` / `--fg` |
+| Вторичный / muted | `#CBD5E1` / `#94A3B8` | `text-muted-foreground` / `--muted-fg` |
 
 Контрастные цели: WCAG AA, минимум 4.5:1 на основном тексте. В исходной
 Figma подзаголовок имел 2.7:1 — починен в `text-secondary`.
@@ -36,7 +46,8 @@ Figma подзаголовок имел 2.7:1 — починен в `text-second
   `--text-2xl`, `--text-4xl`.
 - **Начертания:** 400 (body), 500 (UI), 600 (titles), 700 (display).
 - **Line-height:** 1.4 body, 1.2 titles.
-- **Letter-spacing:** 0 body, -0.01em titles, 0.06em allcaps-лейблы.
+- **Letter-spacing:** `-0.01em` на `body` (как в макете-демо), у заголовков
+  можно ужесточать до `-0.04em`; 0.06em для allcaps-лейблов.
 
 ### Шкала отступов
 
@@ -119,8 +130,9 @@ TWA SDK даёт `HapticFeedback`. Конвенции:
 
 ### Список активной смены
 
-> High-end mobile SaaS UI, dark theme bg #0B1220, glassmorphism cards #16213A
-> 60% with subtle border 1px rgba(255,255,255,0.06), vibrant accent #4F7CFF.
+> High-end mobile SaaS UI, near-black bg #000000 with subtle top radial glow,
+> cards on dark neutral surface (~#12121a), border 1px rgba(255,255,255,0.06),
+> vibrant accent #4F7CFF.
 > Sticky progress bar 65% top. Three sections: Critical (red 4px left
 > border), Required, Optional. Task card has line icon (camera/check), title
 > 16px Inter Medium, status badge, chevron. Disabled FAB bottom 'Close shift'
@@ -139,5 +151,5 @@ TWA SDK даёт `HapticFeedback`. Конвенции:
 
 > Mobile dashboard, donut chart shift score 87%, top-3 violators list with
 > avatars, heatmap 7×24 task completion times, all in dark glassmorphism cards
-> on #0B1220, Inter, electric blue primary #4F7CFF, similar to Linear
+> on near-black #000000, Inter, electric blue primary #4F7CFF, similar to Linear
 > Insights.

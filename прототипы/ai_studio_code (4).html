@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ShiftOps Premium TWA</title>
+  <style>
+    /* DESIGN TOKENS (из твоего DESIGN_SYSTEM.md) */
+    :root {
+      --bg-base: #0B1220;
+      --bg-elevated: #0F172A;
+      --surface: rgba(22, 33, 58, 0.6);
+      --border: rgba(255, 255, 255, 0.08);
+      --primary: #4F7CFF;
+      --primary-hover: #3E63DD;
+      --success: #30A46C;
+      --warning: #F5A524;
+      --critical: #E5484D;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { background: #000; color: var(--text-main); font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; }
+
+    /* Эмуляция мобильного экрана на десктопе */
+    .app-container { max-width: 400px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; background: var(--bg-base); position: relative; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+    
+    /* Header */
+    .header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: var(--bg-elevated); z-index: 10; transition: background 0.3s; }
+    .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; letter-spacing: -0.5px; }
+    .logo-dot { width: 8px; height: 8px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 12px var(--primary); }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #8B5CF6); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+
+    .scroll-area { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 90px; }
+
+    /* Дебаг панель (только для прототипа) */
+    .debug-panel { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 16px; margin-bottom: 20px; border: 1px dashed #333; }
+    .debug-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600; letter-spacing: 0.5px;}
+    .seg { display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 12px; margin-bottom: 8px; }
+    .seg-btn { flex: 1; border: none; background: none; color: var(--text-muted); padding: 8px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+    .seg-btn.active { background: var(--primary); color: #fff; box-shadow: 0 2px 10px rgba(79,124,255,0.3); }
+
+    /* GLASS CARDS */
+    .card { background: var(--surface); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 20px; padding: 20px; border: 1px solid var(--border); margin-bottom: 16px; transition: transform 0.2s; }
+    
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .tag { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tag-live { background: rgba(48, 164, 108, 0.15); color: var(--success); border: 1px solid rgba(48, 164, 108, 0.3); }
+    .tag-critical { background: rgba(229, 72, 77, 0.15); color: var(--critical); border: 1px solid rgba(229, 72, 77, 0.3); }
+    
+    .title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .sub { font-size: 14px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+
+    /* Прогресс бар */
+    .progress-box { margin: 20px 0; }
+    .progress-text { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); }
+    .progress-bar { height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #8B5CF6); border-radius: 3px; transition: width 0.5s cubic-bezier(0.32, 0.72, 0, 1); }
+
+    /* Кнопки */
+    .btn-row { display: flex; gap: 12px; }
+    .btn { flex: 1; border: none; padding: 16px; border-radius: 14px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(79,124,255,0.3); }
+    .btn-primary:active { transform: scale(0.96); background: var(--primary-hover); }
+    .btn-ghost { background: rgba(255,255,255,0.05); color: var(--text-main); }
+    .btn-ghost:active { background: rgba(255,255,255,0.1); }
+
+    /* Empty State */
+    .empty-state { text-align: center; padding: 40px 20px; opacity: 0.6; }
+    .empty-state text { font-size: 48px; margin-bottom: 16px; display: block; }
+
+    /* Таббар (Glass) */
+    .tabbar { position: absolute; bottom: 0; width: 100%; height: 80px; background: rgba(11, 18, 32, 0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding-top: 12px; padding-bottom: 20px; z-index: 50; }
+    .tab { flex: 1; background: none; border: none; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: 0.2s; }
+    .tab.active { color: var(--primary); }
+    .tab svg { width: 24px; height: 24px; stroke-width: 2; transition: transform 0.2s; }
+    .tab.active svg { transform: translateY(-2px); }
+    .tab span { font-size: 10px; font-weight: 600; }
+
+    /* Bottom Sheet (Задачи) */
+    .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; align-items: flex-end; z-index: 100; opacity: 0; transition: opacity 0.3s; }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .sheet { background: var(--bg-elevated); width: 100%; padding: 24px; border-radius: 28px 28px 0 0; border-top: 1px solid var(--border); transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1); max-height: 80vh; overflow-y: auto; }
+    .modal-overlay.active .sheet { transform: translateY(0); }
+    .sheet-handle { width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 0 auto 20px; }
+    
+    .task-row { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+    .task-row:last-child { border-bottom: none; }
+    .checkbox { width: 28px; height: 28px; border: 2px solid var(--text-muted); border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+    .task-row.done .checkbox { background: var(--success); border-color: var(--success); }
+    .task-content { flex: 1; }
+    .task-title { font-size: 15px; font-weight: 500; transition: 0.2s; }
+    .task-row.done .task-title { color: var(--text-muted); text-decoration: line-through; }
+    .task-icon { color: var(--text-muted); opacity: 0.5; }
+
+    /* SVG Иконки */
+    .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="header" id="appHeader">
+    <div class="logo"><div class="logo-dot"></div> ShiftOps</div>
+    <div class="user-avatar" id="userAvatar">И</div>
+  </div>
+
+  <div class="scroll-area">
+    
+    <!-- Дебаг-панель: эмуляция стейт-менеджера Zustand -->
+    <div class="debug-panel">
+      <span class="debug-label">Адаптивный UI (Роли)</span>
+      <div class="seg">
+        <button class="seg-btn active" onclick="setRole('operator', this)">Бармен</button>
+        <button class="seg-btn" onclick="setRole('admin', this)">Админ</button>
+        <button class="seg-btn" onclick="setRole('owner', this)">Владелец</button>
+      </div>
+      <span class="debug-label" style="margin-top: 10px;">Статус смены</span>
+      <div class="seg">
+        <button class="seg-btn" onclick="setShift('none', this)">Свободно</button>
+        <button class="seg-btn active" onclick="setShift('active', this)">В процессе</button>
+        <button class="seg-btn" onclick="setShift('critical', this)">Проблема</button>
+      </div>
+    </div>
+
+    <!-- MAIN VIEW -->
+    <div id="view-dashboard">
+      <div id="shift-container"></div>
+    </div>
+
+    <!-- TEAM VIEW (Только для Админа/Владельца) -->
+    <div id="view-team" style="display: none;">
+      <h2 style="margin-bottom: 16px; font-size: 24px;">Команда</h2>
+      <div class="card">
+        <div class="sub">В разработке (Экран S10)</div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS VIEW (Только для Владельца) -->
+    <div id="view-analytics" style="display: none;">
+      <h2 style="margin-bottom: 16px; font-size: 24px;">Аналитика</h2>
+      <div class="card">
+        <div class="title">Ср. Score: 87%</div>
+        <div class="sub">За последние 7 дней</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ДИНАМИЧЕСКИЙ TABBAR -->
+  <div class="tabbar" id="bottomNav">
+    <!-- Генерируется через JS в зависимости от роли -->
+  </div>
+
+  <!-- Шторка Чек-листа (Bottom Sheet) -->
+  <div class="modal-overlay" id="sheetModal" onclick="closeSheet()">
+    <div class="sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Задачи: Открытие</h3>
+      
+      <div class="task-row done" onclick="this.classList.toggle('done')">
+        <div class="checkbox"><svg class="icon" style="stroke: #fff; width: 16px;" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg></div>
+        <div class="task-content"><div class="task-title">Проверить кассу</div></div>
+      </div>
+      
+      <div class="task-row" style="border-left: 3px solid var(--critical); padding-left: 13px;" onclick="this.classList.toggle('done')">
+        <div class="checkbox"></div>
+        <div class="task-content">
+          <div class="task-title" style="color: var(--text-main);">Фото чистой стойки <span style="color: var(--critical); font-size: 10px; vertical-align: top;">CRIT</span></div>
+        </div>
+        <svg class="icon task-icon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      </div>
+
+      <div class="task-row" onclick="this.classList.toggle('done')">
+        <div class="checkbox"></div>
+        <div class="task-content"><div class="task-title">Заполнить сиропы</div></div>
+      </div>
+
+      <button class="btn btn-primary" style="width: 100%; margin-top: 24px;" onclick="closeSheet()">Готово</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Эмуляция стейта приложения
+  let state = {
+    role: 'operator', // operator, admin, owner
+    shiftStatus: 'active', // none, active, critical
+    activeTab: 'dashboard'
+  };
+
+  const ICONS = {
+    home: `<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
+    team: `<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
+    analytics: `<svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>`
+  };
+
+  function updateUI() {
+    renderHeader();
+    renderTabs();
+    renderContent();
+    switchTab(state.activeTab);
+  }
+
+  function renderHeader() {
+    const header = document.getElementById('appHeader');
+    const avatar = document.getElementById('userAvatar');
+    
+    // Эмуляция смены цвета хедера TWA
+    if (state.shiftStatus === 'critical') {
+      header.style.background = '#2B1216'; // Темно-красный
+    } else {
+      header.style.background = 'var(--bg-elevated)';
+    }
+
+    // Инициалы
+    avatar.innerText = state.role === 'owner' ? 'С' : state.role === 'admin' ? 'А' : 'И';
+  }
+
+  function renderTabs() {
+    const nav = document.getElementById('bottomNav');
+    let html = `<button class="tab ${state.activeTab==='dashboard'?'active':''}" onclick="switchTab('dashboard')">${ICONS.home}<span>Смена</span></button>`;
+    
+    // Capabilities logic
+    if (state.role === 'admin' || state.role === 'owner') {
+      html += `<button class="tab ${state.activeTab==='team'?'active':''}" onclick="switchTab('team')">${ICONS.team}<span>Команда</span></button>`;
+    }
+    if (state.role === 'owner') {
+      html += `<button class="tab ${state.activeTab==='analytics'?'active':''}" onclick="switchTab('analytics')">${ICONS.analytics}<span>Сводка</span></button>`;
+    }
+    nav.innerHTML = html;
+  }
+
+  function renderContent() {
+    const cont = document.getElementById('shift-container');
+    
+    if (state.shiftStatus === 'none') {
+      cont.innerHTML = `
+        <h2 style="margin-bottom: 16px; font-size: 24px;">Вакантные посты</h2>
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 8px;">
+            <div class="title">Основной бар</div>
+            <span class="tag" style="background: rgba(255,255,255,0.1); color: #fff;">Свободно</span>
+          </div>
+          <div class="sub" style="margin-bottom: 20px;">Шаблон: Открытие ресторана</div>
+          <button class="btn btn-primary" style="width:100%" onclick="setShift('active', null)">⚡️ Занять пост</button>
+        </div>`;
+    } else {
+      const isCrit = state.shiftStatus === 'critical';
+      cont.innerHTML = `
+        <div class="card" style="${isCrit ? 'border-color: var(--critical); box-shadow: 0 0 20px rgba(229,72,77,0.1);' : ''}">
+          <div class="card-header">
+            <div>
+              <div class="title">Основной бар</div>
+              <div class="sub">
+                <svg class="icon" style="width:14px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                09:00 — 17:00
+              </div>
+            </div>
+            <span class="tag ${isCrit ? 'tag-critical' : 'tag-live'}">${isCrit ? 'Внимание' : 'Live'}</span>
+          </div>
+          
+          <div class="progress-box">
+            <div class="progress-text"><span>Прогресс смены</span><span>1 / 3</span></div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 33%; ${isCrit ? 'background: var(--critical)' : ''}"></div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="openSheet()">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+              Чек-лист
+            </button>
+            <button class="btn btn-ghost" style="flex: 0.4">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
+          </div>
+        </div>`;
+    }
+  }
+
+  function switchTab(tabId) {
+    // Basic router
+    if (tabId === 'team' && state.role === 'operator') return; // Security Guard
+    state.activeTab = tabId;
+    ['dashboard', 'team', 'analytics'].forEach(id => {
+      document.getElementById(`view-${id}`).style.display = id === tabId ? 'block' : 'none';
+    });
+    renderTabs();
+  }
+
+  // Дебаг-функции
+  function setRole(role, btn) {
+    state.role = role;
+    state.activeTab = 'dashboard'; // Сброс роута при смене прав
+    document.querySelectorAll('#roleSeg .seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateUI();
+  }
+
+  function setShift(status, btn) {
+    if(btn) {
+      document.querySelectorAll('#statusSeg .seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    state.shiftStatus = status;
+    updateUI();
+  }
+
+  // Модалка (Bottom Sheet)
+  function openSheet() { document.getElementById('sheetModal').classList.add('active'); }
+  function closeSheet() { document.getElementById('sheetModal').classList.remove('active'); }
+
+  // Init
+  updateUI();
+</script>
+</body>
+</html>

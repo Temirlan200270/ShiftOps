@@ -1,0 +1,114 @@
+<!-- Вставь этот блок стилей вместо старого <style> -->
+<style>
+  :root {
+    --bg: #09090b;           /* Глубокий черный */
+    --surface: #18181b;      /* Цвет карточек */
+    --surface-hover: #27272a; 
+    --border: rgba(255,255,255,0.06);
+    --accent: #3b82f6;       /* Чистый синий */
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --success: #22c55e;
+    --danger: #ef4444;
+  }
+
+  body {
+    background: #000;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Чистая карточка смены (БЕЗ шума) */
+  .card-wrap {
+    margin: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+
+  .c-name { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .c-meta { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  
+  /* Индикатор Live - более аккуратный */
+  .spill {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .sp-live { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+
+  /* Кнопки как в нативных приложениях */
+  .btn {
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 14px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-primary {
+    background: var(--text); /* Белая кнопка на черном фоне - это всегда премиально */
+    color: #000;
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  /* Список меню в стиле iOS Settings */
+  .mlist {
+    margin: 16px;
+    background: var(--surface);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .mitem {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .mitem:last-child { border-bottom: none; }
+  
+  /* Иконки: теперь это просто иконки, а не цветные квадраты */
+  .mitem-ico {
+    width: 24px;
+    height: 24px;
+    margin-right: 16px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Навигация: минимализм */
+  .tabbar {
+    background: rgba(9, 9, 11, 0.8);
+    backdrop-filter: blur(20px); /* Эффект стекла */
+    border-top: 1px solid var(--border);
+  }
+  .tb.on { color: var(--text); } /* Активная вкладка - просто белая */
+  .tb.on svg { stroke: var(--accent); }
+</style>
+
+<!-- Пример того, как должен выглядеть блок меню без эмодзи -->
+<div class="mlist">
+  <div class="mitem">
+    <div class="mitem-ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="mitem-body">
+      <div class="mitem-t">Команда</div>
+      <div class="mitem-s">6 участников онлайн</div>
+    </div>
+    <div class="mitem-chev">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+    </div>
+  </div>
+</div>

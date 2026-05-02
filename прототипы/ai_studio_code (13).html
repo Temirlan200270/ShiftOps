@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ShiftOps | Interactive Demo v1.2 PRO</title>
+    
+    <!-- Стек: Tailwind, Lucide Icons, Google Fonts, Canvas Confetti -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #000000;
+            --radial-glow: radial-gradient(circle at top right, #1E293B 0%, #0B1220 100%);
+            --surface-glass: rgba(22, 33, 58, 0.6);
+            --border-alpha: rgba(255, 255, 255, 0.08);
+            --primary: #4F7CFF;
+            --critical: #E5484D;
+            --success: #30A46C;
+            --warning: #F5A524;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: var(--radial-glow);
+            color: #F8FAFC;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .glass {
+            background: var(--surface-glass);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-alpha);
+        }
+
+        .inter-tight { letter-spacing: -0.04em; }
+        
+        /* Анимация сканирования камеры */
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+        .scan-line {
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 15px var(--primary);
+            animation: scan 2s infinite linear;
+        }
+
+        .haptic-feedback:active {
+            transform: scale(0.97);
+            transition: transform 0.1s;
+        }
+
+        /* Кастомный скролл */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .task-card-critical { border-left: 4px solid var(--critical); }
+        .task-card-pending { background: rgba(245, 165, 36, 0.15); border: 1px solid var(--warning); }
+    </style>
+</head>
+<body class="no-scrollbar">
+
+    <!-- App Shell -->
+    <div id="app" class="max-w-md mx-auto h-screen flex flex-col relative shadow-2xl shadow-blue-900/20">
+        
+        <!-- Header (Contextual) -->
+        <header class="header glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center border-b border-white/10">
+            <div class="flex items-center gap-2">
+                <div id="status-dot" class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_#4F7CFF]"></div>
+                <h1 class="font-extrabold text-xl inter-tight tracking-tighter">ShiftOps</h1>
+            </div>
+            <div id="role-indicator" class="flex items-center gap-3">
+                <span id="role-badge" class="text-[10px] uppercase font-black px-2 py-1 bg-white/10 rounded-md tracking-widest text-slate-400">Operator</span>
+                <button onclick="engine.toggleRole()" class="p-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main View Container -->
+        <main id="view-container" class="flex-1 overflow-y-auto no-scrollbar p-6 pb-32">
+            <!-- Content Injected via JS -->
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass border-t border-white/10 px-8 py-4 flex justify-between items-center z-40 rounded-t-3xl">
+            <button onclick="engine.navigate('dash')" class="nav-btn flex flex-col items-center gap-1 text-blue-500">
+                <i data-lucide="layout-grid" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">Смена</span>
+            </button>
+            <button onclick="engine.navigate('analytics')" class="nav-btn flex flex-col items-center gap-1 text-slate-500 opacity-50">
+                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">KPI</span>
+            </button>
+            <button onclick="engine.navigate('team')" class="nav-btn flex flex-col items-center gap-1 text-slate-500 opacity-50">
+                <i data-lucide="users" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">Команда</span>
+            </button>
+        </nav>
+
+        <!-- Camera / Action Modal Overlay -->
+        <div id="modal-overlay" class="fixed inset-0 bg-black/90 z-[60] hidden flex flex-col p-6">
+            <div id="modal-content" class="flex-1 flex flex-col justify-center">
+                <!-- Camera Interface Injected -->
+            </div>
+            <button onclick="engine.closeModal()" class="mt-8 py-4 glass rounded-2xl font-bold text-slate-400 haptic-feedback">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Logic Engine -->
+    <script>
+        // --- DATA STATE (Based on PRD & Pilot Smoke) ---
+        const state = {
+            role: 'operator', // operator | owner
+            currentView: 'dash',
+            isShiftActive: false,
+            score: 100,
+            tasks: [
+                { id: 1, title: 'Температурный лист (Плов)', section: 'Безопасность', crit: true, photo: true, status: 'pending' },
+                { id: 2, title: 'Чистота столов и станций', section: 'Чистота', crit: true, photo: true, status: 'pending' },
+                { id: 3, title: 'Маркировка заготовок', section: 'Кухня', crit: false, photo: true, status: 'pending' },
+                { id: 4, title: 'Пролив кофемашины', section: 'Бар', crit: false, photo: false, status: 'pending' },
+                { id: 5, title: 'Журнал здоровья', section: 'Безопасность', crit: true, photo: false, status: 'pending' }
+            ],
+            heatmap: Array.from({ length: 28 }, () => Math.floor(Math.random() * 4))
+        };
+
+        const engine = {
+            init() {
+                this.render();
+                lucide.createIcons();
+            },
+
+            // --- SCORE ENGINE (PRD Formula) ---
+            calculateScore() {
+                const total = state.tasks.length;
+                const completed = state.tasks.filter(t => t.status === 'done' || t.status === 'waived').length;
+                const criticalTasks = state.tasks.filter(t => t.crit);
+                const criticalDone = criticalTasks.every(t => t.status === 'done' || t.status === 'waived');
+
+                const completion = completed / total;
+                const criticalCompliance = criticalDone ? 1.0 : 0.0;
+                const timeliness = state.isShiftActive ? 1.0 : 0.8; // Simulating
+                const photoQuality = 1.0; // Simulating
+
+                const score = 100 * (0.50 * completion + 0.25 * criticalCompliance + 0.15 * timeliness + 0.10 * photoQuality);
+                state.score = Math.round(score);
+                return state.score;
+            },
+
+            toggleRole() {
+                this.haptic('medium');
+                state.role = state.role === 'operator' ? 'owner' : 'operator';
+                const badge = document.getElementById('role-badge');
+                badge.innerText = state.role.toUpperCase();
+                badge.style.color = state.role === 'owner' ? '#4F7CFF' : '#94A3B8';
+                this.render();
+            },
+
+            navigate(view) {
+                this.haptic('light');
+                state.currentView = view;
+                this.render();
+            },
+
+            // --- RENDERING ---
+            render() {
+                const container = document.getElementById('view-container');
+                const bottomNav = document.getElementById('bottom-nav');
+                
+                // Update active tab styles
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.add('opacity-50', 'text-slate-500');
+                    btn.classList.remove('text-blue-500');
+                });
+
+                if (state.role === 'owner') {
+                    bottomNav.style.display = 'flex';
+                    this.renderOwnerView(container);
+                } else {
+                    if (state.currentView === 'dash') {
+                        this.renderOperatorDash(container);
+                    } else {
+                        container.innerHTML = '<div class="text-center py-20 text-slate-500 font-bold">Доступно только владельцу</div>';
+                    }
+                }
+                lucide.createIcons();
+            },
+
+            renderOperatorDash(container) {
+                if (!state.isShiftActive) {
+                    container.innerHTML = `
+                        <div class="py-10 text-center">
+                            <h2 class="text-3xl font-black mb-4 inter-tight">Смена не начата</h2>
+                            <p class="text-slate-400 mb-8">Займите пост, чтобы начать выполнение задач</p>
+                            <button onclick="engine.startShift()" class="w-full py-6 glass rounded-3xl font-black text-xl text-blue-500 haptic-feedback border-blue-500/30">
+                                ⚡️ Занять пост
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const score = this.calculateScore();
+                container.innerHTML = `
+                    <!-- Shift Card -->
+                    <div class="glass p-6 rounded-[2rem] mb-8 border-blue-500/20">
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <span class="text-[10px] uppercase font-black text-blue-500 tracking-widest">Текущий балл</span>
+                                <h2 class="text-5xl font-black inter-tight">${score}</h2>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] uppercase font-black text-slate-500 tracking-widest">Статус</span>
+                                <div class="flex items-center gap-2 text-green-500 font-bold">
+                                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                    ACTIVE
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-500 transition-all duration-700" style="width: ${score}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Task Groups -->
+                    ${this.renderTasks()}
+
+                    <button onclick="engine.finishShift()" class="w-full mt-10 py-5 rounded-2xl glass font-black text-slate-400 haptic-feedback">
+                        Завершить смену
+                    </button>
+                `;
+            },
+
+            renderTasks() {
+                const sections = [...new Set(state.tasks.map(t => t.section))];
+                return sections.map(sec => `
+                    <div class="mb-6">
+                        <h3 class="text-[11px] uppercase font-black text-slate-500 tracking-widest mb-4 px-2">${sec}</h3>
+                        <div class="space-y-3">
+                            ${state.tasks.filter(t => t.section === sec).map(task => `
+                                <div onclick="engine.handleTaskClick(${task.id})" 
+                                     class="glass p-4 rounded-2xl flex items-center justify-between haptic-feedback transition-all
+                                     ${task.crit && task.status === 'pending' ? 'task-card-critical' : ''}
+                                     ${task.status === 'waived' ? 'task-card-pending' : ''}">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center ${this.getTaskIconBg(task.status)}">
+                                            <i data-lucide="${task.status === 'done' ? 'check' : (task.status === 'waived' ? 'alert-triangle' : (task.photo ? 'camera' : 'circle'))}" 
+                                               class="w-5 h-5 ${task.status === 'pending' ? 'text-slate-500' : 'text-white'}"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-sm font-bold ${task.status === 'done' ? 'line-through opacity-40' : ''}">${task.title}</h4>
+                                            <p class="text-[9px] font-black uppercase tracking-tighter ${task.crit ? 'text-red-500' : 'text-slate-500'}">
+                                                ${task.crit ? 'Critical' : 'Required'} ${task.photo ? '• Photo' : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            },
+
+            getTaskIconBg(status) {
+                if (status === 'done') return 'bg-green-500 shadow-[0_0_15px_rgba(48,164,108,0.4)]';
+                if (status === 'waived') return 'bg-orange-500 shadow-[0_0_15px_rgba(245,165,36,0.4)]';
+                return 'bg-white/5 border border-white/10';
+            },
+
+            // --- ANALYTICS VIEW (S2) ---
+            renderOwnerView(container) {
+                container.innerHTML = `
+                    <h2 class="text-3xl font-black inter-tight mb-8">Аналитика</h2>
+                    
+                    <!-- 2x2 KPI Grid -->
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="glass p-5 rounded-3xl">
+                            <span class="text-[9px] font-black text-slate-500 tracking-widest uppercase">Avg Score</span>
+                            <div class="text-3xl font-black text-blue-500">94.2</div>
+                        </div>
+                        <div class="glass p-5 rounded-3xl">
+                            <span class="text-[9px] font-black text-slate-500 tracking-widest uppercase">Нарушения</span>
+                            <div class="text-3xl font-black text-red-500">2</div>
+                        </div>
+                        <div class="glass p-5 rounded-3xl">
+                            <span class="text-[9px] font-black text-slate-500 tracking-widest uppercase">Смен</span>
+                            <div class="text-3xl font-black">128</div>
+                        </div>
+                        <div class="glass p-5 rounded-3xl">
+                            <span class="text-[9px] font-black text-slate-500 tracking-widest uppercase">Чистота</span>
+                            <div class="text-3xl font-black text-green-500">98%</div>
+                        </div>
+                    </div>
+
+                    <!-- Heatmap -->
+                    <div class="glass p-6 rounded-3xl mb-8">
+                        <h4 class="text-[10px] font-black text-slate-500 tracking-widest uppercase mb-4">Нарушения по дням</h4>
+                        <div class="grid grid-cols-7 gap-2">
+                            ${state.heatmap.map(level => `
+                                <div class="aspect-square rounded-sm ${this.getHeatColor(level)}"></div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Leaderboard -->
+                    <div class="glass p-6 rounded-3xl">
+                        <h4 class="text-[10px] font-black text-slate-500 tracking-widest uppercase mb-4">Лидеры смен</h4>
+                        <div class="space-y-4">
+                            ${[
+                                { name: 'Александр В.', score: 99.1, status: 'ok' },
+                                { name: 'Иван К.', score: 76.4, status: 'warn' },
+                                { name: 'Дмитрий С.', score: 94.0, status: 'ok' }
+                            ].map(emp => `
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">${emp.name[0]}</div>
+                                        <span class="text-sm font-bold text-slate-300">${emp.name}</span>
+                                    </div>
+                                    <span class="font-black ${emp.status === 'warn' ? 'text-red-500' : 'text-blue-500'}">${emp.score}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            },
+
+            getHeatColor(level) {
+                const colors = ['bg-slate-900', 'bg-blue-900/40', 'bg-blue-700/60', 'bg-blue-500'];
+                return colors[level];
+            },
+
+            // --- INTERACTIONS ---
+            startShift() {
+                this.haptic('medium');
+                state.isShiftActive = true;
+                this.render();
+            },
+
+            handleTaskClick(id) {
+                const task = state.tasks.find(t => t.id === id);
+                if (task.status === 'done') return;
+
+                this.haptic('light');
+                const overlay = document.getElementById('modal-overlay');
+                const content = document.getElementById('modal-content');
+                overlay.classList.remove('hidden');
+
+                if (task.photo) {
+                    this.renderCamera(content, task);
+                } else {
+                    this.renderTaskAction(content, task);
+                }
+            },
+
+            renderTaskAction(container, task) {
+                container.innerHTML = `
+                    <div class="text-center">
+                        <h2 class="text-3xl font-black mb-2 inter-tight">${task.title}</h2>
+                        <p class="text-slate-400 mb-10">Задача не требует фотофиксации</p>
+                        <div class="space-y-4">
+                            <button onclick="engine.completeTask(${task.id})" class="w-full py-6 bg-blue-500 rounded-3xl font-black text-xl text-white haptic-feedback">
+                                Выполнено
+                            </button>
+                            <button onclick="engine.openWaiver(${task.id})" class="w-full py-6 glass rounded-3xl font-black text-slate-400 haptic-feedback">
+                                Не могу выполнить
+                            </button>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderCamera(container, task) {
+                container.innerHTML = `
+                    <div class="flex-1 flex flex-col">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-black inter-tight">${task.title}</h2>
+                            <p class="text-slate-400 text-xs tracking-widest uppercase font-black">Camera Only — No Gallery</p>
+                        </div>
+                        <div class="relative flex-1 bg-slate-900 rounded-[2.5rem] overflow-hidden border border-white/5 flex items-center justify-center">
+                            <div class="scan-line absolute w-full z-10"></div>
+                            <i data-lucide="camera" class="w-20 h-20 text-white/5"></i>
+                            
+                            <div id="camera-overlay-text" class="absolute inset-0 flex items-center justify-center bg-black/60 hidden z-20">
+                                <div class="text-center">
+                                    <div class="inline-block p-4 rounded-full bg-blue-500 mb-4 animate-bounce">
+                                        <i data-lucide="refresh-cw" class="w-8 h-8 text-white"></i>
+                                    </div>
+                                    <p class="font-black text-blue-500 tracking-widest uppercase text-xs">Anti-Fake Pipeline Анализ...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-8 flex justify-center">
+                            <button onclick="engine.simulateCapture(${task.id})" class="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center haptic-feedback">
+                                <div class="w-16 h-16 rounded-full bg-white"></div>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            },
+
+            simulateCapture(id) {
+                this.haptic('medium');
+                const overlayText = document.getElementById('camera-overlay-text');
+                overlayText.classList.remove('hidden');
+
+                // Simulating pHash comparison
+                setTimeout(() => {
+                    this.haptic('success');
+                    this.completeTask(id);
+                    this.closeModal();
+                }, 1800);
+            },
+
+            openWaiver(id) {
+                const container = document.getElementById('modal-content');
+                container.innerHTML = `
+                    <div class="text-center">
+                        <h2 class="text-3xl font-black mb-2 inter-tight">Запрос Waiver</h2>
+                        <p class="text-slate-400 mb-8 px-6">Укажите причину, почему задача не может быть выполнена</p>
+                        <div class="flex flex-wrap gap-2 mb-8 justify-center">
+                            <button class="px-4 py-2 glass rounded-full text-xs font-bold text-slate-300">🛠 Сломано</button>
+                            <button class="px-4 py-2 glass rounded-full text-xs font-bold text-slate-300">📦 Нет товара</button>
+                            <button class="px-4 py-2 glass rounded-full text-xs font-bold text-slate-300">❓ Другое</button>
+                        </div>
+                        <button onclick="engine.submitWaiver(${id})" class="w-full py-6 bg-orange-500 rounded-3xl font-black text-xl text-white haptic-feedback shadow-[0_0_20px_rgba(245,165,36,0.3)]">
+                            Запросить освобождение
+                        </button>
+                    </div>
+                `;
+            },
+
+            submitWaiver(id) {
+                this.haptic('medium');
+                const task = state.tasks.find(t => t.id === id);
+                task.status = 'waived';
+                this.closeModal();
+                this.render();
+            },
+
+            completeTask(id) {
+                const task = state.tasks.find(t => t.id === id);
+                task.status = 'done';
+                this.render();
+                
+                // Success animation if score is maxed
+                if (state.score >= 99) {
+                    confetti({
+                        particleCount: 150,
+                        spread: 70,
+                        origin: { y: 0.8 },
+                        colors: ['#4F7CFF', '#30A46C', '#ffffff']
+                    });
+                }
+            },
+
+            finishShift() {
+                const pendingCritical = state.tasks.some(t => t.crit && t.status === 'pending');
+                
+                if (pendingCritical) {
+                    this.haptic('error');
+                    alert('ХАРД-ЛОК: Нельзя закрыть смену, пока не выполнены критические задачи или не получен Waiver!');
+                    return;
+                }
+
+                this.haptic('success');
+                state.isShiftActive = false;
+                alert('Смена успешно закрыта. Балл зафиксирован: ' + state.score);
+                this.render();
+            },
+
+            closeModal() {
+                document.getElementById('modal-overlay').classList.add('hidden');
+            },
+
+            haptic(type) {
+                if (navigator.vibrate) {
+                    const patterns = {
+                        light: 10,
+                        medium: 30,
+                        success: [30, 50, 30],
+                        error: [100, 50, 100]
+                    };
+                    navigator.vibrate(patterns[type] || 10);
+                }
+            }
+        };
+
+        // Start engine
+        engine.init();
+    </script>
+</body>
+</html>

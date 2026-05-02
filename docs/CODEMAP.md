@@ -31,6 +31,7 @@ scripts/                  # seed, smoke
 | Настройки окружения | `apps/api/shiftops_api/config/settings.py` |
 | Миграции БД | `apps/api/alembic/` |
 | Экраны TWA, UI | `apps/web/components/screens/` |
+| Токены темы TWA (CSS variables) | `apps/web/app/globals.css` — см. [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md), визуальный макет: [`shiftops-demo.html`](shiftops-demo.html) |
 | Точка входа TWA (single route) | `apps/web/app/page.tsx` → `DashboardScreen` |
 | Клиент API, сторы | `apps/web/lib/` |
 | i18n | `apps/web/messages/` |

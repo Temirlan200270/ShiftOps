@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ShiftOps Pro Interactive | PlovKhana Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Design Tokens based on DESIGN_SYSTEM.md */
+            --bg-base: #0B1220;
+            --bg-elevated: #0F172A;
+            --surface: rgba(22, 33, 58, 0.6);
+            --border: rgba(255, 255, 255, 0.08);
+            --primary: #4F7CFF;
+            --primary-hover: #3E63DD;
+            --success: #30A46C;
+            --warning: #F5A524;
+            --critical: #E5484D;
+            --text-main: #F8FAFC;
+            --text-secondary: #CBD5E1;
+            --text-muted: #94A3B8;
+            
+            --easing: cubic-bezier(0.32, 0.72, 0, 1);
+            --shadow-glow: 0 0 24px rgba(79, 124, 255, 0.25);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            overflow: hidden; /* Lock scroll for TWA experience */
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* --- LAYOUT COMPONENTS --- */
+
+        .app-shell {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .view-container {
+            flex: 1;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 100px; /* Space for Nav */
+        }
+
+        .view {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            padding: 20px;
+            transition: transform 0.4s var(--easing), opacity 0.4s var(--easing);
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+            animation: slideIn 0.4s var(--easing);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* --- GLASSMORPHISM COMPONENTS --- */
+
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .glass-card.glow-primary { border-color: rgba(79, 124, 255, 0.4); box-shadow: var(--shadow-glow); }
+        .glass-card.glow-critical { border-color: rgba(229, 72, 77, 0.4); }
+
+        /* --- UI ELEMENTS --- */
+
+        .header {
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(11, 18, 32, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        .logo { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.04em; display: flex; align-items: center; gap: 8px; }
+        .logo-dot { width: 8px; height: 8px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 10px var(--primary); }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px 24px;
+            border-radius: 16px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s var(--easing), filter 0.2s;
+            width: 100%;
+            font-size: 15px;
+            gap: 10px;
+        }
+
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: var(--bg-elevated); color: var(--text-main); border: 1px solid var(--border); }
+        .btn-critical { background: var(--critical); color: white; }
+        .btn-disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .nav-bar {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 80px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: env(safe-area-inset-bottom);
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .nav-item.active { color: var(--primary); }
+
+        /* --- TASK COMPONENT --- */
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 16px;
+            margin-bottom: 12px;
+            border: 1px solid transparent;
+            transition: 0.3s;
+        }
+
+        .task-item.critical { border-left: 4px solid var(--critical); }
+        .task-item.done { opacity: 0.6; }
+        .task-item.done .check-circle { background: var(--success); border-color: var(--success); }
+
+        .check-circle {
+            width: 28px; height: 28px;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: 0.3s;
+        }
+
+        .task-info { flex: 1; }
+        .task-title { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+        .task-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; }
+
+        /* --- PROGRESS ARC / BAR --- */
+        .progress-block { margin-bottom: 24px; }
+        .progress-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+        .progress-track { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .progress-fill { 
+            height: 100%; 
+            background: linear-gradient(90deg, var(--primary), #82a3ff); 
+            width: 0%; 
+            transition: width 0.6s var(--easing); 
+        }
+
+        /* --- BOTTOM SHEET --- */
+        .sheet-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.3s;
+        }
+
+        .sheet {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--bg-elevated);
+            border-radius: 24px 24px 0 0;
+            padding: 24px;
+            transform: translateY(100%);
+            transition: transform 0.4s var(--easing);
+            z-index: 2001;
+        }
+
+        .sheet-overlay.active { opacity: 1; pointer-events: auto; }
+        .sheet-overlay.active .sheet { transform: translateY(0); }
+
+        .sheet-handle {
+            width: 40px; height: 4px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            margin: 0 auto 20px;
+        }
+
+        /* --- CAMERA SIMULATION --- */
+        .camera-overlay {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 3000;
+            display: none;
+            flex-direction: column;
+            padding: 40px 20px;
+        }
+
+        .camera-view {
+            flex: 1;
+            background: #1a1a1a;
+            border-radius: 24px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scan-line {
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 15px var(--primary);
+            display: none;
+        }
+
+        @keyframes scan {
+            from { top: 0%; }
+            to { top: 100%; }
+        }
+
+        /* --- DEV SWITCHER --- */
+        .dev-switcher {
+            position: fixed;
+            top: 70px; right: 10px;
+            z-index: 5000;
+            background: var(--primary);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        /* --- ANALYTICS ELEMENTS --- */
+        .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .kpi-card { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .kpi-value { font-size: 24px; font-weight: 800; }
+        .kpi-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+
+        /* PULSE FOR LIVE MODS */
+        .pulse-dot {
+            width: 8px; height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(48, 164, 108, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(48, 164, 108, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(48, 164, 108, 0); }
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-shell" id="app">
+    <!-- Dev Switcher -->
+    <div class="dev-switcher" id="roleSwitcher">SWITCH TO OWNER</div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-dot"></div>
+            ShiftOps
+        </div>
+        <div id="header-action" style="font-size: 12px; font-weight: 700; color: var(--text-muted);">
+            PlovKhana #1
+        </div>
+    </header>
+
+    <!-- Main View Area -->
+    <div class="view-container" id="viewContainer">
+        
+        <!-- Screen: Onboarding -->
+        <div class="view" id="view-onboarding">
+            <div style="height: 300px; display: flex; align-items: center; justify-content: center;">
+                <div class="logo" style="font-size: 40px;">
+                    <div class="logo-dot" style="width: 20px; height: 20px;"></div>
+                    ShiftOps
+                </div>
+            </div>
+            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.04em;">Контроль смен нового поколения.</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 40px; line-height: 1.6;">Прозрачность процессов в HoReCa, доказательства через фото и умные KPI в одном приложении.</p>
+            <button class="btn btn-primary" onclick="app.startOnboarding()">Начать работу</button>
+        </div>
+
+        <!-- Screen: Operator Dashboard -->
+        <div class="view" id="view-operator-dash">
+            <div class="glass-card glow-primary">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                    <div>
+                        <div style="font-size: 12px; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;">Активная смена</div>
+                        <h2 style="font-size: 24px; font-weight: 800;">Открытие кухни</h2>
+                    </div>
+                    <div id="live-score-bubble" style="background: rgba(79, 124, 255, 0.2); color: var(--primary); padding: 8px 12px; border-radius: 12px; font-weight: 800;">
+                        100
+                    </div>
+                </div>
+                
+                <div class="progress-block">
+                    <div class="progress-header">
+                        <span>Прогресс задач</span>
+                        <span id="progress-text">0/8</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="main-progress-bar"></div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px;">
+                    <div style="flex: 1; font-size: 11px; color: var(--text-muted);">
+                        <div style="font-weight: 700; color: var(--text-main);">Александр В.</div>
+                        Кухня • 09:00 - 21:00
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">Список задач</h3>
+            <div id="task-list">
+                <!-- Tasks injected here -->
+            </div>
+
+            <button class="btn btn-secondary btn-disabled" id="close-shift-btn" style="margin-top: 20px;">Закрыть смену</button>
+        </div>
+
+        <!-- Screen: Owner Overview -->
+        <div class="view" id="view-owner-dash">
+            <h1 style="font-size: 28px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.04em;">Обзор сети</h1>
+            
+            <div class="glass-card">
+                <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                    <div class="pulse-dot"></div>
+                    <span style="font-size: 13px; font-weight: 700;">4 заведения онлайн</span>
+                </div>
+                <div class="analytics-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Avg Score</div>
+                        <div class="kpi-value">94.2</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Нарушения</div>
+                        <div class="kpi-value" style="color: var(--critical);">2</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;">Активные смены</h3>
+            
+            <div id="active-shifts-owner">
+                <!-- Mock active shifts -->
+                <div class="glass-card" style="padding: 16px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="font-weight: 700;">ПловХана #1</div>
+                        <div style="color: var(--success); font-weight: 800;">4.9</div>
+                    </div>
+                    <div class="progress-track"><div class="progress-fill" style="width: 80%;"></div></div>
+                </div>
+                <div class="glass-card" style="padding: 16px; border-color: var(--warning);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="font-weight: 700;">ПловХана #3</div>
+                        <div style="color: var(--warning); font-weight: 800;">3.2</div>
+                    </div>
+                    <div class="progress-track"><div class="progress-fill" style="width: 20%;"></div></div>
+                    <div style="font-size: 10px; color: var(--warning); margin-top: 8px; font-weight: 700;">⚠ 1 критическая пропущена</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen: Team Management -->
+        <div class="view" id="view-owner-team">
+            <h1 style="font-size: 28px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.04em;">Команда</h1>
+            <div id="team-list">
+                <!-- Team injected here -->
+            </div>
+            <button class="btn btn-secondary" style="margin-top: 20px;">+ Пригласить сотрудника</button>
+        </div>
+
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="nav-bar" id="nav-bar">
+        <!-- Injected based on role -->
+    </nav>
+
+    <!-- Bottom Sheets -->
+    <div class="sheet-overlay" id="sheet-overlay">
+        <div class="sheet" id="app-sheet">
+            <div class="sheet-handle"></div>
+            <div id="sheet-content"></div>
+        </div>
+    </div>
+
+    <!-- Camera Overlay Simulation -->
+    <div class="camera-overlay" id="camera-overlay">
+        <div class="camera-view">
+            <div class="scan-line" id="scan-line"></div>
+            <div id="camera-status" style="color: white; font-weight: 700; text-align: center;">КАМЕРА ОЖИДАНИЯ...</div>
+        </div>
+        <div style="padding-top: 40px; display: flex; justify-content: space-between; align-items: center;">
+            <button class="btn btn-secondary" style="width: 80px;" onclick="camera.close()">Отмена</button>
+            <div style="width: 70px; height: 70px; border-radius: 50%; border: 4px solid white; display: flex; align-items: center; justify-content: center;" onclick="camera.capture()">
+                <div style="width: 54px; height: 54px; background: white; border-radius: 50%;"></div>
+            </div>
+            <div style="width: 80px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * SHIFTOPS CORE ENGINE
+     * Centalized State Management & App Logic
+     */
+
+    const Store = {
+        role: 'operator', // or 'owner'
+        currentView: 'onboarding',
+        onboardingComplete: false,
+        
+        // PlovKhana Data Mock
+        tasks: [
+            { id: 1, title: 'Проверка чистоты столов', crit: true, photo: true, done: false, waiver: false },
+            { id: 2, title: 'Включение вытяжки', crit: true, photo: false, done: false, waiver: false },
+            { id: 3, title: 'Заготовка овощей (цех)', crit: false, photo: true, done: false, waiver: false },
+            { id: 4, title: 'Проверка сроков годности', crit: true, photo: true, done: false, waiver: false },
+            { id: 5, title: 'Внешний вид персонала', crit: false, photo: false, done: false, waiver: false },
+            { id: 6, title: 'Маркировка соусов', crit: false, photo: true, done: false, waiver: false },
+            { id: 7, title: 'Температурный лист', crit: false, photo: false, done: false, waiver: false },
+            { id: 8, title: 'Запуск кофе-машины', crit: false, photo: false, done: false, waiver: false }
+        ],
+
+        team: [
+            { id: 'u1', name: 'Александр В.', role: 'operator', job: 'Шеф-повар' },
+            { id: 'u2', name: 'Иван Д.', role: 'operator', job: 'Бармен' },
+            { id: 'u3', name: 'Мария С.', role: 'admin', job: 'Менеджер смены' }
+        ],
+
+        stats: {
+            photoQuality: 1.0,
+            timeliness: 1.0
+        },
+
+        calcScore() {
+            const total = this.tasks.length;
+            const done = this.tasks.filter(t => t.done || t.waiver).length;
+            const criticalTotal = this.tasks.filter(t => t.crit).length;
+            const criticalDone = this.tasks.filter(t => t.crit && (t.done || t.waiver)).length;
+
+            const completion = done / total;
+            const criticalCompliance = criticalDone === criticalTotal ? 1.0 : 0.0;
+            const photoQuality = this.stats.photoQuality;
+            const timeliness = this.stats.timeliness;
+
+            // Score Formula: 0.5 * completion + 0.25 * critical + 0.15 * timeliness + 0.1 * photo
+            const rawScore = (completion * 0.5) + (criticalCompliance * 0.25) + (timeliness * 0.15) + (photoQuality * 0.1);
+            return Math.round(rawScore * 100);
+        }
+    };
+
+    const router = {
+        views: ['onboarding', 'operator-dash', 'owner-dash', 'owner-team'],
+        
+        navigate(viewId) {
+            this.views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if (v === viewId) {
+                    el.classList.add('active');
+                    Store.currentView = v;
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+            this.updateNav();
+            app.render();
+        },
+
+        updateNav() {
+            const nav = document.getElementById('nav-bar');
+            if (Store.currentView === 'onboarding') {
+                nav.style.display = 'none';
+                return;
+            }
+            nav.style.display = 'flex';
+
+            if (Store.role === 'operator') {
+                nav.innerHTML = `
+                    <div class="nav-item active" onclick="router.navigate('operator-dash')">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                        <span>Смена</span>
+                    </div>
+                    <div class="nav-item" onclick="app.alert('История в разработке')">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>История</span>
+                    </div>
+                `;
+            } else {
+                nav.innerHTML = `
+                    <div class="nav-item ${Store.currentView === 'owner-dash' ? 'active' : ''}" onclick="router.navigate('owner-dash')">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        <span>Обзор</span>
+                    </div>
+                    <div class="nav-item ${Store.currentView === 'owner-team' ? 'active' : ''}" onclick="router.navigate('owner-team')">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        <span>Команда</span>
+                    </div>
+                `;
+            }
+        }
+    };
+
+    const camera = {
+        activeTaskId: null,
+        
+        open(taskId) {
+            this.activeTaskId = taskId;
+            document.getElementById('camera-overlay').style.display = 'flex';
+            document.getElementById('camera-status').innerText = 'ЦЕЛЬ: ' + Store.tasks.find(t => t.id === taskId).title;
+            app.haptic('impact');
+        },
+
+        capture() {
+            const status = document.getElementById('camera-status');
+            const line = document.getElementById('scan-line');
+            status.innerText = 'АНАЛИЗ PHASH...';
+            line.style.display = 'block';
+            line.style.animation = 'scan 1.5s infinite linear';
+            
+            app.haptic('notification');
+
+            setTimeout(() => {
+                line.style.display = 'none';
+                status.innerHTML = '<span style="color: var(--success)">✓ ИЗОБРАЖЕНИЕ УНИКАЛЬНО</span>';
+                setTimeout(() => {
+                    this.complete();
+                }, 1000);
+            }, 2000);
+        },
+
+        complete() {
+            app.completeTask(this.activeTaskId);
+            this.close();
+        },
+
+        close() {
+            document.getElementById('camera-overlay').style.display = 'none';
+        }
+    };
+
+    const app = {
+        init() {
+            this.render();
+            
+            document.getElementById('roleSwitcher').addEventListener('click', () => {
+                Store.role = Store.role === 'operator' ? 'owner' : 'operator';
+                document.getElementById('roleSwitcher').innerText = Store.role === 'operator' ? 'SWITCH TO OWNER' : 'SWITCH TO OPERATOR';
+                router.navigate(Store.role === 'operator' ? 'operator-dash' : 'owner-dash');
+            });
+        },
+
+        startOnboarding() {
+            Store.onboardingComplete = true;
+            router.navigate(Store.role === 'operator' ? 'operator-dash' : 'owner-dash');
+        },
+
+        render() {
+            if (Store.currentView === 'operator-dash') this.renderOperatorDash();
+            if (Store.currentView === 'owner-team') this.renderTeam();
+            
+            // Global score update
+            const scoreEl = document.getElementById('live-score-bubble');
+            if(scoreEl) scoreEl.innerText = Store.calcScore();
+        },
+
+        renderOperatorDash() {
+            const list = document.getElementById('task-list');
+            const doneCount = Store.tasks.filter(t => t.done || t.waiver).length;
+            const pct = (doneCount / Store.tasks.length) * 100;
+
+            document.getElementById('progress-text').innerText = `${doneCount}/${Store.tasks.length}`;
+            document.getElementById('main-progress-bar').style.width = `${pct}%`;
+
+            list.innerHTML = Store.tasks.map(t => `
+                <div class="task-item ${t.crit ? 'critical' : ''} ${t.done || t.waiver ? 'done' : ''}" onclick="app.openTaskDetail(${t.id})">
+                    <div class="check-circle">
+                        ${t.done || t.waiver ? '✓' : ''}
+                    </div>
+                    <div class="task-info">
+                        <div class="task-title">${t.title}</div>
+                        <div class="task-meta">
+                            ${t.crit ? '<span style="color: var(--critical)">Критическая</span>' : 'Обязательная'}
+                            ${t.photo ? '• С фото' : ''}
+                        </div>
+                    </div>
+                    <div style="color: var(--text-muted)">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg>
+                    </div>
+                </div>
+            `).join('');
+
+            // Toggle Close Shift Button
+            const closeBtn = document.getElementById('close-shift-btn');
+            const pendingCritical = Store.tasks.filter(t => t.crit && !t.done && !t.waiver).length;
+            if (pendingCritical === 0 && doneCount > 0) {
+                closeBtn.classList.remove('btn-disabled');
+                closeBtn.classList.add('btn-primary');
+                closeBtn.onclick = () => this.alert('Смена успешно закрыта! Итоговый балл: ' + Store.calcScore());
+            } else {
+                closeBtn.classList.add('btn-disabled');
+                closeBtn.classList.remove('btn-primary');
+            }
+        },
+
+        renderTeam() {
+            const el = document.getElementById('team-list');
+            el.innerHTML = Store.team.map(u => `
+                <div class="glass-card" style="display: flex; align-items: center; gap: 16px;">
+                    <div style="width: 44px; height: 44px; background: var(--bg-elevated); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--primary);">
+                        ${u.name.charAt(0)}
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 700;">${u.name}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">${u.job}</div>
+                    </div>
+                    <div style="text-align: right;">
+                         <div style="font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase;">${u.role}</div>
+                    </div>
+                </div>
+            `).join('');
+        },
+
+        openTaskDetail(id) {
+            const task = Store.tasks.find(t => t.id === id);
+            if (task.done || task.waiver) return;
+
+            this.showSheet(`
+                <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 8px;">${task.title}</h2>
+                <p style="color: var(--text-muted); margin-bottom: 24px; font-size: 14px;">Пожалуйста, следуйте стандартам PlovKhana при выполнении этой задачи.</p>
+                
+                ${task.photo ? 
+                    `<button class="btn btn-primary" onclick="camera.open(${task.id}); app.hideSheet();">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        Сделать фото
+                    </button>` : 
+                    `<button class="btn btn-primary" onclick="app.completeTask(${task.id}); app.hideSheet();">Выполнить</button>`
+                }
+
+                <button class="btn btn-secondary" style="margin-top: 12px;" onclick="app.requestWaiver(${task.id})">Не могу выполнить</button>
+            `);
+        },
+
+        completeTask(id) {
+            const task = Store.tasks.find(t => t.id === id);
+            task.done = true;
+            this.haptic('success');
+            this.render();
+        },
+
+        requestWaiver(id) {
+            this.showSheet(`
+                <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 12px;">Запрос освобождения</h2>
+                <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">Почему вы не можете выполнить задачу?</p>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px;">
+                    <div style="padding: 8px 16px; background: var(--bg-base); border-radius: 20px; font-size: 12px; font-weight: 700; border: 1px solid var(--border);">Сломано</div>
+                    <div style="padding: 8px 16px; background: var(--bg-base); border-radius: 20px; font-size: 12px; font-weight: 700; border: 1px solid var(--border);">Нет товара</div>
+                    <div style="padding: 8px 16px; background: var(--bg-base); border-radius: 20px; font-size: 12px; font-weight: 700; border: 1px solid var(--border);">Другое</div>
+                </div>
+
+                <div style="background: rgba(48, 164, 108, 0.1); padding: 16px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 12px; align-items: center;">
+                    <div class="pulse-dot"></div>
+                    <div style="font-size: 12px; color: var(--success); font-weight: 600;">Ожидание подтверждения админа (эмуляция)</div>
+                </div>
+
+                <button class="btn btn-primary" onclick="app.simulateWaiverApproval(${id})">Отправить запрос</button>
+            `);
+        },
+
+        simulateWaiverApproval(id) {
+            this.alert('Запрос отправлен админу через Telegram...');
+            this.hideSheet();
+            
+            setTimeout(() => {
+                const task = Store.tasks.find(t => t.id === id);
+                task.waiver = true;
+                this.haptic('notification');
+                this.alert('Waiver одобрен админом для: ' + task.title);
+                this.render();
+            }, 3000);
+        },
+
+        showSheet(content) {
+            document.getElementById('sheet-content').innerHTML = content;
+            document.getElementById('sheet-overlay').classList.add('active');
+        },
+
+        hideSheet() {
+            document.getElementById('sheet-overlay').classList.remove('active');
+        },
+
+        alert(msg) {
+            // Simplified Toast/Alert
+            const alertEl = document.createElement('div');
+            alertEl.style.cssText = `
+                position: fixed; top: 20px; left: 20px; right: 20px;
+                background: var(--bg-elevated); border: 1px solid var(--primary);
+                padding: 16px; border-radius: 12px; z-index: 9999;
+                font-weight: 600; font-size: 14px; text-align: center;
+                animation: slideIn 0.3s forwards;
+            `;
+            alertEl.innerText = msg;
+            document.body.appendChild(alertEl);
+            setTimeout(() => {
+                alertEl.style.animation = 'slideIn reverse 0.3s forwards';
+                setTimeout(() => alertEl.remove(), 300);
+            }, 3000);
+        },
+
+        haptic(type) {
+            // Simulate Telegram Haptics if available
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+                if (type === 'impact') window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+                if (type === 'notification') window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            } else {
+                console.log('%c Haptic: ' + type, 'color: #4F7CFF; font-weight: bold;');
+            }
+        }
+    };
+
+    // Initialize App
+    app.init();
+    router.navigate('onboarding');
+
+</script>
+
+</body>
+</html>

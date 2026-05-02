@@ -2,22 +2,17 @@
 
 import {
   ArrowLeftRight,
-  BarChart3,
-  CalendarDays,
   Clock3,
-  FileStack,
   History,
   PlayCircle,
-  Radio,
-  ScrollText,
   Settings,
   Sparkles,
-  Upload,
-  Users,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
+import { AdminHub, type AdminHubNavTarget } from "@/components/dashboard/admin-hub";
+import { GlassMenu, GlassMenuRow } from "@/components/dashboard/glass-menu";
 import { AnalyticsScreen } from "@/components/screens/analytics-screen";
 import { AuditScreen } from "@/components/screens/audit-screen";
 import { BusinessHoursScreen } from "@/components/screens/business-hours-screen";
@@ -32,8 +27,9 @@ import { TeamScreen } from "@/components/screens/team-screen";
 import { TemplateEditScreen } from "@/components/screens/template-edit-screen";
 import { TemplatesListScreen } from "@/components/screens/templates-list-screen";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { fetchOverview } from "@/lib/api/analytics";
+import { fetchMonitorSnapshot } from "@/lib/api/monitor";
 import {
   claimShift,
   fetchAvailableShifts,
@@ -46,6 +42,7 @@ import { useCapabilities } from "@/lib/hooks/use-capabilities";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { useShiftStore } from "@/lib/stores/shift-store";
 import { toast } from "@/lib/stores/toast-store";
+import { cn } from "@/lib/utils";
 import { haptic, notify } from "@/lib/telegram/init";
 import { useTelegramShiftChrome } from "@/lib/telegram/shift-chrome";
 
@@ -76,6 +73,9 @@ const ADMIN_ONLY_VIEWS: View[] = [
   "templateEdit",
 ];
 
+const primaryCtaClass =
+  "!bg-white !text-black rounded-2xl border-0 font-bold shadow-[0_4px_28px_rgba(0,0,0,0.45)] hover:!bg-white/90 hover:!text-black";
+
 export function DashboardScreen(): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
   const setShift = useShiftStore((s) => s.setShift);
@@ -88,19 +88,18 @@ export function DashboardScreen(): React.JSX.Element {
   const tDash = useTranslations("dashboard");
   const tErr = useTranslations("errors");
   const tHist = useTranslations("history");
-  const tTpl = useTranslations("templates");
-  const tA = useTranslations("analytics");
-  const tCsv = useTranslations("csvImport");
-  const tOrgBh = useTranslations("orgBusinessHours");
-  const tLive = useTranslations("live");
   const tSwap = useTranslations("swap");
-  const tTeam = useTranslations("team");
-  const tAudit = useTranslations("audit");
   const tSettings = useTranslations("settings");
   const caps = useCapabilities();
   const [editingTemplateId, setEditingTemplateId] = React.useState<string | null>(null);
   const [historyFilters, setHistoryFilters] = React.useState<HistoryFilters | null>(null);
   const [swapDeepLinkProposerId, setSwapDeepLinkProposerId] = React.useState<string | null>(null);
+
+  const [hubLoading, setHubLoading] = React.useState(true);
+  const [hubActiveCount, setHubActiveCount] = React.useState<number | null>(null);
+  const [hubScore, setHubScore] = React.useState<number | null>(null);
+  const [hubLiveOk, setHubLiveOk] = React.useState(true);
+  const [hubKpiOk, setHubKpiOk] = React.useState(true);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -147,14 +146,45 @@ export function DashboardScreen(): React.JSX.Element {
   }, [setShift, tErr]);
 
   React.useEffect(() => {
-    // Intentionally mount-only: manual refreshes are triggered by user actions (start/close).
-    // This avoids double refreshes under React 18 dev Strict Mode and keeps sub-screens steadier.
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hooks must run on every render — declare here, before any early `return`
-  // for sub-screens. Otherwise `react-hooks/rules-of-hooks` fails the build.
+  React.useEffect(() => {
+    if (!caps.canAccessAdminModules) {
+      setHubLoading(false);
+      setHubActiveCount(null);
+      setHubScore(null);
+      setHubLiveOk(true);
+      setHubKpiOk(true);
+      return;
+    }
+    let cancelled = false;
+    setHubLoading(true);
+    void (async () => {
+      const [mon, ov] = await Promise.all([fetchMonitorSnapshot(), fetchOverview({ days: 1 })]);
+      if (cancelled) return;
+      setHubLoading(false);
+      if (mon.ok) {
+        setHubActiveCount(mon.data.active.length);
+        setHubLiveOk(true);
+      } else {
+        setHubActiveCount(null);
+        setHubLiveOk(false);
+      }
+      if (ov.ok) {
+        setHubScore(ov.data.kpis.averageScore);
+        setHubKpiOk(true);
+      } else {
+        setHubScore(null);
+        setHubKpiOk(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [caps.canAccessAdminModules]);
+
   const handleClaimVacant = React.useCallback(
     async (row: VacantShift) => {
       setClaimingId(row.id);
@@ -208,6 +238,14 @@ export function DashboardScreen(): React.JSX.Element {
       });
     }
   }, [shift, setShift, tErr]);
+
+  const handleAdminNavigate = React.useCallback((target: AdminHubNavTarget) => {
+    haptic("light");
+    if (target === "history") {
+      setHistoryFilters(null);
+    }
+    setView(target);
+  }, []);
 
   const chromeSurface =
     view === "tasks" ? "tasks" : view === "dashboard" ? "dashboard" : "other";
@@ -315,9 +353,32 @@ export function DashboardScreen(): React.JSX.Element {
 
   return (
     <main className="mx-auto max-w-md px-4 pt-6 pb-24 animate-fade-in-up">
-      <header className="mb-6">
+      {caps.canAccessAdminModules ? (
+        <AdminHub
+          hubLoading={hubLoading}
+          activeShiftsCount={hubActiveCount}
+          averageScore={hubScore}
+          liveUnavailable={!hubLiveOk}
+          kpiUnavailable={!hubKpiOk}
+          onNavigate={handleAdminNavigate}
+          onOpenTemplates={() => {
+            haptic("light");
+            setEditingTemplateId(null);
+            setView("templatesList");
+          }}
+        />
+      ) : null}
+
+      <section className="mb-4">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {caps.canAccessAdminModules
+            ? tDash("shiftSection.eyebrowAdmin")
+            : tDash("shiftSection.eyebrow")}
+        </p>
         <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString()}</p>
-        <h1 className="text-2xl font-semibold mt-1">{shift?.templateName ?? "ShiftOps"}</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+          {shift?.templateName ?? "ShiftOps"}
+        </h1>
         {shift ? (
           <div className="mt-2 space-y-0.5">
             {shift.stationLabel ? (
@@ -335,26 +396,22 @@ export function DashboardScreen(): React.JSX.Element {
             </p>
           </div>
         ) : null}
-      </header>
+      </section>
 
       {loading && !shift ? (
-        <Card className="animate-pulse">
-          <CardContent className="p-6 h-40" />
-        </Card>
+        <div className="so-glass mb-4 h-40 animate-pulse rounded-2xl" />
       ) : !shift ? (
         <>
           {vacantShifts.length > 0 ? (
-            <Card className="mb-3">
-              <CardHeader>
-                <CardTitle>{tDash("availableTitle")}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
+            <div className="so-glass mb-3 rounded-2xl p-4">
+              <p className="mb-3 font-medium text-foreground">{tDash("availableTitle")}</p>
+              <div className="space-y-3">
                 {vacantShifts.map((row) => (
                   <div
                     key={row.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border p-3 bg-elevated/40"
+                    className="flex flex-col gap-2 rounded-xl border border-white/[0.06] bg-black/35 p-4"
                   >
-                    <p className="text-sm font-medium">{row.templateName}</p>
+                    <p className="text-sm font-medium text-foreground">{row.templateName}</p>
                     <p className="text-xs text-muted-foreground">
                       {tDash("slotHint", {
                         location: row.locationName,
@@ -369,6 +426,7 @@ export function DashboardScreen(): React.JSX.Element {
                     <Button
                       size="block"
                       variant="secondary"
+                      className="rounded-xl bg-white/10"
                       disabled={claimingId !== null}
                       onClick={() => void handleClaimVacant(row)}
                     >
@@ -377,169 +435,98 @@ export function DashboardScreen(): React.JSX.Element {
                     </Button>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ) : null}
-          <Card>
-            <CardHeader>
-              <CardTitle>{tDash("noShift")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
-            </CardContent>
-          </Card>
+          <div className="so-glass rounded-2xl p-4">
+            <p className="mb-2 font-medium text-foreground">{tDash("noShift")}</p>
+            <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
+          </div>
         </>
       ) : shift.status === "scheduled" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock3 className="size-5 text-primary" />
-              {tDash("shiftStatus.scheduled")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              {new Date(shift.scheduledStart).toLocaleString()} → {" "}
-              {new Date(shift.scheduledEnd).toLocaleTimeString()}
-            </p>
-            <Button size="block" onClick={handleStart} disabled={acting}>
-              <PlayCircle className="size-5" />
-              {tDash("startCta")}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="so-glass mb-3 rounded-2xl p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Clock3 className="h-5 w-5 text-primary" aria-hidden />
+            <span className="font-medium text-foreground">{tDash("shiftStatus.scheduled")}</span>
+          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {new Date(shift.scheduledStart).toLocaleString()} →{" "}
+            {new Date(shift.scheduledEnd).toLocaleTimeString()}
+          </p>
+          <Button
+            size="block"
+            className={cn(primaryCtaClass)}
+            onClick={() => void handleStart()}
+            disabled={acting}
+          >
+            <PlayCircle className="size-5" />
+            {tDash("startCta")}
+          </Button>
+        </div>
       ) : shift.status === "active" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>{tDash("shiftStatus.active")}</span>
-              <span className="text-sm font-normal text-muted-foreground">{progress}%</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Progress value={progress} className="mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {done} / {total} {tDash("completed")} · {remaining} {tDash("remaining")}
+        <div className="so-glass mb-3 rounded-2xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="font-medium text-foreground">{tDash("shiftStatus.active")}</span>
+            <span className="text-sm font-normal text-muted-foreground">{progress}%</span>
+          </div>
+          <Progress value={progress} className="mb-3" />
+          <p className="text-sm text-muted-foreground">
+            {done} / {total} {tDash("completed")} · {remaining} {tDash("remaining")}
+          </p>
+          {criticalLeft > 0 ? (
+            <p className="text-sm text-critical mt-2">
+              {tDash("criticalLeft", { count: criticalLeft })}
             </p>
-            {criticalLeft > 0 ? (
-              <p className="text-sm text-critical mt-2">
-                {tDash("criticalLeft", { count: criticalLeft })}
-              </p>
-            ) : null}
-            <Button size="block" className="mt-4" onClick={() => setView("tasks")}>
-              <Sparkles className="size-5" />
-              {tDash("continueCta")}
-            </Button>
-          </CardContent>
-        </Card>
+          ) : null}
+          <Button
+            size="block"
+            className={cn("mt-4", primaryCtaClass)}
+            onClick={() => setView("tasks")}
+          >
+            <Sparkles className="size-5" />
+            {tDash("continueCta")}
+          </Button>
+        </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>{tDash(`shiftStatus.${shift.status}`)}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button variant="secondary" size="block" onClick={() => setView("summary")}>
-              {tDash("summaryCta")}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="so-glass rounded-2xl p-4">
+          <p className="mb-3 font-medium text-foreground">{tDash(`shiftStatus.${shift.status}`)}</p>
+          <Button variant="secondary" size="block" className="rounded-2xl" onClick={() => setView("summary")}>
+            {tDash("summaryCta")}
+          </Button>
+        </div>
       )}
 
-      <Button
-        variant="ghost"
-        size="block"
-        className="mt-3"
-        onClick={() => setView("history")}
-      >
-        <History className="size-4" />
-        {tHist("openHistoryCta")}
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="block"
-        className="mt-2"
-        onClick={() => setView("swapRequests")}
-      >
-        <ArrowLeftRight className="size-4" />
-        {tSwap("openCta")}
-      </Button>
-
-      <Button variant="ghost" size="block" className="mt-2" onClick={() => setView("settings")}>
-        <Settings className="size-4" />
-        {tSettings("openCta")}
-      </Button>
-
-      {caps.canAccessAdminModules ? (
-        <>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => setView("team")}
-          >
-            <Users className="size-4" />
-            {tTeam("openCta")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => setView("liveMonitor")}
-          >
-            <Radio className="size-4" />
-            {tLive("openCta")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => setView("analytics")}
-          >
-            <BarChart3 className="size-4" />
-            {tA("openCta")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => setView("businessHours")}
-          >
-            <CalendarDays className="size-4" />
-            {tOrgBh("openCta")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => setView("csvImport")}
-          >
-            <Upload className="size-4" />
-            {tCsv("openCta")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => {
-              setEditingTemplateId(null);
-              setView("templatesList");
-            }}
-          >
-            <FileStack className="size-4" />
-            {tTpl("openManageCta")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="block"
-            className="mt-2"
-            onClick={() => setView("audit")}
-          >
-            <ScrollText className="size-4" />
-            {tAudit("openCta")}
-          </Button>
-        </>
-      ) : null}
+      <p className="so-sec-title so-sec-flush mb-2 mt-8">{tDash("workSection.title")}</p>
+      <GlassMenu>
+        <GlassMenuRow
+          icon={History}
+          title={tHist("title")}
+          subtitle={tDash("workSection.historySubtitle")}
+          onClick={() => {
+            haptic("light");
+            setHistoryFilters(null);
+            setView("history");
+          }}
+        />
+        <GlassMenuRow
+          icon={ArrowLeftRight}
+          title={tSwap("openCta")}
+          subtitle={tDash("workSection.swapSubtitle")}
+          onClick={() => {
+            haptic("light");
+            setView("swapRequests");
+          }}
+        />
+        <GlassMenuRow
+          icon={Settings}
+          title={tSettings("openCta")}
+          subtitle={tDash("workSection.settingsSubtitle")}
+          onClick={() => {
+            haptic("light");
+            setView("settings");
+          }}
+        />
+      </GlassMenu>
     </main>
   );
 }

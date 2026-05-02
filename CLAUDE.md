@@ -145,7 +145,7 @@ git push origin v0.1.0
 | `docs/TELEGRAM_BOT.md` | Команды, диплинки, матрица уведомлений |
 | `docs/STORAGE.md` | TG-хранилище и план миграции на R2 |
 | `docs/SECURITY.md` | Anti-fake, RLS, GDPR |
-| `docs/DESIGN_SYSTEM.md` | Токены, компоненты |
+| `docs/DESIGN_SYSTEM.md` | Токены, компоненты; TWA: `apps/web/app/globals.css`; макет: `docs/shiftops-demo.html` |
 | `docs/UX_FLOW.md` | Конечный автомат и edge cases |
 | `docs/SCORE_FORMULA.md` | Расчёт оценки смены |
 | `docs/OBSERVABILITY.md` | Логи, метрики, алерты |

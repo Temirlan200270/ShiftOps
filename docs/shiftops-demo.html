@@ -1,0 +1,1703 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<!--
+  Интерактивное демо ShiftOps (один HTML-файл).
+
+  Не прод-код: локальные мок-данные и CDN Tailwind. Норматив токенов и поведение
+  TWA — docs/DESIGN_SYSTEM.md + apps/web/app/globals.css. Не дублировать отсюда
+  бизнес-логику в репозиторий.
+-->
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ShiftOps — демо</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { so: { primary: '#4F7CFF', success: '#30A46C', warning: '#F5A524', critical: '#E5484D' } },
+          fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+        },
+      },
+    };
+  </script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <style>
+    :root {
+      /* База: максимально тёмные нейтрали (меньше «синей дымки», чем в v13-радиале) */
+      --so-bg-base: #000000;
+      --so-radial: radial-gradient(130% 95% at 90% -15%, #12121a 0%, #050508 48%, #000000 100%);
+      --so-chrome: #030308;
+      --so-header-stress: #2b1216;
+      /* Поверхности: почти чёрные, без заметного синего тона */
+      --so-surface-glass: rgba(10, 10, 14, 0.78);
+      --so-surface-solid-top: #12121a;
+      --so-surface-solid-bot: #0a0a0e;
+      --so-border: rgba(255, 255, 255, 0.06);
+      /* Бренд (фиксированный, = tailwind so.primary) */
+      --so-brand: #4f7cff;
+      --so-brand-glow: rgba(79, 124, 255, 0.32);
+      /* Семантика (как в tailwind extend) */
+      --so-success: #30a46c;
+      --so-warning: #f5a524;
+      --so-critical: #e5484d;
+    }
+    body {
+      font-family: Inter, sans-serif;
+      letter-spacing: -0.01em;
+    }
+    .inter-tight {
+      letter-spacing: -0.04em;
+    }
+    .so-radial {
+      background-color: var(--so-bg-base);
+      background-image: var(--so-radial);
+    }
+    .so-glass {
+      background: var(--so-surface-glass);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--so-border);
+    }
+    .so-card-solid {
+      background: linear-gradient(155deg, var(--so-surface-solid-top) 0%, var(--so-surface-solid-bot) 100%);
+      border: 1px solid var(--so-border);
+    }
+    .so-brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--so-brand);
+      box-shadow: 0 0 12px var(--so-brand-glow);
+    }
+    .so-sec-title {
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgb(100 116 139);
+    }
+    .so-sec-title:first-child {
+      margin-top: 0;
+    }
+    .so-sec-title.so-sec-flush {
+      margin-top: 0;
+    }
+    .so-press {
+      transition: transform 0.1s ease;
+    }
+    .so-press:active {
+      transform: scale(0.98);
+    }
+    @keyframes so-pulse-live {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
+    }
+    .so-pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--so-success);
+      box-shadow: 0 0 10px rgba(48, 164, 108, 0.45);
+      animation: so-pulse-live 2s ease-in-out infinite;
+    }
+    .so-strip-critical { border-left: 4px solid var(--so-critical); }
+    .touch-target { min-height: 48px; min-width: 48px; }
+    .sheet-panel { transform: translateY(100%); transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+    .sheet-panel.open { transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) {
+      .sheet-panel { transition: none; }
+      .so-pulse-dot { animation: none; opacity: 1; }
+      .so-press { transition: none; }
+      .so-press:active { transform: none; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+    }
+    @keyframes scanLine { 0% { transform: translateY(0); } 100% { transform: translateY(260px); } }
+    .scan-anim { animation: scanLine 1.5s ease-in-out forwards; }
+    .tabular { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="min-h-[100dvh] so-radial text-slate-100 antialiased">
+  <div id="app" class="mx-auto max-w-md min-h-[100dvh] flex flex-col"></div>
+  <div id="sheet-mount"></div>
+  <div id="modal-mount"></div>
+
+  <script>
+(function () {
+  'use strict';
+
+  var STORAGE = 'shiftops-demo-v2';
+  var ONBOARD_KEY = 'shiftops-onboarding-v1';
+
+  /** @typedef {'dashboard'|'tasks'|'summary'|'history'|'templatesList'|'templateEdit'|'audit'|'analytics'|'csvImport'|'businessHours'|'liveMonitor'|'swapRequests'|'team'|'settings'} ViewName */
+
+  function tplOpeningKitchen() {
+    return [
+      { id: 'ok1', title: 'Температура холодильника и фото витрины', tier: 'critical', requiresPhoto: true, desc: 'Снимите витрину и термометр в кадре.' },
+      { id: 'ok2', title: 'Мойка зоны приготовления', tier: 'critical', requiresPhoto: false, desc: 'Проверьте санитарию по чек-листу.' },
+      { id: 'ok3', title: 'Запуск оборудования (плита, фритюр)', tier: 'required', requiresPhoto: false, desc: '' },
+      { id: 'ok4', title: 'Заготовки соусов', tier: 'required', requiresPhoto: false, desc: '' },
+      { id: 'ok5', title: 'Выкладка меню дня', tier: 'optional', requiresPhoto: false, desc: '' },
+    ];
+  }
+  function tplClosingBar() {
+    return [
+      { id: 'cb1', title: 'Z-отчёт и фото кассы', tier: 'critical', requiresPhoto: true, desc: 'Нужен снимок экрана кассы для проверки.' },
+      { id: 'cb2', title: 'Уборка бара и стульев', tier: 'critical', requiresPhoto: true, desc: 'Фото зоны бара.' },
+      { id: 'cb3', title: 'Закрытие склада напитков', tier: 'required', requiresPhoto: false, desc: '' },
+      { id: 'cb4', title: 'Инкассация (при необходимости)', tier: 'optional', requiresPhoto: false, desc: '' },
+    ];
+  }
+
+  function instTasks(tplRows) {
+    return tplRows.map(function (r) {
+      return {
+        id: r.id,
+        title: r.title,
+        tier: r.tier,
+        requiresPhoto: r.requiresPhoto,
+        desc: r.desc || '',
+        status: 'pending',
+        suspicious: false,
+        inQueue: false,
+      };
+    });
+  }
+
+  function defaultStore() {
+    return {
+      version: 2,
+      phase: 'splash',
+      splashStarted: false,
+      stack: ['dashboard'],
+      role: 'operator',
+      stressChrome: false,
+      demoOffline: false,
+      delaySeconds: 0,
+      confettiDone: false,
+      shift: null,
+      vacant: [
+        { id: 'v1', templateId: 'opening_kitchen', templateName: 'Открытие кухни', locationName: 'ПловХана · Центр', stationLabel: 'Кухня', slotIndex: 1 },
+        { id: 'v2', templateId: 'closing_bar', templateName: 'Закрытие бара', locationName: 'ПловХана · Центр', stationLabel: 'Бар', slotIndex: 2 },
+      ],
+      templates: [
+        { id: 'opening_kitchen', name: 'Открытие кухни', rows: tplOpeningKitchen() },
+        { id: 'closing_bar', name: 'Закрытие бара', rows: tplClosingBar() },
+      ],
+      team: [
+        { id: 'u1', name: 'Айгуль Н.', role: 'operator', active: true },
+        { id: 'u2', name: 'Данияр К.', role: 'admin', active: true },
+        { id: 'u3', name: 'Марат Т.', role: 'operator', active: false },
+      ],
+      auditEvents: [
+        { t: Date.now() - 3600000, type: 'shift.started', msg: 'Смена начата · ПловХана #1' },
+        { t: Date.now() - 1800000, type: 'task.completed', msg: 'Задача выполнена · Фото чистоты' },
+        { t: Date.now() - 600000, type: 'waiver.requested', msg: 'Запрос исключения · нет товара' },
+      ],
+      swapRequests: {
+        incoming: [{ id: 'sr1', from: 'Марат Т.', slot: 'Пт вечер', status: 'pending' }],
+        outgoing: [{ id: 'sr2', to: 'Айгуль Н.', slot: 'Сб утро', status: 'sent' }],
+      },
+      locations: [
+        { id: 'l1', name: 'ПловХана #1', violations: 2, live: true },
+        { id: 'l2', name: 'ПловХана #2', violations: 0, live: true },
+      ],
+      businessHours: { mon: { o: '08:00', c: '23:00', off: false }, tue: { o: '08:00', c: '23:00', off: false }, wed: { o: '08:00', c: '23:00', off: false }, thu: { o: '08:00', c: '23:00', off: false }, fri: { o: '08:00', c: '24:00', off: false }, sat: { o: '09:00', c: '24:00', off: false }, sun: { o: '09:00', c: '22:00', off: false } },
+      csvImport: { step: 0, name: '' },
+      templateEditId: null,
+      historyRows: [
+        { id: 'h1', date: '2026-05-01', tpl: 'Закрытие бара', score: 94, status: 'closed_clean' },
+        { id: 'h2', date: '2026-04-30', tpl: 'Открытие кухни', score: 88, status: 'closed_with_violations' },
+      ],
+      settings: { push: true, lang: 'ru' },
+      onboardingSlide: 0,
+      liveTick: 0,
+      ui: { sheet: null, taskId: null, modal: null, camTask: null, camScan: false, waiver: null, waiverReason: 'Сломано' },
+    };
+  }
+
+  var store = loadStore() || defaultStore();
+  if (!store.version || store.version < 2) store = defaultStore();
+  if (store.role !== 'owner' && store.role !== 'operator') store.role = 'operator';
+
+  function loadStore() {
+    try {
+      var r = localStorage.getItem(STORAGE);
+      if (!r) return null;
+      return JSON.parse(r);
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveStore() {
+    localStorage.setItem(STORAGE, JSON.stringify(store));
+  }
+
+  function canAdmin() {
+    return store.role === 'owner';
+  }
+  function currentView() {
+    return store.stack[store.stack.length - 1];
+  }
+  function pushView(v) {
+    if (!canAdmin() && adminOnly(v)) return;
+    store.stack.push(v);
+    saveStore();
+    render();
+  }
+  function popView() {
+    if (store.stack.length > 1) store.stack.pop();
+    saveStore();
+    render();
+  }
+  function adminOnly(v) {
+    return ['audit', 'analytics', 'businessHours', 'csvImport', 'liveMonitor', 'team', 'templatesList', 'templateEdit'].indexOf(v) >= 0;
+  }
+
+  function ensureTg() {
+    if (window.Telegram && window.Telegram.WebApp) return;
+    window.Telegram = {
+      WebApp: {
+        setHeaderColor: function () {},
+        HapticFeedback: {
+          impactOccurred: function () {
+            if (navigator.vibrate) navigator.vibrate(15);
+          },
+          notificationOccurred: function (t) {
+            if (navigator.vibrate) navigator.vibrate(t === 'error' ? [35, 25, 35] : [18, 40, 18]);
+          },
+        },
+      },
+    };
+  }
+  ensureTg();
+
+  function tasksArr() {
+    return (store.shift && store.shift.tasks) || [];
+  }
+
+  function scheduledEndTs() {
+    var d = new Date();
+    d.setHours(23, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function computeScore() {
+    var tasks = tasksArr();
+    var total = tasks.length;
+    var done = 0;
+    for (var i = 0; i < tasks.length; i++) {
+      if (tasks[i].status === 'done' || tasks[i].status === 'waived') done++;
+    }
+    var completion = total ? done / total : 1;
+    var critOk = !tasks.some(function (t) {
+      return t.tier === 'critical' && t.status !== 'done' && t.status !== 'waived';
+    });
+    var criticalCompliance = critOk ? 1 : 0;
+    var closed = store.shift && store.shift.status === 'closed';
+    var delaySec = closed ? store.delaySeconds : Math.max(0, (Date.now() - scheduledEndTs()) / 1000);
+    var timeliness = Math.max(0, 1 - delaySec / (2 * 3600));
+    var photoDone = tasks.filter(function (t) {
+      return t.requiresPhoto && t.status === 'done';
+    });
+    var pt = photoDone.length;
+    var pu = photoDone.filter(function (t) {
+      return !t.suspicious;
+    }).length;
+    var photoQuality = pt > 0 ? pu / pt : 1;
+    var score = 100 * (0.5 * completion + 0.25 * criticalCompliance + 0.15 * timeliness + 0.1 * photoQuality);
+    return { score: score, display: Math.round(score * 10) / 10, completion: completion, criticalCompliance: criticalCompliance, timeliness: timeliness, photoQuality: photoQuality };
+  }
+
+  function criticalBlocking() {
+    return tasksArr().some(function (t) {
+      return t.tier === 'critical' && t.status !== 'done' && t.status !== 'waived';
+    });
+  }
+
+  function headerBg() {
+    if (store.stressChrome && criticalBlocking()) return 'var(--so-header-stress)';
+    return 'var(--so-chrome)';
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function ruRole(role) {
+    var m = { operator: 'Сотрудник смены', admin: 'Администратор', owner: 'Владелец' };
+    return m[role] || role;
+  }
+
+  function tierLabel(tier) {
+    var m = { critical: 'Срочно', required: 'Обязательно', optional: 'По возможности' };
+    return m[tier] || tier;
+  }
+
+  function swapStatusRu(s) {
+    var m = { pending: 'ждёт ответа', sent: 'отправлено' };
+    return m[s] || s;
+  }
+
+  function fmtHeaderDate() {
+    return new Date().toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  /* ---------- RENDER ---------- */
+  function render() {
+    var root = document.getElementById('app');
+    document.documentElement.style.setProperty('--so-chrome', '#030308');
+    if (store.phase === 'splash') {
+      renderSplash(root);
+      bindGlobalClicksOnce();
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    if (store.phase === 'onboarding') {
+      renderOnboarding(root);
+      bindGlobalClicksOnce();
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    renderApp(root);
+    bindGlobalClicksOnce();
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderSplash(root) {
+    root.innerHTML =
+      '<div class="flex flex-col min-h-[100dvh]">' +
+      '<header class="so-glass border-b border-white/[0.06] px-5 pt-12 pb-6" style="background:' +
+      headerBg() +
+      '">' +
+      '<div class="flex items-center gap-3"><div class="h-11 w-11 rounded-2xl so-glass flex items-center justify-center">' +
+      '<span class="relative flex h-3 w-3"><span class="animate-ping absolute h-full w-full rounded-full bg-so-primary/50"></span>' +
+      '<span class="relative rounded-full h-3 w-3 bg-so-primary"></span></span></div>' +
+      '<div><p class="text-lg font-bold tracking-tight text-white">ShiftOps</p><p class="text-sm text-slate-400">Загрузка…</p></div></div></header>' +
+      '<div class="flex-1 flex items-center justify-center p-8"><div class="w-full max-w-xs space-y-3">' +
+      '<div class="h-3 bg-white/10 rounded animate-pulse"></div><div class="h-3 bg-white/5 rounded w-4/5 animate-pulse"></div>' +
+      '<div class="h-32 so-glass rounded-2xl mt-6 animate-pulse"></div></div></div></div>';
+    if (!store.splashStarted) {
+      store.splashStarted = true;
+      saveStore();
+      setTimeout(function () {
+        store.phase = localStorage.getItem(ONBOARD_KEY) ? 'app' : 'onboarding';
+        saveStore();
+        render();
+      }, 450 + Math.random() * 400);
+    }
+  }
+
+  function renderOnboarding(root) {
+    var slides = [
+      { t: 'ПловХана × ShiftOps', d: 'Чек-листы открытия и закрытия, фото к задачам и итоговый балл смены — в одном приложении в Telegram.' },
+      { t: 'Проверка фото', d: 'Подозрительные снимки отмечаются автоматически; окончательное решение — за руководителем.' },
+      { t: 'Готово', d: 'Дальше вы попадёте в интерактивную демонстрацию: всё работает на вашем телефоне, без подключения к серверу.' },
+    ];
+    var i = store.onboardingSlide | 0;
+    if (i >= slides.length) i = slides.length - 1;
+    root.innerHTML =
+      '<div class="flex flex-col min-h-[100dvh] p-6 pt-14">' +
+      '<div class="flex gap-1 mb-8">' +
+      slides
+        .map(function (_, j) {
+          return '<div class="h-1 flex-1 rounded-full ' + (j === i ? 'bg-so-primary' : 'bg-white/10') + '"></div>';
+        })
+        .join('') +
+      '</div>' +
+      '<h1 class="text-2xl font-bold tracking-tight text-white mb-3">' +
+      escapeHtml(slides[i].t) +
+      '</h1>' +
+      '<p class="text-slate-400 leading-relaxed mb-10">' +
+      escapeHtml(slides[i].d) +
+      '</p>' +
+      '<div class="mt-auto space-y-3">' +
+      (i < slides.length - 1
+        ? '<button type="button" class="touch-target w-full rounded-2xl bg-so-primary text-white font-semibold" data-act="onb-next">Далее</button>'
+        : '<button type="button" class="touch-target w-full rounded-2xl bg-so-primary text-white font-semibold" data-act="onb-done">В приложение</button>') +
+      '<button type="button" class="touch-target w-full rounded-2xl border border-white/10 text-slate-400 text-sm" data-act="onb-skip">Пропустить</button>' +
+      '</div></div>';
+  }
+
+  function renderTabBar() {
+    var v = currentView();
+    var tabs = canAdmin()
+      ? [
+          ['dashboard', 'home', 'Обзор'],
+          ['team', 'users', 'Команда'],
+          ['analytics', 'bar-chart-3', 'Сводка'],
+          ['settings', 'settings', 'Настройки'],
+        ]
+      : [
+          ['dashboard', 'home', 'Смена'],
+          ['history', 'history', 'История'],
+          ['settings', 'user', 'Профиль'],
+        ];
+    var html =
+      '<nav class="fixed bottom-0 left-0 right-0 z-[95] mx-auto flex max-w-md border-t border-white/[0.06] bg-[rgba(3,3,8,0.96)] backdrop-blur-2xl pt-1 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_rgba(0,0,0,0.55)]" role="tablist" aria-label="Разделы">';
+    tabs.forEach(function (t) {
+      var id = t[0];
+      var ico = t[1];
+      var lbl = t[2];
+      var on = v === id;
+      html +=
+        '<button type="button" class="touch-target flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 ' +
+        (on ? 'text-white' : 'text-slate-500') +
+        '" data-act="tab-nav" data-view="' +
+        id +
+        '" role="tab" aria-selected="' +
+        (on ? 'true' : 'false') +
+        '">' +
+        '<i data-lucide="' +
+        ico +
+        '" class="h-[22px] w-[22px] ' +
+        (on ? 'text-so-primary' : '') +
+        '"></i>' +
+        '<span class="text-[10px] font-semibold leading-tight">' +
+        escapeHtml(lbl) +
+        '</span></button>';
+    });
+    html += '</nav>';
+    return html;
+  }
+
+  function renderApp(root) {
+    var v = currentView();
+    var showBack = store.stack.length > 1;
+    var showTabs = store.stack.length === 1;
+    var critBanner = criticalBlocking() && store.shift && store.shift.status === 'active' && !store.stressChrome;
+    var mainPad = showTabs ? 'pb-36' : 'pb-24';
+    var fabBottom = showTabs
+      ? 'bottom-[max(6.25rem,calc(5.5rem+env(safe-area-inset-bottom)))]'
+      : 'bottom-[max(1rem,env(safe-area-inset-bottom))]';
+
+    var titleBlock =
+      (canAdmin() && v === 'dashboard'
+        ? '<span class="mb-0.5 inline-block rounded-full border border-white/10 bg-so-primary/15 px-2 py-0.5 text-[10px] uppercase tracking-wider text-sky-300">Владелец</span>'
+        : '') +
+      '<p class="truncate text-[11px] uppercase leading-tight tracking-wider text-slate-400">' +
+      viewTitle(v) +
+      '</p>';
+
+    var shell =
+      '<div class="flex flex-col min-h-[100dvh] ' +
+      mainPad +
+      '">' +
+      '<header class="sticky top-0 z-30 border-b border-white/[0.06] px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 so-glass" style="background:' +
+      headerBg() +
+      '">' +
+      (showBack
+        ? '<div class="flex items-center gap-2">' +
+          '<button type="button" class="touch-target -ml-1 rounded-xl px-2 text-slate-300 hover:bg-white/5" data-act="pop" aria-label="Назад"><i data-lucide="arrow-left" class="h-6 w-6"></i></button>' +
+          '<div class="min-w-0 flex-1 text-center">' +
+          titleBlock +
+          '</div>' +
+          '<div class="w-10 shrink-0" aria-hidden="true"></div></div>'
+        : '<div class="flex items-center justify-between gap-3">' +
+          '<div class="flex min-w-0 items-center gap-2">' +
+          '<span class="so-brand-dot shrink-0" aria-hidden="true"></span>' +
+          '<span class="inter-tight text-lg font-extrabold tracking-tighter text-white">ShiftOps</span></div>' +
+          '<div class="min-w-0 flex-1 px-1 text-center">' +
+          titleBlock +
+          '</div>' +
+          '<div class="max-w-[5.5rem] shrink-0 text-right text-[11px] font-medium tabular-nums leading-tight text-slate-500">' +
+          escapeHtml(fmtHeaderDate()) +
+          '</div></div>') +
+      '</header>';
+
+    if (critBanner) {
+      shell +=
+        '<div class="bg-critical/15 border-b border-critical/30 px-4 py-2 text-center text-sm text-red-200">' +
+        'Есть срочные задачи без отметки «готово» — выполните их или согласуйте исключение с руководителем' +
+        '</div>';
+    }
+
+    shell += '<main class="flex-1 px-4 pt-5 pb-8">' + renderView(v) + '</main></div>';
+
+    if (showTabs) shell += renderTabBar();
+
+    shell +=
+      '<div class="fixed ' +
+      fabBottom +
+      ' right-4 z-[100] flex flex-col gap-2 items-end pointer-events-auto">' +
+      '<button type="button" class="touch-target rounded-full so-glass px-4 py-2 text-xs font-semibold text-so-primary shadow-lg border border-white/10" data-act="dev-role" title="Переключить: вид владельца или сотрудника смены"><span class="pointer-events-none">' +
+      (store.role === 'owner' ? 'Владелец' : 'Смена') +
+      '</span></button>' +
+      '<button type="button" class="touch-target h-10 min-h-0 rounded-full px-3 text-[10px] font-medium border border-white/15 bg-black/40 text-slate-400" data-act="dev-stress">' +
+      (store.stressChrome ? 'Тревога: вся шапка' : 'Тревога: полоска') +
+      '</button></div>';
+
+    root.innerHTML = shell;
+    mountOverlays();
+  }
+
+  var __clicksBound = false;
+  function bindGlobalClicksOnce() {
+    if (__clicksBound) return;
+    __clicksBound = true;
+    document.addEventListener('click', handleGlobalAct);
+  }
+
+  function viewTitle(v) {
+    var m = {
+      dashboard: 'Главная',
+      tasks: 'Задачи смены',
+      summary: 'Итог смены',
+      history: 'История',
+      templatesList: 'Шаблоны',
+      templateEdit: 'Редактор шаблона',
+      audit: 'Аудит',
+      analytics: 'Сводка',
+      csvImport: 'Загрузка таблицы',
+      businessHours: 'Часы работы',
+      liveMonitor: 'Мониторинг',
+      swapRequests: 'Обмен сменами',
+      team: 'Команда',
+      settings: 'Настройки',
+    };
+    if (v === 'dashboard' && canAdmin()) return 'Панель владельца';
+    return m[v] || v;
+  }
+
+  function renderView(v) {
+    switch (v) {
+      case 'dashboard':
+        return screenDashboard();
+      case 'tasks':
+        return screenTasks();
+      case 'summary':
+        return screenSummary();
+      case 'history':
+        return screenHistory();
+      case 'templatesList':
+        return screenTemplatesList();
+      case 'templateEdit':
+        return screenTemplateEdit();
+      case 'audit':
+        return screenAudit();
+      case 'analytics':
+        return screenAnalytics();
+      case 'csvImport':
+        return screenCsv();
+      case 'businessHours':
+        return screenBizHours();
+      case 'liveMonitor':
+        return screenLive();
+      case 'swapRequests':
+        return screenSwap();
+      case 'team':
+        return screenTeam();
+      case 'settings':
+        return screenSettings();
+      default:
+        return '<p class="text-slate-500">Unknown view</p>';
+    }
+  }
+
+  function liveHeadcount() {
+    var n = 0;
+    (store.team || []).forEach(function (m) {
+      if (m.active) n++;
+    });
+    return Math.max(n, 3);
+  }
+
+  function ruPeopleCount(n) {
+    n = Math.abs(n | 0);
+    var n10 = n % 10;
+    var n100 = n % 100;
+    if (n10 === 1 && n100 !== 11) return String(n) + ' человек';
+    if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return String(n) + ' человека';
+    return String(n) + ' человек';
+  }
+
+  function ownerLiveStrip() {
+    var last = store.historyRows && store.historyRows[0];
+    var kpi = last ? String(last.score) : '87';
+    return (
+      '<div class="so-card-solid mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">' +
+      '<div class="min-w-0">' +
+      '<div class="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-so-success">' +
+      '<span class="so-pulse-dot shrink-0"></span>' +
+      '<span>Эфир</span></div>' +
+      '<p class="mt-1 text-[15px] font-semibold leading-snug text-white">' +
+      ruPeopleCount(liveHeadcount()) +
+      ' на смене</p></div>' +
+      '<div class="text-right">' +
+      '<p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Сводка за сегодня</p>' +
+      '<p class="text-2xl font-bold tabular text-so-warning">' +
+      kpi +
+      '</p></div></div>'
+    );
+  }
+
+  function ownerHubGridPrimary() {
+    return (
+      '<div class="grid grid-cols-2 gap-2">' +
+      ownerHubTile('analytics', 'bar-chart-3', 'Сводка', 'Баллы и загрузка по дням') +
+      ownerHubTile('team', 'users', 'Команда', 'Кто на какой роли') +
+      ownerHubTile('liveMonitor', 'radio', 'Мониторинг', 'Что сейчас на точках') +
+      ownerHubTile('templatesList', 'file-stack', 'Шаблоны', 'Утро, вечер, свои списки') +
+      '</div>'
+    );
+  }
+
+  function ownerHubSecondaryList() {
+    var rows = [
+      ['audit', 'scroll-text', 'Аудит', 'События и журнал'],
+      ['businessHours', 'calendar-days', 'Часы работы', 'По дням недели'],
+      ['csvImport', 'upload', 'Загрузка таблицы', 'Из Excel или файла'],
+      ['history', 'history', 'История смен', 'Фильтры и отчёты'],
+    ];
+    var h =
+      '<div class="so-glass divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.06]">';
+    rows.forEach(function (r) {
+      h +=
+        '<button type="button" class="touch-target flex w-full items-center gap-3 px-4 py-4 text-left active:bg-white/[0.04]" data-act="push" data-view="' +
+        r[0] +
+        '">' +
+        '<i data-lucide="' +
+        r[1] +
+        '" class="h-5 w-5 shrink-0 text-slate-500"></i>' +
+        '<span class="min-w-0 flex-1">' +
+        '<span class="block text-sm font-medium text-white">' +
+        escapeHtml(r[2]) +
+        '</span>' +
+        '<span class="block text-[11px] text-slate-500">' +
+        escapeHtml(r[3]) +
+        '</span></span>' +
+        '<i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-white/15"></i>' +
+        '</button>';
+    });
+    h += '</div>';
+    return h;
+  }
+
+  function ownerHubTile(view, icon, title, sub) {
+    return (
+      '<button type="button" class="touch-target so-card-solid so-press flex min-h-[92px] flex-col justify-between rounded-2xl p-4 text-left" data-act="push" data-view="' +
+      view +
+      '">' +
+      '<div class="flex items-start justify-between gap-1">' +
+      '<span class="text-[15px] font-semibold leading-tight text-white">' +
+      escapeHtml(title) +
+      '</span>' +
+      '<i data-lucide="' +
+      icon +
+      '" class="h-5 w-5 shrink-0 text-so-primary"></i></div>' +
+      '<p class="mt-2 text-[11px] leading-snug text-slate-500">' +
+      escapeHtml(sub) +
+      '</p></button>'
+    );
+  }
+
+  function opCtaPrimary(extraClass) {
+    return (
+      'touch-target flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-bold text-black shadow-[0_4px_28px_rgba(0,0,0,0.45)] active:opacity-90 ' +
+      (extraClass || '')
+    );
+  }
+
+  function opCtaSecondary() {
+    return 'touch-target w-full rounded-2xl bg-so-primary py-4 text-base font-semibold text-white shadow-[0_4px_22px_rgba(79,124,255,0.28)] flex items-center justify-center gap-2';
+  }
+
+  function operatorWorkList() {
+    return (
+      '<div class="mt-8">' +
+        '<p class="so-sec-title so-sec-flush mb-2">Моя работа</p>' +
+      '<div class="so-glass divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.06]">' +
+      '<button type="button" class="touch-target flex w-full items-center gap-3 px-4 py-4 text-left active:bg-white/[0.04]" data-act="push" data-view="history">' +
+      '<i data-lucide="history" class="h-5 w-5 text-slate-500"></i><span class="text-sm font-medium text-white">История смен</span>' +
+      '<i data-lucide="chevron-right" class="ml-auto h-5 w-5 text-white/15"></i></button>' +
+      '<button type="button" class="touch-target flex w-full items-center gap-3 px-4 py-4 text-left active:bg-white/[0.04]" data-act="push" data-view="swapRequests">' +
+      '<i data-lucide="arrow-left-right" class="h-5 w-5 text-slate-500"></i><span class="text-sm font-medium text-white">Обмен сменами</span>' +
+      '<i data-lucide="chevron-right" class="ml-auto h-5 w-5 text-white/15"></i></button>' +
+      '<button type="button" class="touch-target flex w-full items-center gap-3 px-4 py-4 text-left active:bg-white/[0.04]" data-act="push" data-view="settings">' +
+      '<i data-lucide="settings" class="h-5 w-5 text-slate-500"></i><span class="text-sm font-medium text-white">Настройки</span>' +
+      '<i data-lucide="chevron-right" class="ml-auto h-5 w-5 text-white/15"></i></button>' +
+      '</div></div>'
+    );
+  }
+
+  function screenDashboard() {
+    var sh = store.shift;
+    var html = '';
+    var op = !canAdmin();
+
+    if (canAdmin()) {
+      html +=
+        '<section class="mb-8 border-b border-white/[0.06] pb-6">' +
+        '<p class="mb-1 text-xs text-slate-500">ПловХана · организация</p>' +
+        '<h2 class="mb-4 text-xl font-bold tracking-tight text-white">Панель управления</h2>' +
+        '<p class="mb-5 text-xs text-slate-500">Внизу — разделы. Справа можно переключить вид: владелец или сотрудник смены.</p>' +
+        ownerLiveStrip() +
+        '<p class="so-sec-title">Основное</p>' +
+        ownerHubGridPrimary() +
+        '<p class="so-sec-title">Ещё</p>' +
+        ownerHubSecondaryList() +
+        '</section>';
+    }
+
+    html += '<section class="mb-4">';
+    html +=
+      '<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">' +
+      (canAdmin() ? 'Моя смена (как у оператора)' : 'Смена') +
+      '</p>';
+    html += '<p class="text-sm text-slate-500">' + new Date().toLocaleDateString('ru-RU') + '</p>';
+    html += '<h1 class="mt-1 text-2xl font-semibold tracking-tight text-white">' + (sh ? escapeHtml(sh.templateName) : 'ПловХана') + '</h1>';
+    if (sh) {
+      html +=
+        '<p class="mt-2 text-sm text-slate-400">' +
+        (sh.stationLabel ? escapeHtml(sh.stationLabel) + ' · ' : '') +
+        'Слот ' +
+        sh.slotIndex +
+        '</p>' +
+        '<p class="text-sm text-slate-500">Оператор: ' +
+        escapeHtml(sh.operatorFullName || 'Данияр К.') +
+        '</p>';
+    }
+    html += '</section>';
+
+    if (!sh) {
+      if (store.vacant.length) {
+        html += '<div class="so-glass mb-3 rounded-2xl p-4"><p class="mb-3 font-medium text-white">Доступные смены</p>';
+        store.vacant.forEach(function (row) {
+          var claimBtn =
+            '<button type="button" class="' +
+            (op ? opCtaPrimary('mt-5') : 'touch-target mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 py-3 font-medium') +
+            '" data-act="claim" data-vid="' +
+            row.id +
+            '">';
+          claimBtn += op
+            ? '<i data-lucide="play" class="h-6 w-6"></i><span>Занять смену</span>'
+            : '<i data-lucide="play" class="h-5 w-5"></i> Занять смену';
+          claimBtn += '</button>';
+          html +=
+            '<div class="mb-3 last:mb-0 rounded-xl border border-white/[0.06] bg-black/35 p-4">' +
+            '<p class="text-sm font-medium">' +
+            escapeHtml(row.templateName) +
+            '</p>' +
+            '<p class="mt-1 text-xs text-slate-500">' +
+            escapeHtml(row.locationName) +
+            '</p>' +
+            (row.stationLabel ? '<p class="text-xs text-slate-500">' + escapeHtml(row.stationLabel) + '</p>' : '') +
+            claimBtn +
+            '</div>';
+        });
+        html += '</div>';
+      }
+      html +=
+        '<div class="so-glass rounded-2xl p-4"><p class="mb-2 font-medium">Нет назначенной смены</p><p class="text-sm text-slate-500">Выберите слот выше или дождитесь расписания.</p></div>';
+    } else if (sh.status === 'scheduled') {
+      if (op) {
+        html +=
+          '<div class="so-card-solid mb-3 rounded-3xl p-6 text-center">' +
+          '<p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Запланирована</p>' +
+          '<p class="mt-2 text-xl font-bold text-white">' +
+          escapeHtml(sh.templateName) +
+          '</p>' +
+          '<p class="mt-2 text-sm text-slate-400">' +
+          fmtTime(sh.scheduledStart) +
+          ' — ' +
+          new Date(sh.scheduledEnd).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) +
+          '</p>' +
+          '<button type="button" class="' +
+          opCtaPrimary('mt-6') +
+          '" data-act="start-shift">' +
+          '<i data-lucide="play" class="h-6 w-6"></i> Начать смену</button>' +
+          '</div>';
+      } else {
+        html +=
+          '<div class="so-glass mb-3 rounded-2xl p-4">' +
+          '<div class="mb-3 flex items-center gap-2"><i data-lucide="clock" class="h-5 w-5 text-so-primary"></i><span class="font-medium">Запланирована</span></div>' +
+          '<p class="mb-4 text-sm text-slate-400">' +
+          fmtTime(sh.scheduledStart) +
+          ' → ' +
+          new Date(sh.scheduledEnd).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) +
+          '</p>' +
+          '<button type="button" class="' +
+          opCtaSecondary() +
+          '" data-act="start-shift">' +
+          '<i data-lucide="play" class="h-5 w-5"></i> Начать смену</button></div>';
+      }
+    } else if (sh.status === 'active') {
+      var tasks = tasksArr();
+      var total = tasks.length;
+      var done = tasks.filter(function (t) {
+        return t.status === 'done' || t.status === 'waived';
+      }).length;
+      var progress = total ? Math.round((done / total) * 100) : 0;
+      var critLeft = tasks.filter(function (t) {
+        return t.tier === 'critical' && t.status === 'pending';
+      }).length;
+      var wrapCls = op ? 'so-card-solid mb-3 rounded-3xl p-5' : 'so-glass mb-3 rounded-2xl p-4';
+      html += '<div class="' + wrapCls + '">';
+      html +=
+        '<div class="mb-2 flex items-center justify-between"><span class="font-medium">Смена активна</span><span class="text-sm text-slate-500 tabular">' +
+        progress +
+        '%</span></div>' +
+        '<div class="mb-3 h-2 rounded-full bg-white/10"><div class="h-full rounded-full bg-so-primary transition-all duration-500 ease-out" style="width:' +
+        progress +
+        '%"></div></div>' +
+        '<p class="text-sm text-slate-400">' +
+        done +
+        ' / ' +
+        total +
+        ' выполнено</p>' +
+        (critLeft > 0 ? '<p class="mt-2 text-sm text-so-critical">Срочных осталось: ' + critLeft + '</p>' : '');
+      html += op
+        ? '<button type="button" class="' + opCtaPrimary('mt-6') + '" data-act="push" data-view="tasks"><i data-lucide="sparkles" class="h-6 w-6"></i> К задачам</button>'
+        : '<button type="button" class="' + opCtaSecondary() + ' mt-4" data-act="push" data-view="tasks"><i data-lucide="sparkles" class="h-5 w-5"></i> К задачам</button>';
+      html += '</div>';
+
+      if (!op) {
+        html +=
+          '<div class="space-y-2">' +
+          rowLink('history', 'history', 'История смен') +
+          rowLink('swapRequests', 'arrow-left-right', 'Обмен сменами') +
+          rowLink('settings', 'settings', 'Настройки') +
+          '<p class="px-1 pt-2 text-[10px] text-slate-600">Остальные разделы для владельца — в блоке выше.</p></div>';
+      }
+    } else {
+      if (op) {
+        html +=
+          '<div class="so-card-solid rounded-3xl p-6 text-center">' +
+          '<p class="font-medium">Смена закрыта</p>' +
+          '<button type="button" class="' +
+          opCtaPrimary('mt-5') +
+          '" data-act="push" data-view="summary">Открыть итог</button></div>';
+      } else {
+        html +=
+          '<div class="so-glass rounded-2xl p-4">' +
+          '<p class="mb-3 font-medium">Смена закрыта</p>' +
+          '<button type="button" class="touch-target w-full rounded-xl border border-white/15 py-3 font-medium" data-act="push" data-view="summary">Открыть итог</button></div>';
+      }
+    }
+
+    if (op) html += operatorWorkList();
+
+    return html;
+  }
+
+  function rowLink(view, icon, label) {
+    return (
+      '<button type="button" class="touch-target w-full rounded-xl flex items-center gap-3 px-3 text-left hover:bg-white/5 border border-transparent hover:border-white/[0.06]" data-act="push" data-view="' +
+      view +
+      '">' +
+      '<i data-lucide="' +
+      icon +
+      '" class="h-5 w-5 text-slate-400"></i><span>' +
+      escapeHtml(label) +
+      '</span></button>'
+    );
+  }
+
+  function screenTasks() {
+    var sh = store.shift;
+    if (!sh || sh.status !== 'active') return '<p class="text-slate-500">Нет активной смены</p>';
+    var sc = computeScore();
+    var block = criticalBlocking();
+    var html =
+      '<div class="so-glass rounded-2xl p-4 mb-4">' +
+      '<div class="flex justify-between items-start">' +
+      '<div><p class="text-xs text-slate-500">Балл смены (сейчас)</p><p class="text-3xl font-bold text-so-primary tabular">' +
+      sc.display +
+      '</p></div>' +
+      '<button type="button" class="text-xs text-so-primary underline" data-act="toggle-score">Как считается</button></div>' +
+      '<div id="score-br" class="hidden mt-3 text-xs text-slate-400 space-y-1">' +
+      '<p>выполнение задач ×0.5 → ' +
+      sc.completion.toFixed(2) +
+      '</p>' +
+      '<p>срочные задачи ×0.25 → ' +
+      sc.criticalCompliance.toFixed(2) +
+      '</p>' +
+      '<p>срок закрытия ×0.15 → ' +
+      sc.timeliness.toFixed(2) +
+      '</p>' +
+      '<p>качество фото ×0.1 → ' +
+      sc.photoQuality.toFixed(2) +
+      '</p></div>' +
+      '<div class="h-2 rounded-full bg-white/10 mt-3"><div class="h-full rounded-full bg-gradient-to-r from-so-primary to-indigo-400 transition-all" style="width:' +
+      Math.min(100, sc.display) +
+      '%"></div></div>' +
+      '<div class="mt-4 flex items-center gap-2 text-xs"><label class="text-slate-500">Задержка (с):</label>' +
+      '<input type="range" min="0" max="7200" class="flex-1 accent-so-primary" data-act="delay" value="' +
+      store.delaySeconds +
+      '" /></div></div>';
+
+    html +=
+      '<div class="flex items-center justify-between so-glass rounded-xl px-3 py-2 mb-4 text-sm">' +
+      '<span class="text-slate-400">Фото ждут отправки (нет сети)</span>' +
+      '<button type="button" class="font-medium ' +
+      (store.demoOffline ? 'text-so-warning' : 'text-slate-500') +
+      '" data-act="toggle-offline">' +
+      (store.demoOffline ? 'Вкл' : 'Выкл') +
+      '</button></div>';
+
+    var tiers = ['critical', 'required', 'optional'];
+    var labels = { critical: 'Срочно', required: 'Обязательно', optional: 'По возможности' };
+    tiers.forEach(function (tier) {
+      var list = tasksArr().filter(function (t) {
+        return t.tier === tier;
+      });
+      if (!list.length) return;
+      html += '<p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">' + labels[tier] + '</p><div class="space-y-2 mb-6">';
+      list.forEach(function (t) {
+        html += taskCardHtml(t);
+      });
+      html += '</div>';
+    });
+
+    html +=
+      '<button type="button" class="touch-target w-full rounded-2xl font-semibold mb-4 ' +
+      (block ? 'bg-white/10 text-slate-500' : 'bg-so-primary text-white') +
+      '" data-act="close-shift" ' +
+      (block ? 'disabled' : '') +
+      '>Закрыть смену</button>';
+
+    html +=
+      '<details class="so-glass rounded-xl p-3 text-xs text-slate-500"><summary>Исключения: одобрить (учебный режим)</summary>' +
+      '<button type="button" class="mt-2 text-so-primary" data-act="approve-waivers">Одобрить все ожидающие</button></details>';
+
+    return html;
+  }
+
+  function taskCardHtml(t) {
+    var strip = t.tier === 'critical' ? 'so-strip-critical pl-3' : 'pl-3';
+    var badge =
+      t.status === 'done'
+        ? '<span class="text-so-success text-xs">Готово</span>'
+        : t.status === 'waiver_pending'
+          ? '<span class="text-so-warning text-xs">На согласовании</span>'
+          : t.status === 'waived'
+            ? '<span class="text-slate-400 text-xs">Waived</span>'
+            : '<span class="text-slate-500 text-xs">В работе</span>';
+    var q = t.inQueue ? '<span class="text-[10px] text-so-warning ml-1">очередь</span>' : '';
+
+    var critPhotoRule = t.tier === 'critical' && t.requiresPhoto;
+    var actions = '';
+    if (t.status === 'pending') {
+      actions = '<div class="flex flex-col gap-2 shrink-0">';
+      if (t.requiresPhoto) {
+        actions +=
+          '<button type="button" class="touch-target px-3 rounded-xl bg-so-primary/90 text-sm font-medium" data-act="open-cam" data-tid="' +
+          t.id +
+          '">Снять фото</button>';
+      } else {
+        actions +=
+          '<button type="button" class="touch-target px-3 rounded-xl bg-white/10 text-sm font-medium" data-act="task-done" data-tid="' +
+          t.id +
+          '">Выполнено</button>';
+      }
+      if (critPhotoRule) {
+        actions +=
+          '<span class="text-[10px] text-slate-500 text-right">Срочно и с фото: только камера или исключение</span>';
+      }
+      actions +=
+        '<button type="button" class="touch-target px-3 rounded-xl border border-so-warning/40 text-so-warning text-sm" data-act="open-waiver" data-tid="' +
+        t.id +
+        '">Запросить исключение</button></div>';
+    }
+
+    return (
+      '<div class="so-glass rounded-xl p-3 ' +
+      strip +
+      ' flex justify-between gap-3 task-row" data-tid="' +
+      t.id +
+      '">' +
+      '<div class="min-w-0 flex-1">' +
+      '<button type="button" class="text-left w-full" data-act="open-task-sheet" data-tid="' +
+      t.id +
+      '">' +
+      '<p class="font-medium text-white text-sm">' +
+      escapeHtml(t.title) +
+      '</p>' +
+      '<div class="flex flex-wrap gap-2 mt-1">' +
+      badge +
+      q +
+      (t.requiresPhoto ? '<span class="text-[10px] text-slate-500">нужно фото</span>' : '') +
+      '</div></button>' +
+      (t.status === 'done' && t.suspicious ? '<p class="text-[10px] text-so-warning mt-1">Подозрительное фото</p>' : '') +
+      '</div>' +
+      actions +
+      '</div>'
+    );
+  }
+
+  function screenSummary() {
+    var sc = computeScore();
+    return (
+      '<div class="so-glass rounded-2xl p-6 text-center">' +
+      '<p class="text-slate-500 text-sm">Итог смены</p>' +
+      '<p class="text-5xl font-bold text-so-primary my-4 tabular">' +
+      sc.display +
+      '</p>' +
+      '<p class="text-slate-400 text-sm mb-6">ПловХана · ' +
+      escapeHtml((store.shift && store.shift.templateName) || '') +
+      '</p>' +
+      '<button type="button" class="touch-target w-full rounded-xl bg-white/10 font-medium" data-act="pop">Назад</button></div>'
+    );
+  }
+
+  function screenHistory() {
+    var html = '<p class="text-sm text-slate-500 mb-4">Фильтры по датам — в полной версии</p><div class="space-y-2">';
+    store.historyRows.forEach(function (r) {
+      html +=
+        '<div class="so-glass rounded-xl p-4 flex justify-between items-center">' +
+        '<div><p class="font-medium">' +
+        escapeHtml(r.date) +
+        '</p><p class="text-xs text-slate-500">' +
+        escapeHtml(r.tpl) +
+        '</p></div>' +
+        '<span class="tabular text-so-primary">' +
+        r.score +
+        '</span></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenTemplatesList() {
+    var html = '<div class="space-y-2">';
+    store.templates.forEach(function (tpl) {
+      html +=
+        '<button type="button" class="touch-target w-full so-glass rounded-xl p-4 text-left flex justify-between items-center" data-act="edit-tpl" data-tid="' +
+        tpl.id +
+        '">' +
+        '<span class="font-medium">' +
+        escapeHtml(tpl.name) +
+        '</span><i data-lucide="chevron-right" class="h-5 w-5 text-slate-500"></i></button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenTemplateEdit() {
+    var id = store.templateEditId || store.templates[0].id;
+    var tpl = store.templates.find(function (t) {
+      return t.id === id;
+    });
+    if (!tpl) return '<p>Шаблон не найден</p>';
+    var html =
+      '<label class="block text-xs text-slate-500 mb-1">Название</label>' +
+      '<input type="text" class="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-3 mb-4 text-white" value="' +
+      escapeHtml(tpl.name) +
+      '" data-act="tpl-name" />' +
+      '<p class="text-sm text-slate-400 mb-2">Задачи (демо-редактор)</p><ul class="space-y-2">';
+    tpl.rows.forEach(function (r, idx) {
+      html +=
+        '<li class="so-glass rounded-lg px-3 py-2 text-sm">' +
+        (idx + 1) +
+        '. ' +
+        escapeHtml(r.title) +
+        ' · ' +
+        tierLabel(r.tier) +
+        (r.requiresPhoto ? ' · фото' : '') +
+        '</li>';
+    });
+    html += '</ul><button type="button" class="touch-target mt-6 w-full rounded-xl bg-so-primary font-semibold" data-act="save-tpl">Сохранить на этом устройстве</button>';
+    return html;
+  }
+
+  function screenAudit() {
+    var html = '<div class="space-y-2 font-mono text-xs">';
+    store.auditEvents.forEach(function (e) {
+      html +=
+        '<div class="so-glass rounded-lg p-3 border-l-2 border-so-primary/50">' +
+        '<p class="text-slate-500">' +
+        fmtTime(e.t) +
+        '</p><p class="text-slate-300 mt-1">' +
+        escapeHtml(e.msg) +
+        '</p></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenAnalytics() {
+    var sc = computeScore();
+    var heat = [2, 5, 1, 0, 3, 6, 2];
+    var maxH = Math.max.apply(null, heat.concat([1]));
+    var days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    var html =
+      '<div class="grid grid-cols-2 gap-3 mb-6">' +
+      '<div class="so-glass rounded-2xl p-4"><p class="text-xs text-slate-500">Ср. балл</p><p class="text-2xl font-bold tabular">' +
+      sc.display +
+      '</p></div>' +
+      '<div class="so-glass rounded-2xl p-4"><p class="text-xs text-slate-500">Нарушения 24ч</p><p class="text-2xl font-bold text-so-critical tabular">3</p></div>' +
+      '<div class="so-glass rounded-2xl p-4"><p class="text-xs text-slate-500">Выручка</p><p class="text-slate-500">скоро</p></div>' +
+      '<div class="so-glass rounded-2xl p-4"><p class="text-xs text-slate-500">Чистота</p><p class="text-2xl text-so-success tabular">94%</p></div></div>';
+    html += '<p class="text-sm font-medium mb-2">Загрузка по дням недели</p><div class="grid grid-cols-7 gap-1 mb-8">';
+    for (var i = 0; i < 7; i++) {
+      var op = 0.15 + (heat[i] / maxH) * 0.85;
+      html +=
+        '<div class="text-center"><div class="h-12 rounded-lg mx-auto" style="max-width:40px;background:rgba(79,124,255,' +
+        op +
+        ')"></div><span class="text-[10px] text-slate-500">' +
+        days[i] +
+        '</span></div>';
+    }
+    html += '</div><p class="text-sm font-medium mb-2">Команда</p>';
+    html +=
+      '<div class="so-glass rounded-xl p-3 flex justify-between"><span>Марат</span><span class="text-so-critical tabular">41</span></div>';
+    return html;
+  }
+
+  function screenCsv() {
+    var s = store.csvImport.step;
+    if (s === 0) {
+      return (
+        '<div class="so-glass rounded-2xl p-6 text-center">' +
+        '<p class="mb-4 text-slate-400">Шаг 1: выберите файл таблицы (учебный режим)</p>' +
+        '<button type="button" class="touch-target w-full rounded-xl bg-so-primary font-semibold" data-act="csv-next">Выбрать файл</button></div>'
+      );
+    }
+    if (s === 1) {
+      return (
+        '<div class="so-glass rounded-2xl p-4">' +
+        '<p class="text-sm text-slate-400 mb-3">Предпросмотр: ' +
+        escapeHtml(store.csvImport.name) +
+        '</p>' +
+        '<table class="w-full text-xs text-left"><tr class="border-b border-white/10"><th class="py-2">Колонка</th><th>Пример</th></tr>' +
+        '<tr><td class="py-2">точка</td><td>ПловХана #1</td></tr><tr><td class="py-2">задача</td><td>Фото бара</td></tr></table>' +
+        '<button type="button" class="touch-target mt-4 w-full rounded-xl bg-so-primary font-semibold" data-act="csv-next">Загрузить</button></div>'
+      );
+    }
+    return '<p class="text-so-success text-center py-8">Готово (в учебном режиме данные не уходят в сеть)</p><button type="button" class="touch-target w-full rounded-xl bg-white/10" data-act="csv-reset">Начать сначала</button>';
+  }
+
+  function screenBizHours() {
+    var days = [
+      ['mon', 'Пн'],
+      ['tue', 'Вт'],
+      ['wed', 'Ср'],
+      ['thu', 'Чт'],
+      ['fri', 'Пт'],
+      ['sat', 'Сб'],
+      ['sun', 'Вс'],
+    ];
+    var html = '<div class="space-y-2">';
+    days.forEach(function (d) {
+      var b = store.businessHours[d[0]];
+      html +=
+        '<div class="so-glass rounded-xl p-3 flex items-center justify-between gap-2">' +
+        '<span class="w-8">' +
+        d[1] +
+        '</span>' +
+        (b.off
+          ? '<span class="text-slate-500">Выходной</span>'
+          : '<span class="text-sm tabular">' +
+            b.o +
+            ' – ' +
+            b.c +
+            '</span>') +
+        '<button type="button" class="text-xs text-so-primary" data-act="toggle-day" data-day="' +
+        d[0] +
+        '">вкл/выкл</button></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenLive() {
+    var tick = store.liveTick | 0;
+    var html = '<p class="text-xs text-slate-500 mb-4">Обновлено раз: ' + tick + ' (учебный режим)</p><div class="space-y-3">';
+    store.locations.forEach(function (L) {
+      html +=
+        '<div class="so-glass rounded-xl p-4 flex justify-between items-center">' +
+        '<div><p class="font-medium">' +
+        escapeHtml(L.name) +
+        '</p><p class="text-xs text-slate-500">Нарушения: ' +
+        L.violations +
+        '</p></div>' +
+        '<span class="flex h-3 w-3 rounded-full ' +
+        (L.live ? 'bg-so-success animate-pulse' : 'bg-slate-600') +
+        '"></span></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenSwap() {
+    var html = '<p class="text-sm font-medium mb-2">Входящие</p><div class="space-y-2 mb-6">';
+    store.swapRequests.incoming.forEach(function (r) {
+      html +=
+        '<div class="so-glass rounded-xl p-3 flex justify-between items-center">' +
+        '<div><p class="text-sm">' +
+        escapeHtml(r.from) +
+        '</p><p class="text-xs text-slate-500">' +
+        escapeHtml(r.slot) +
+        '</p></div>' +
+        '<div class="flex gap-2">' +
+        '<button type="button" class="touch-target px-3 rounded-lg bg-so-success/20 text-so-success text-sm" data-act="swap-accept" data-sid="' +
+        r.id +
+        '">Принять</button>' +
+        '<button type="button" class="touch-target px-3 rounded-lg bg-white/10 text-sm" data-act="swap-decline" data-sid="' +
+        r.id +
+        '">Отклонить</button></div></div>';
+    });
+    html += '</div><p class="text-sm font-medium mb-2">Исходящие</p><div class="space-y-2">';
+    store.swapRequests.outgoing.forEach(function (r) {
+      html +=
+        '<div class="so-glass rounded-xl p-3"><p class="text-sm">' +
+        escapeHtml(r.to) +
+        '</p><p class="text-xs text-slate-500">' +
+        escapeHtml(swapStatusRu(r.status)) +
+        '</p></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenTeam() {
+    var html = '<div class="space-y-2">';
+    store.team.forEach(function (m) {
+      if (!m.active) return;
+      html +=
+        '<button type="button" class="touch-target w-full so-glass rounded-xl p-4 text-left flex justify-between" data-act="team-member" data-mid="' +
+        m.id +
+        '">' +
+        '<span class="font-medium">' +
+        escapeHtml(m.name) +
+        '</span><span class="text-xs uppercase text-slate-500">' +
+        escapeHtml(ruRole(m.role)) +
+        '</span></button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function screenSettings() {
+    return (
+      '<div class="so-glass rounded-2xl p-4 space-y-4">' +
+      '<div><p class="text-sm font-medium text-white mb-2">Кто вы в этой демонстрации</p>' +
+      '<p class="text-xs text-slate-500 mb-3">Владелец видит управление на главной; сотрудник смены — в первую очередь свои задачи.</p>' +
+      '<div class="flex rounded-xl border border-white/10 overflow-hidden">' +
+      '<button type="button" class="touch-target flex-1 py-3 text-sm font-medium ' +
+      (store.role === 'operator' ? 'bg-so-primary/25 text-white' : 'bg-black/20 text-slate-400') +
+      '" data-act="set-role" data-role="operator">Сотрудник смены</button>' +
+      '<button type="button" class="touch-target flex-1 py-3 text-sm font-medium border-l border-white/10 ' +
+      (store.role === 'owner' ? 'bg-so-primary/25 text-white' : 'bg-black/20 text-slate-400') +
+      '" data-act="set-role" data-role="owner">Владелец</button></div></div>' +
+      '<div class="flex justify-between items-center touch-target"><span>Push-уведомления</span>' +
+      '<button type="button" class="w-12 h-7 rounded-full ' +
+      (store.settings.push ? 'bg-so-primary' : 'bg-white/10') +
+      '" data-act="toggle-push"></button></div>' +
+      '<p class="text-xs text-slate-500">Язык: ' +
+      store.settings.lang +
+      ' (демо)</p>' +
+      '<p class="text-xs text-slate-600">Демо-версия ShiftOps · только для ознакомления</p></div>'
+    );
+  }
+
+  function mountOverlays() {
+    var mm = document.getElementById('modal-mount');
+    mm.innerHTML = '';
+    if (store.ui.modal === 'cam' && store.ui.camTask) {
+      mm.innerHTML =
+        '<div class="fixed inset-0 z-[200] bg-black/75 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true">' +
+        '<div class="so-glass rounded-2xl w-full max-w-sm overflow-hidden">' +
+        '<div class="flex justify-between items-center px-4 py-3 border-b border-white/10">' +
+        '<span class="font-semibold">Камера · проверка снимка</span>' +
+        '<button type="button" class="touch-target p-2" data-act="close-cam" aria-label="Закрыть"><i data-lucide="x"></i></button></div>' +
+        '<div class="relative aspect-[3/4] bg-black m-3 rounded-xl overflow-hidden">' +
+        (store.ui.camScan ? '<div class="absolute left-4 right-4 top-10 h-1 bg-so-primary scan-anim"></div>' : '') +
+        '<p class="absolute bottom-4 w-full text-center text-xs font-mono text-slate-500">' +
+        (store.ui.camScan ? 'Проверяем снимок…' : 'Готово к съёмке') +
+        '</p></div>' +
+        '<div class="p-4 pt-0">' +
+        '<button type="button" class="touch-target w-full rounded-xl bg-so-primary font-semibold" data-act="cam-shot" ' +
+        (store.ui.camScan ? 'disabled' : '') +
+        '>Снять</button></div></div></div>';
+    } else if (store.ui.modal === 'waiver' && store.ui.waiver) {
+      mm.innerHTML =
+        '<div class="fixed inset-0 z-[200] bg-black/75 flex items-end justify-center p-4" role="dialog" aria-modal="true">' +
+        '<div class="so-glass rounded-t-3xl w-full max-w-sm p-4" style="padding-bottom:max(1rem,env(safe-area-inset-bottom))">' +
+        '<p class="font-semibold mb-3">Запрос исключения</p>' +
+        '<div class="flex flex-wrap gap-2 mb-4">' +
+        ['Сломано', 'Нет товара', 'Другое']
+          .map(function (r) {
+            return (
+              '<button type="button" class="touch-target px-4 rounded-full border border-white/10 text-sm ' +
+              (store.ui.waiverReason === r ? 'border-so-primary bg-so-primary/20' : '') +
+              '" data-act="waiver-reason" data-reason="' +
+              r +
+              '">' +
+              r +
+              '</button>'
+            );
+          })
+          .join('') +
+        '</div>' +
+        '<textarea class="w-full rounded-xl bg-black/40 border border-white/10 p-3 text-sm mb-4" rows="3" id="waiver-txt" placeholder="Комментарий"></textarea>' +
+        '<button type="button" class="touch-target w-full rounded-xl bg-so-warning text-black font-semibold" data-act="waiver-send">Отправить</button></div></div>';
+    }
+
+    var sm = document.getElementById('sheet-mount');
+    sm.innerHTML = '';
+    if (store.ui.sheet === 'task' && store.ui.taskId) {
+      var t = tasksArr().find(function (x) {
+        return x.id === store.ui.taskId;
+      });
+      if (t) {
+        sm.innerHTML =
+          '<div class="fixed inset-0 z-[150] bg-black/50" data-act="close-sheet"></div>' +
+          '<div class="fixed bottom-0 left-0 right-0 z-[151] max-w-md mx-auto so-glass rounded-t-3xl p-5 sheet-panel open border-t border-white/10" style="padding-bottom:max(1.5rem,env(safe-area-inset-bottom))">' +
+          '<div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4"></div>' +
+          '<p class="text-lg font-semibold mb-1">' +
+          escapeHtml(t.title) +
+          '</p>' +
+          '<p class="text-sm text-slate-400 mb-4">' +
+          escapeHtml(t.desc || 'Нет описания') +
+          '</p>' +
+          '<button type="button" class="touch-target w-full rounded-xl bg-white/10 mb-2" data-act="close-sheet">Закрыть</button></div>';
+      }
+    }
+  }
+
+  function eventActElement(e) {
+    var n = e.target;
+    if (!n) return null;
+    if (n.nodeType !== 1) n = n.parentElement;
+    return n && n.closest ? n.closest('[data-act]') : null;
+  }
+
+  function handleGlobalAct(e) {
+    var el = eventActElement(e);
+    if (!el) return;
+    if (!el.closest('#app') && !el.closest('#modal-mount') && !el.closest('#sheet-mount')) return;
+    var act = el.getAttribute('data-act');
+      if (act === 'pop') {
+        popView();
+        return;
+      }
+      if (act === 'push') {
+        pushView(el.getAttribute('data-view'));
+        return;
+      }
+      if (act === 'tab-nav') {
+        var tn = el.getAttribute('data-view');
+        if (!tn) return;
+        if (!canAdmin() && adminOnly(tn)) return;
+        store.stack = [tn];
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'dev-role') {
+        store.role = store.role === 'owner' ? 'operator' : 'owner';
+        if (store.role === 'operator' && adminOnly(currentView())) store.stack = ['dashboard'];
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'set-role') {
+        var rr = el.getAttribute('data-role');
+        if (rr !== 'owner' && rr !== 'operator') return;
+        store.role = rr;
+        if (store.role === 'operator' && adminOnly(currentView())) store.stack = ['dashboard'];
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'dev-stress') {
+        store.stressChrome = !store.stressChrome;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'onb-next') {
+        store.onboardingSlide = (store.onboardingSlide | 0) + 1;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'onb-done' || act === 'onb-skip') {
+        localStorage.setItem(ONBOARD_KEY, '1');
+        store.phase = 'app';
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'claim') {
+        var vid = el.getAttribute('data-vid');
+        var row = store.vacant.find(function (v) {
+          return v.id === vid;
+        });
+        if (!row) return;
+        var tpl = store.templates.find(function (t) {
+          return t.id === row.templateId;
+        });
+        store.shift = {
+          id: 'shift-demo',
+          templateId: row.templateId,
+          templateName: row.templateName,
+          status: 'scheduled',
+          stationLabel: row.stationLabel,
+          slotIndex: row.slotIndex,
+          operatorFullName: 'Данияр К.',
+          scheduledStart: Date.now(),
+          scheduledEnd: Date.now() + 8 * 3600000,
+          tasks: instTasks(tpl.rows),
+        };
+        store.vacant = store.vacant.filter(function (v) {
+          return v.id !== vid;
+        });
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'start-shift') {
+        if (store.shift) store.shift.status = 'active';
+        saveStore();
+        pushView('tasks');
+        return;
+      }
+      if (act === 'close-shift') {
+        if (criticalBlocking()) {
+          Tg().notificationOccurred('error');
+          return;
+        }
+        if (store.shift) store.shift.status = 'closed';
+        var d = computeScore().display;
+        if (d > 99.9 && !store.confettiDone && typeof confetti === 'function') {
+          store.confettiDone = true;
+          confetti({ origin: { y: 0.9 }, particleCount: 100 });
+        }
+        saveStore();
+        pushView('summary');
+        return;
+      }
+      if (act === 'toggle-score') {
+        var br = document.getElementById('score-br');
+        if (br) br.classList.toggle('hidden');
+        return;
+      }
+      if (act === 'delay') {
+        store.delaySeconds = +el.value;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'toggle-offline') {
+        store.demoOffline = !store.demoOffline;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'approve-waivers') {
+        tasksArr().forEach(function (t) {
+          if (t.status === 'waiver_pending') t.status = 'waived';
+        });
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'task-done') {
+        var tid = el.getAttribute('data-tid');
+        var task = tasksArr().find(function (t) {
+          return t.id === tid;
+        });
+        if (!task || task.requiresPhoto) return;
+        if (task.tier === 'critical' && task.requiresPhoto) return;
+        task.status = 'done';
+        Tg().impactOccurred();
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'open-cam') {
+        store.ui.modal = 'cam';
+        store.ui.camTask = el.getAttribute('data-tid');
+        store.ui.camScan = false;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'open-waiver') {
+        store.ui.modal = 'waiver';
+        store.ui.waiver = el.getAttribute('data-tid');
+        store.ui.waiverReason = 'Сломано';
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'open-task-sheet') {
+        store.ui.sheet = 'task';
+        store.ui.taskId = el.getAttribute('data-tid');
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'close-sheet' || (act === 'close-sheet' && el.classList.contains('fixed'))) {
+        store.ui.sheet = null;
+        store.ui.taskId = null;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'edit-tpl') {
+        store.templateEditId = el.getAttribute('data-tid');
+        pushView('templateEdit');
+        return;
+      }
+      if (act === 'save-tpl') {
+        popView();
+        return;
+      }
+      if (act === 'csv-next') {
+        if (store.csvImport.step === 0) {
+          store.csvImport = { step: 1, name: 'plovhana-grafik.csv' };
+        } else if (store.csvImport.step === 1) {
+          store.csvImport.step = 2;
+        }
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'csv-reset') {
+        store.csvImport = { step: 0, name: '' };
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'toggle-day') {
+        var day = el.getAttribute('data-day');
+        store.businessHours[day].off = !store.businessHours[day].off;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'swap-accept' || act === 'swap-decline') {
+        store.swapRequests.incoming = [];
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'team-member') {
+        var mid = el.getAttribute('data-mid');
+        var mem = store.team.find(function (x) {
+          return x.id === mid;
+        });
+        if (mem) {
+          var order = ['operator', 'admin', 'owner'];
+          var ix = order.indexOf(mem.role);
+          mem.role = order[(ix + 1) % order.length];
+          Tg().impactOccurred();
+          saveStore();
+          render();
+        }
+        return;
+      }
+      if (act === 'toggle-push') {
+        store.settings.push = !store.settings.push;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'close-cam') {
+        store.ui.modal = null;
+        store.ui.camTask = null;
+        store.ui.camScan = false;
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'cam-shot') {
+        var ct = store.ui.camTask;
+        store.ui.camScan = true;
+        saveStore();
+        render();
+        setTimeout(function () {
+          var task = tasksArr().find(function (x) {
+            return x.id === ct;
+          });
+          if (task) {
+            task.suspicious = Math.random() < 0.3;
+            if (store.demoOffline) task.inQueue = true;
+            else task.status = 'done';
+          }
+          store.ui.modal = null;
+          store.ui.camTask = null;
+          store.ui.camScan = false;
+          saveStore();
+          render();
+        }, 1500);
+        return;
+      }
+      if (act === 'waiver-reason') {
+        store.ui.waiverReason = el.getAttribute('data-reason');
+        saveStore();
+        render();
+        return;
+      }
+      if (act === 'waiver-send') {
+        var wt = store.ui.waiver;
+        var task = tasksArr().find(function (x) {
+          return x.id === wt;
+        });
+        if (task) {
+          task.status = 'waiver_pending';
+          var tx = document.getElementById('waiver-txt');
+          if (tx && tx.value) task.waiverComment = tx.value;
+        }
+        store.ui.modal = null;
+        store.ui.waiver = null;
+        saveStore();
+        render();
+        return;
+      }
+  }
+
+  function Tg() {
+    return window.Telegram.WebApp.HapticFeedback;
+  }
+
+  store.onboardingSlide = store.onboardingSlide | 0;
+  if (store.phase === 'onboarding' && localStorage.getItem(ONBOARD_KEY)) {
+    store.phase = 'app';
+    saveStore();
+  }
+
+  window.addEventListener('online', function () {
+    tasksArr().forEach(function (t) {
+      if (t.inQueue) {
+        t.inQueue = false;
+        if (t.status !== 'waived') t.status = 'done';
+      }
+    });
+    saveStore();
+    render();
+  });
+
+  setInterval(function () {
+    if (store.phase !== 'app' || currentView() !== 'liveMonitor') return;
+    store.liveTick = (store.liveTick | 0) + 1;
+    saveStore();
+    render();
+  }, 5000);
+
+  render();
+})();
+  </script>
+</body>
+</html>

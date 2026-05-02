@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ShiftOps Interactive</title>
+    <style>
+        :root {
+            --bg: #000000;
+            --surface: #121214;
+            --surface-bright: #1c1c1e;
+            --border: rgba(255, 255, 255, 0.08);
+            --accent: #ffffff;
+            --blue: #3b82f6;
+            --text-main: #ffffff;
+            --text-muted: #8e8e93;
+            --success: #34c759;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { background: #000; color: var(--text-main); font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+
+        .app { max-width: 420px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; position: relative; }
+        
+        /* Header */
+        .header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .logo { font-weight: 800; font-size: 18px; display: flex; align-items: center; gap: 6px; }
+        .logo-dot { width: 6px; height: 6px; background: var(--blue); border-radius: 50%; box-shadow: 0 0 10px var(--blue); }
+
+        .scroll-area { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 100px; }
+
+        /* Дебаг панель */
+        .debug { background: #1c1c1e; padding: 10px; border-radius: 12px; margin-bottom: 20px; border: 1px dashed #444; font-size: 11px; }
+        .seg { display: flex; gap: 4px; background: #000; padding: 2px; border-radius: 8px; margin-top: 5px; }
+        .seg-btn { flex: 1; border: none; background: none; color: #666; padding: 6px; font-size: 10px; border-radius: 6px; cursor: pointer; }
+        .seg-btn.active { background: #333; color: #fff; }
+
+        /* Карточка смены */
+        .card { background: var(--surface); border-radius: 20px; padding: 20px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .card-h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .tag { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; background: rgba(52, 199, 89, 0.1); color: var(--success); }
+        .title { font-size: 20px; font-weight: 700; }
+        .sub { font-size: 14px; color: var(--text-muted); }
+
+        .prog-bar { height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; margin: 15px 0; overflow: hidden; }
+        .prog-fill { height: 100%; background: var(--blue); width: 33%; transition: 0.3s; }
+
+        .btn-row { display: flex; gap: 10px; }
+        .btn { flex: 1; border: none; padding: 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-primary { background: #fff; color: #000; }
+        .btn-secondary { background: var(--surface-bright); color: #fff; }
+        .btn:active { transform: scale(0.97); }
+
+        /* Меню */
+        .sec-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin: 20px 0 8px 4px; letter-spacing: 1px; }
+        .menu { background: var(--surface); border-radius: 18px; border: 1px solid var(--border); overflow: hidden; }
+        .item { padding: 16px; display: flex; align-items: center; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .item:last-child { border-bottom: none; }
+        .item-ico { color: var(--blue); margin-right: 15px; }
+        .item-body { flex: 1; }
+        .item-t { font-weight: 600; font-size: 15px; }
+        .item-s { font-size: 12px; color: var(--text-muted); }
+
+        /* Таббар */
+        .tabs { position: absolute; bottom: 0; width: 100%; height: 70px; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding-top: 10px; }
+        .tab { background: none; border: none; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        .tab.active { color: #fff; }
+        .tab svg { width: 22px; height: 22px; }
+
+        /* Модалка чек-листа */
+        .modal { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: flex-end; z-index: 100; }
+        .modal.active { display: flex; }
+        .sheet { background: var(--surface); width: 100%; padding: 20px; border-radius: 24px 24px 0 0; border-top: 1px solid var(--border); transform: translateY(100%); transition: 0.3s; }
+        .modal.active .sheet { transform: translateY(0); }
+        .task { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-bottom: 1px solid var(--border); }
+        .check { width: 20px; height: 20px; border: 2px solid #333; border-radius: 6px; }
+        .check.done { background: var(--blue); border-color: var(--blue); }
+    </style>
+</head>
+<body>
+
+<div class="app">
+    <div class="header">
+        <div class="logo"><div class="logo-dot"></div> ShiftOps</div>
+        <div class="sub">Пт, 02 Мая</div>
+    </div>
+
+    <div class="scroll-area">
+        <!-- Кнопки для ТЕСТА -->
+        <div class="debug">
+            <span>ROLE TEST:</span>
+            <div class="seg">
+                <button class="seg-btn active" onclick="setRole('owner', this)">Owner</button>
+                <button class="seg-btn" onclick="setRole('operator', this)">Operator</button>
+            </div>
+            <div style="margin-top: 8px">SHIFT TEST:</div>
+            <div class="seg">
+                <button class="seg-btn active" onclick="setStatus('active', this)">Active</button>
+                <button class="seg-btn" onclick="setStatus('none', this)">None</button>
+            </div>
+        </div>
+
+        <!-- Контент Экранов -->
+        <div id="screen-main">
+            <div id="shift-card"></div>
+            <div id="admin-menu"></div>
+            <div class="sec-title">Аккаунт</div>
+            <div class="menu">
+                <div class="item" onclick="alert('Settings')">
+                    <div class="item-ico">⚙️</div>
+                    <div class="item-body"><div class="item-t">Настройки</div><div class="item-s">Уведомления и профиль</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-history" style="display:none">
+            <div class="sec-title">История смен</div>
+            <div class="card"><div class="title">Вчера</div><div class="sub">Балл: 4.9 • Выполнено 100%</div></div>
+            <div class="card"><div class="title">30 Апр</div><div class="sub">Балл: 4.2 • Ошибки в закрытии</div></div>
+        </div>
+
+        <div id="screen-profile" style="display:none">
+            <div class="card" style="text-align: center;">
+                <div style="width: 60px; height: 60px; background: #333; border-radius: 50%; margin: 0 auto 10px;"></div>
+                <div class="title">Александр В.</div>
+                <div class="sub">Владелец организации</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="tab('main', this)"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l9-9 9 9M5 10v10h14V10"></path></svg><span style="font-size:10px">Главная</span></button>
+        <button class="tab" onclick="tab('history', this)"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span style="font-size:10px">История</span></button>
+        <button class="tab" onclick="tab('profile', this)"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg><span style="font-size:10px">Профиль</span></button>
+    </div>
+
+    <!-- Модалка -->
+    <div class="modal" id="taskModal" onclick="closeTasks()">
+        <div class="sheet" onclick="event.stopPropagation()">
+            <div class="title" style="margin-bottom:15px">Чек-лист</div>
+            <div class="task"><div class="check done"></div><span>Проверить чистоту столов</span></div>
+            <div class="task"><div class="check"></div><span>Снять остатки по кассе</span></div>
+            <button class="btn btn-primary" style="width:100%; margin-top:20px" onclick="closeTasks()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function tab(name, el) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        ['main', 'history', 'profile'].forEach(s => document.getElementById('screen-'+s).style.display = 'none');
+        document.getElementById('screen-'+name).style.display = 'block';
+    }
+
+    function setRole(role, el) {
+        document.querySelectorAll('#admin-menu').forEach(m => m.style.display = role === 'owner' ? 'block' : 'none');
+        el.parentElement.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    function setStatus(st, el) {
+        const card = document.getElementById('shift-card');
+        if(st === 'none') {
+            card.innerHTML = `<div class="card"><div class="sub">Смена не назначена</div><div class="title" style="margin-top:5px">Отдыхайте</div></div>`;
+        } else {
+            card.innerHTML = `<div class="card"><div class="card-h"><div><div class="title">Утренняя смена</div><div class="sub">09:00 — 17:00</div></div><span class="tag">LIVE</span></div><div class="prog-bar"><div class="prog-fill"></div></div><div class="btn-row"><button class="btn btn-primary" onclick="openTasks()">Открыть задачи</button><button class="btn btn-secondary">Камера</button></div></div>`;
+        }
+        el.parentElement.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    function openTasks() { document.getElementById('taskModal').classList.add('active'); }
+    function closeTasks() { document.getElementById('taskModal').classList.remove('active'); }
+
+    // Init
+    setStatus('active', document.querySelectorAll('.seg-btn')[2]);
+    document.getElementById('admin-menu').innerHTML = `<div class="sec-title">Управление</div><div class="menu"><div class="item"><div class="item-ico">👥</div><div class="item-body"><div class="item-t">Команда</div><div class="item-s">6 человек онлайн</div></div></div><div class="item"><div class="item-ico">📊</div><div class="item-body"><div class="item-t">Аналитика</div><div class="item-s">Ср. балл 4.8</div></div></div></div>`;
+</script>
+</body>
+</html>

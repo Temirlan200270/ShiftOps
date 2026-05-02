@@ -106,7 +106,8 @@ scripts/               # вспомогательные скрипты (напр
 | [AUTH_FLOW](docs/AUTH_FLOW.md) | `initData` → JWT → RLS |
 | [TELEGRAM_BOT](docs/TELEGRAM_BOT.md) | Команды, диплинки, уведомления, профиль бота |
 | [STORAGE](docs/STORAGE.md) | Telegram-хранилище и путь к R2 |
-| [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) | Токены и UI |
+| [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) | Токены и UI (источник правды для TWA: `apps/web/app/globals.css`) |
+| [shiftops-demo.html](docs/shiftops-demo.html) | Интерактивный визуальный макет (не прод-код; см. DESIGN_SYSTEM) |
 | [UX_FLOW](docs/UX_FLOW.md) | Состояния смены/задач, онбординг, команда |
 | [SCORE_FORMULA](docs/SCORE_FORMULA.md) | Балл смены |
 | [SECURITY](docs/SECURITY.md) | initData, anti-fake, GDPR |

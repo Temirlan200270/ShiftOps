@@ -3,44 +3,54 @@
 @tailwind utilities;
 
 /*
- * ShiftOps design tokens — see docs/DESIGN_SYSTEM.md.
- * Values live as HSL triplets so Tailwind can apply opacity utilities
- * (e.g. `bg-primary/20`) and so we can map a future light theme by swapping
- * variable definitions instead of editing every component.
+ * ShiftOps design tokens — canonical spec: docs/DESIGN_SYSTEM.md.
+ * Visual reference (interactive, not production code): docs/shiftops-demo.html
+ *
+ * HSL triplets (no `hsl()` wrapper) so Tailwind opacity works: bg-primary/20.
+ * Page shell: near-black base + subtle radial (aligned with demo v2 «neo-noir»).
  */
 
 :root {
-  --bg: 222 32% 8%;
-  --surface: 222 28% 11%;
-  --elevated: 222 24% 14%;
-  --border: 222 20% 18%;
+  /* Neutrals — ultra-dark, low blue cast (see DESIGN_SYSTEM § demo alignment) */
+  --bg: 0 0% 0%;
+  --surface: 240 14% 9%;
+  --elevated: 240 12% 11%;
+  --border: 240 8% 16%;
   --fg: 220 18% 96%;
 
-  --muted: 222 16% 22%;
-  --muted-fg: 220 12% 70%;
+  --muted: 240 10% 14%;
+  --muted-fg: 215 16% 65%;
 
-  --primary: 222 78% 60%;
+  --primary: 226 92% 65%;
   --primary-fg: 220 30% 98%;
 
-  --success: 152 60% 42%;
-  --success-fg: 140 20% 96%;
+  --success: 151 55% 42%;
+  --success-fg: 140 25% 96%;
 
-  --warning: 38 92% 56%;
+  --warning: 38 92% 55%;
   --warning-fg: 40 90% 12%;
 
-  --critical: 358 76% 58%;
+  --critical: 358 75% 58%;
   --critical-fg: 358 30% 98%;
 
-  --ring: 222 78% 70%;
+  --ring: 226 88% 68%;
+
+  /* Solid card gradient (aligned with docs/shiftops-demo.html .so-card-solid) */
+  --surface-solid-top: 240 16% 12%;
+  --surface-solid-bot: 240 14% 8%;
 }
 
 * {
   border-color: hsl(var(--border));
 }
 
+html {
+  height: -webkit-fill-available;
+  background-color: hsl(0 0% 0%);
+}
+
 html,
 body {
-  background: hsl(var(--bg));
   color: hsl(var(--fg));
   font-family: var(--font-inter), Inter, system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -48,8 +58,24 @@ body {
 }
 
 body {
+  /* Radial matches docs/shiftops-demo.html (--so-radial); fixed = scroll-through feel in TWA */
+  letter-spacing: -0.01em;
+  background-color: hsl(0 0% 0%);
+  background-image: radial-gradient(
+    130% 95% at 90% -15%,
+    hsl(240 14% 12%) 0%,
+    hsl(260 10% 3%) 48%,
+    hsl(0 0% 0%) 100%
+  );
+  background-attachment: fixed;
   /* Reserve space for the iOS / Android safe area inside Telegram WebApp. */
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    background-attachment: scroll;
+  }
 }
 
 /* Disable text selection on tappable surfaces — feels more native inside TWA. */
@@ -58,7 +84,90 @@ button,
   user-select: none;
 }
 
-/* Telegram WebApp injects a viewport that may shrink during keyboard open. */
-html {
-  height: -webkit-fill-available;
+/* Demo-aligned surfaces — docs/shiftops-demo.html; use on dashboard / key panels only (blur cost). */
+@layer components {
+  .so-glass {
+    background: rgba(10, 10, 14, 0.78);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .so-card-solid {
+    background: linear-gradient(
+      155deg,
+      hsl(var(--surface-solid-top)) 0%,
+      hsl(var(--surface-solid-bot)) 100%
+    );
+    border: 1px solid hsl(var(--border));
+  }
+
+  .so-sec-title {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-fg));
+  }
+
+  .so-sec-title:first-child {
+    margin-top: 0;
+  }
+
+  .so-sec-flush {
+    margin-top: 0;
+  }
+
+  .so-press {
+    transition: transform 0.1s ease;
+  }
+
+  .so-press:active {
+    transform: scale(0.98);
+  }
+
+  .so-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: hsl(var(--success));
+    box-shadow: 0 0 10px hsl(var(--success) / 0.45);
+    animation: so-pulse-live 2s ease-in-out infinite;
+  }
+
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .tabular-nums-so {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes so-pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .so-pulse-dot {
+    animation: none;
+    opacity: 1;
+  }
+
+  .so-press {
+    transition: none;
+  }
+
+  .so-press:active {
+    transform: none;
+  }
 }

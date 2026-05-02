@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0E1422",
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -42,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* Telegram WebApp script — required so window.Telegram.WebApp exists. */}
         <script src="https://telegram.org/js/telegram-web-app.js" defer />
       </head>
-      <body className="bg-background text-foreground min-h-screen">
+      <body className="min-h-screen text-foreground antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <TelegramBootstrap>{children}</TelegramBootstrap>
           <Toaster />

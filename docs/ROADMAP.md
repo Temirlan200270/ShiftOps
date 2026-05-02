@@ -28,6 +28,9 @@
   (`infra/realtime/event_bus.py`), HTTP-снимок активных смен
   (`/v1/realtime/active-shifts`), фронт-экран с переподключением и
   лентой событий.
+- TWA **визуальная база (neo-noir)** синхронизирована с макетом
+  [`shiftops-demo.html`](shiftops-demo.html); норматив токенов —
+  [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md), реализация — `apps/web/app/globals.css`.
 - ~~Аналитический дашборд собственника (S9): распределение score, топ-3
   нарушителя, heatmap.~~ ✅ Готово: `/v1/analytics/overview` с KPI,
   тепловой картой (DOW × hour в локальной TZ локации), топом

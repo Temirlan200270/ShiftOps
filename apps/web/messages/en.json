@@ -35,7 +35,66 @@
     "completed": "Done",
     "remaining": "left",
     "criticalLeft": "{count, plural, one {# critical task} other {# critical tasks}}",
-    "openBusinessHoursCta": "Opening hours"
+    "openBusinessHoursCta": "Opening hours",
+    "shiftSection": {
+      "eyebrow": "Shift",
+      "eyebrowAdmin": "My shift (operator view)"
+    },
+    "workSection": {
+      "title": "My work",
+      "historySubtitle": "Filters and reports",
+      "swapSubtitle": "Offers and responses",
+      "settingsSubtitle": "Profile and notifications"
+    },
+    "hub": {
+      "orgEyebrow": "Organization",
+      "panelTitle": "Control panel",
+      "panelIntro": "Sections below. Full access to team, templates, and analytics.",
+      "primarySection": "Primary",
+      "moreSection": "More",
+      "liveStrip": {
+        "badge": "Live",
+        "headline": "{count, plural, one {# shift active} other {# shifts active}}",
+        "countUnavailable": "Unavailable",
+        "kpiLabel": "Period summary"
+      },
+      "tiles": {
+        "analytics": {
+          "title": "Analytics",
+          "subtitle": "Scores and load by day"
+        },
+        "team": {
+          "title": "Team",
+          "subtitle": "Who has which role"
+        },
+        "live": {
+          "title": "Live",
+          "subtitle": "What is happening on sites"
+        },
+        "templates": {
+          "title": "Templates",
+          "subtitle": "Morning, evening, custom lists"
+        }
+      },
+      "more": {
+        "audit": {
+          "title": "Audit",
+          "subtitle": "Events and log"
+        },
+        "hours": {
+          "title": "Opening hours",
+          "subtitle": "By weekday"
+        },
+        "csv": {
+          "title": "Table import",
+          "subtitle": "From Excel or a file"
+        },
+        "history": {
+          "title": "Shift history",
+          "subtitle": "Filters and reports"
+        }
+      }
+    }
   },
   "tasks": {
     "criticality": {

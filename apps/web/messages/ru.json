@@ -35,7 +35,66 @@
     "completed": "Выполнено",
     "remaining": "осталось",
     "criticalLeft": "{count, plural, one {# критическая задача} few {# критические задачи} other {# критических задач}}",
-    "openBusinessHoursCta": "График заведения"
+    "openBusinessHoursCta": "График заведения",
+    "shiftSection": {
+      "eyebrow": "Смена",
+      "eyebrowAdmin": "Моя смена (как у оператора)"
+    },
+    "workSection": {
+      "title": "Моя работа",
+      "historySubtitle": "Фильтры и отчёты",
+      "swapSubtitle": "Предложения и ответы",
+      "settingsSubtitle": "Профиль и уведомления"
+    },
+    "hub": {
+      "orgEyebrow": "Организация",
+      "panelTitle": "Панель управления",
+      "panelIntro": "Ниже — разделы. Полный доступ к команде, шаблонам и аналитике.",
+      "primarySection": "Основное",
+      "moreSection": "Ещё",
+      "liveStrip": {
+        "badge": "Эфир",
+        "headline": "{count, plural, one {# смена в работе} few {# смены в работе} many {# смен в работе} other {# смен в работе}}",
+        "countUnavailable": "Нет данных",
+        "kpiLabel": "Сводка за период"
+      },
+      "tiles": {
+        "analytics": {
+          "title": "Сводка",
+          "subtitle": "Баллы и загрузка по дням"
+        },
+        "team": {
+          "title": "Команда",
+          "subtitle": "Кто на какой роли"
+        },
+        "live": {
+          "title": "Мониторинг",
+          "subtitle": "Что сейчас на точках"
+        },
+        "templates": {
+          "title": "Шаблоны",
+          "subtitle": "Утро, вечер, свои списки"
+        }
+      },
+      "more": {
+        "audit": {
+          "title": "Аудит",
+          "subtitle": "События и журнал"
+        },
+        "hours": {
+          "title": "Часы работы",
+          "subtitle": "По дням недели"
+        },
+        "csv": {
+          "title": "Загрузка таблицы",
+          "subtitle": "Из Excel или файла"
+        },
+        "history": {
+          "title": "История смен",
+          "subtitle": "Фильтры и отчёты"
+        }
+      }
+    }
   },
   "tasks": {
     "criticality": {
