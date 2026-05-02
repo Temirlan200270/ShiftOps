@@ -17,6 +17,8 @@
   "dashboard": {
     "noShift": "No shift today",
     "noShiftBody": "If you came in to work, ask the admin to assign a shift to you.",
+    "noShiftHintOperator": "A shift is tied to your ShiftOps user. You only see it if you are the assigned operator, or if it appears under open slots. If the template assigns someone else, or the slot is not materialised yet, ask your admin.",
+    "noShiftHintAdmin": "The API has no shift row with you as operator. Check the template: auto-create, location/time, timezone; set default assignee to this staff member, or enable the vacant pool so shifts appear as open slots. Slots are created by the background job in the time window (lead time). Saving a participant in the template does not create a DB row until the recurring job runs.",
     "availableTitle": "Open slots to claim",
     "claimCta": "Take this shift",
     "slotHint": "{location} · {template}",

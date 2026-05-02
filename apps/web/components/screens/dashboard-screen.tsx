@@ -441,6 +441,11 @@ export function DashboardScreen(): React.JSX.Element {
           <div className="so-glass rounded-2xl p-4">
             <p className="mb-2 font-medium text-foreground">{tDash("noShift")}</p>
             <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              {caps.canAccessAdminModules
+                ? tDash("noShiftHintAdmin")
+                : tDash("noShiftHintOperator")}
+            </p>
           </div>
         </>
       ) : shift.status === "scheduled" ? (
