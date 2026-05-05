@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Loader2, ShieldQuestion } from "lucide-react";
+import { Camera, Images, Loader2, RotateCcw, ShieldQuestion, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -20,6 +20,26 @@ import {
 } from "@/lib/telegram/cloud-storage";
 import { haptic, notify } from "@/lib/telegram/init";
 
+async function compressImage(file: File, maxW = 1600, quality = 0.82): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxW / img.naturalWidth);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => resolve(blob ?? file), "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 interface TaskDetailSheetProps {
   taskId: string | null;
   onClose: () => void;
@@ -28,8 +48,10 @@ interface TaskDetailSheetProps {
 export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
   const markOptimistic = useShiftStore((s) => s.markTaskOptimistic);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const galleryInputRef = React.useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = React.useState<Blob | null>(null);
+  const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
   const [comment, setComment] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [waiverMode, setWaiverMode] = React.useState(false);
@@ -42,6 +64,13 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
     () => shift?.tasks.find((t) => t.id === taskId) ?? null,
     [shift?.tasks, taskId],
   );
+
+  React.useEffect(() => {
+    if (!photo) { setPhotoUrl(null); return; }
+    const url = URL.createObjectURL(photo);
+    setPhotoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
 
   React.useEffect(() => {
     if (!taskId) {
@@ -97,16 +126,25 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
     return () => window.clearTimeout(t);
   }, [waiverReason, taskId, draftReady]);
 
-  const handlePickPhoto = React.useCallback(() => {
-    fileInputRef.current?.click();
+  const handleTakePhoto = React.useCallback(() => {
+    cameraInputRef.current?.click();
+  }, []);
+
+  const handlePickFromGallery = React.useCallback(() => {
+    galleryInputRef.current?.click();
+  }, []);
+
+  const handleRemovePhoto = React.useCallback(() => {
+    setPhoto(null);
+    haptic("light");
   }, []);
 
   const handleFileChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setPhoto(file);
-      haptic("light");
-    }
+    e.currentTarget.value = "";
+    if (!file) return;
+    haptic("light");
+    void compressImage(file).then(setPhoto);
   }, []);
 
   const handleSubmit = React.useCallback(async () => {
@@ -211,24 +249,70 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
                 <p className="text-sm text-muted-foreground mb-3">{task.description}</p>
               ) : null}
 
-              {task.requiresPhoto ? (
-                <Button
-                  variant={photo ? "success" : "secondary"}
-                  size="block"
-                  onClick={handlePickPhoto}
-                  disabled={submitting}
-                  className="mb-3"
-                >
-                  <Camera className="size-5" />
-                  {photo ? `✓ ${tTasks("takePhoto")}` : tTasks("takePhoto")}
-                </Button>
-              ) : null}
+              {/* Photo capture area */}
+              {photoUrl ? (
+                <div className="relative mb-3 rounded-xl overflow-hidden bg-elevated">
+                  <img
+                    src={photoUrl}
+                    alt=""
+                    className="w-full max-h-52 object-cover"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-3 py-2.5 bg-gradient-to-t from-black/65 to-transparent">
+                    <button
+                      type="button"
+                      onClick={handleTakePhoto}
+                      disabled={submitting}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-white/90 active:text-white"
+                    >
+                      <RotateCcw className="size-3.5" />
+                      {tTasks("retakePhoto")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      disabled={submitting}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-white/90 active:text-white"
+                    >
+                      <X className="size-3.5" />
+                      {tTasks("removePhoto")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 mb-3">
+                  <Button
+                    variant="secondary"
+                    size="block"
+                    onClick={handleTakePhoto}
+                    disabled={submitting}
+                  >
+                    <Camera className="size-5" />
+                    {tTasks("takePhoto")}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={handlePickFromGallery}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 py-1 text-sm text-muted-foreground active:text-foreground"
+                  >
+                    <Images className="size-3.5" />
+                    {tTasks("pickFromGallery")}
+                  </button>
+                </div>
+              )}
 
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
+                hidden
+                onChange={handleFileChange}
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
                 hidden
                 onChange={handleFileChange}
               />
@@ -240,10 +324,21 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
                 onChange={(e) => setComment(e.target.value)}
               />
 
-              <Button size="block" onClick={handleSubmit} disabled={submitting}>
+              <Button size="block" onClick={handleSubmit} disabled={submitting} className="mb-2">
                 {submitting ? <Loader2 className="size-5 animate-spin" /> : null}
                 {tTasks("markDone")}
               </Button>
+
+              {!task.requiresPhoto && !photo ? (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="w-full py-1 text-sm text-muted-foreground active:text-foreground"
+                >
+                  {tTasks("markDoneNoPhoto")}
+                </button>
+              ) : null}
 
               <button
                 type="button"
