@@ -64,7 +64,7 @@ kill_timeout = "20s"
 
   [[services.http_checks]]
     interval = "20s"
-    timeout = "10s"
+    timeout = "15s"
     grace_period = "60s"
     method = "GET"
     path = "/healthz"
@@ -76,4 +76,4 @@ kill_timeout = "20s"
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 512
+  memory_mb = 1024

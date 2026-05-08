@@ -1,0 +1,202 @@
+$ fly logs -a shiftops-api 
+Waiting for logs...
+16:21:46
+INFO:     connection closed
+16:21:49
+INFO:     172.19.28.209:63662 - "GET /healthz HTTP/1.1" 200 OK
+16:21:54
+[2026-05-08 16:21:51,402][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:21:58
+[2026-05-08 16:21:55,231][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:22:02
+2026-05-08 16:21:59 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:22:02
+[2026-05-08 16:21:59,783][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: 619a1fcaabe4421db5e766c857128bb9
+16:22:02
+[2026-05-08 16:21:58,956][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:22:11
+INFO:     172.19.28.209:52320 - "GET /healthz HTTP/1.1" 200 OK
+16:22:23
+2026-05-08 16:22:22 [info     ] rls.privileged_enter           reason=vacant_before_start_alert_tick
+16:22:23
+[2026-05-08 16:22:22,150][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.vacant_before_start_alert_tick with ID: 8cad42c8172f49699a0288dc032a514d
+16:22:41
+Health check 'servicecheck-00-http-8000' on port 8000 has failed. Your app is not responding properly. Services exposed on ports [80, 443] will have intermittent failures until the health check passes.
+16:22:42
+INFO:     172.19.28.209:58086 - "GET /healthz HTTP/1.1" 200 OK
+16:22:49
+INFO:     172.16.28.210:44086 - "GET /api/v1/analytics/overview?from=2026-04-08&to=2026-05-08&violators_limit=10 HTTP/1.1" 200 OK
+16:22:53
+[2026-05-08 16:22:52,301][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:22:57
+[2026-05-08 16:22:56,047][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:23:01
+[2026-05-08 16:22:59,749][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:23:06
+Health check 'servicecheck-00-http-8000' on port 8000 is now passing.
+16:23:06
+INFO:     172.19.28.209:57632 - "GET /healthz HTTP/1.1" 200 OK
+16:23:08
+[2026-05-08 16:23:07,516][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.shift_reminders_tick with ID: 951120caf17e43f1af6160f8ad4d729b
+16:23:08
+2026-05-08 16:23:08 [info     ] rls.privileged_enter           reason=shift_reminders_tick
+16:23:12
+[2026-05-08 16:23:11,511][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] recurring.tick.summary
+16:23:17
+[2026-05-08 16:23:16,850][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] vacant_before_start_alert.summary
+16:23:21
+[2026-05-08 16:23:21,270][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: 0c8d8fa3f83a46d3a66ce2b9081d1bb0
+16:23:22
+2026-05-08 16:23:21 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:23:24
+2026-05-08 16:23:23 [info     ] rls.privileged_enter           reason=vacant_before_start_alert_tick
+16:23:24
+[2026-05-08 16:23:23,270][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.vacant_before_start_alert_tick with ID: 0b4169f2505a4755a39f90b3903b2be3
+16:23:27
+INFO:     172.19.28.209:44196 - "GET /healthz HTTP/1.1" 200 OK
+16:23:41
+[2026-05-08 16:23:40,791][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.shift_reminders_tick with ID: 62b7ca3b645f42ae98dbdcf112d4a196
+16:23:41
+2026-05-08 16:23:41 [info     ] rls.privileged_enter           reason=shift_reminders_tick
+16:23:52
+INFO:     172.19.28.209:49862 - "GET /healthz HTTP/1.1" 200 OK
+16:23:54
+[2026-05-08 16:23:52,231][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:23:56
+[2026-05-08 16:23:54,439][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:23:59
+[2026-05-08 16:23:56,791][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:24:07
+[2026-05-08 16:24:07,315][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: 99dcef1bf59245b1950d4524683c3e6c
+16:24:07
+2026-05-08 16:24:07 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:24:09
+[2026-05-08 16:24:08,732][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] vacant_before_start_alert.summary
+16:24:10
+[2026-05-08 16:24:10,309][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] recurring.tick.summary
+16:24:14
+[2026-05-08 16:24:12,873][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] shift_reminders_tick.summary
+16:24:16
+INFO:     172.19.28.209:45858 - "GET /healthz HTTP/1.1" 200 OK
+16:24:18
+[2026-05-08 16:24:17,742][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.vacant_before_start_alert_tick with ID: 1e19e96b440e44feb9795c280047fdde
+16:24:19
+2026-05-08 16:24:18 [info     ] rls.privileged_enter           reason=vacant_before_start_alert_tick
+16:24:40
+INFO:     172.19.28.209:46858 - "GET /healthz HTTP/1.1" 200 OK
+16:24:48
+[2026-05-08 16:24:47,994][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.shift_reminders_tick with ID: 0cd9fdf73e4c4ee29aa16599f7fa10f4
+16:24:48
+2026-05-08 16:24:48 [info     ] rls.privileged_enter           reason=shift_reminders_tick
+16:24:53
+[2026-05-08 16:24:52,099][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] recurring.tick.summary
+16:24:53
+[2026-05-08 16:24:52,095][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:24:55
+[2026-05-08 16:24:54,110][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:24:57
+[2026-05-08 16:24:56,070][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:24:59
+[2026-05-08 16:24:56,633][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] vacant_before_start_alert.summary
+16:25:00
+[2026-05-08 16:25:00,153][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: fe9777517b0946b58386ec0c6938d54f
+16:25:00
+2026-05-08 16:25:00 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:25:02
+INFO:     172.19.28.209:57136 - "GET /healthz HTTP/1.1" 200 OK
+16:25:04
+[2026-05-08 16:25:03,916][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] shift_reminders_tick.summary
+16:25:09
+[2026-05-08 16:25:08,951][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.vacant_before_start_alert_tick with ID: 73817f6f3bad45279d6b06a4d946e96e
+16:25:09
+2026-05-08 16:25:09 [info     ] rls.privileged_enter           reason=vacant_before_start_alert_tick
+16:25:25
+INFO:     172.19.28.209:41302 - "GET /healthz HTTP/1.1" 200 OK
+16:25:38
+[2026-05-08 16:25:38,149][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.shift_reminders_tick with ID: 93adf6816ac64880b8c889c08d6d16c7
+16:25:39
+2026-05-08 16:25:38 [info     ] rls.privileged_enter           reason=shift_reminders_tick
+16:25:51
+INFO:     172.19.28.209:43780 - "GET /healthz HTTP/1.1" 200 OK
+16:25:53
+[2026-05-08 16:25:52,531][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:25:58
+[2026-05-08 16:25:55,409][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:26:00
+[2026-05-08 16:25:57,197][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:26:16
+INFO:     172.19.28.209:42126 - "GET /healthz HTTP/1.1" 200 OK
+16:26:18
+[2026-05-08 16:26:18,388][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] vacant_before_start_alert.summary
+16:26:25
+2026-05-08 16:26:23 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:26:25
+[2026-05-08 16:26:23,031][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: 06b2906cbaa44e89a2fc1b58a2e8dbef
+16:26:27
+[2026-05-08 16:26:27,109][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] shift_reminders_tick.summary
+16:26:39
+[2026-05-08 16:26:38,249][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] recurring.tick.summary
+16:26:43
+Health check 'servicecheck-00-http-8000' on port 8000 has failed. Your app is not responding properly. Services exposed on ports [80, 443] will have intermittent failures until the health check passes.
+16:26:46
+INFO:     172.19.28.209:34934 - "GET /healthz HTTP/1.1" 200 OK
+16:26:53
+[2026-05-08 16:26:52,073][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:27:00
+[2026-05-08 16:26:54,633][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:27:04
+[2026-05-08 16:26:59,193][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:27:11
+Health check 'servicecheck-00-http-8000' on port 8000 is now passing.
+16:27:19
+INFO:     172.19.28.209:63668 - "GET /healthz HTTP/1.1" 200 OK
+16:27:34
+2026-05-08 16:27:32 [info     ] rls.privileged_enter           reason=vacant_before_start_alert_tick
+16:27:34
+[2026-05-08 16:27:30,391][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.vacant_before_start_alert_tick with ID: 0bd88ba1be924183876394a452a1ce2c
+16:27:36
+INFO:     172.19.28.209:34912 - "GET /healthz HTTP/1.1" 200 OK
+16:27:50
+2026-05-08 16:27:49 [info     ] rls.privileged_enter           reason=shift_reminders_tick
+16:27:50
+[2026-05-08 16:27:49,431][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.shift_reminders_tick with ID: 6d58dd8e330b49d6a7ede335e22ae161
+16:27:54
+[2026-05-08 16:27:52,390][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:27:54
+[2026-05-08 16:27:53,933][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:27:57
+[2026-05-08 16:27:56,229][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
+16:28:02
+INFO:     172.19.28.209:55594 - "GET /healthz HTTP/1.1" 200 OK
+16:28:07
+[2026-05-08 16:28:06,575][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] recurring.tick.summary
+16:28:12
+[2026-05-08 16:28:12,167][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] vacant_before_start_alert.summary
+16:28:14
+[2026-05-08 16:28:14,195][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: 38229deb574a4a0cab2dc3f4ce72878b
+16:28:15
+2026-05-08 16:28:14 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:28:15
+[2026-05-08 16:28:14,952][shiftops_api.infra.scheduling.tasks][INFO   ][worker-0] shift_reminders_tick.summary
+16:28:19
+[2026-05-08 16:28:18,948][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.vacant_before_start_alert_tick with ID: 7a9c9a03ed52489d930eec0ddba45bdd
+16:28:19
+2026-05-08 16:28:19 [info     ] rls.privileged_enter           reason=vacant_before_start_alert_tick
+16:28:27
+INFO:     172.19.28.209:37846 - "GET /healthz HTTP/1.1" 200 OK
+16:28:28
+[2026-05-08 16:28:27,998][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.shift_reminders_tick with ID: 5c3aa2d68466416ca5426186be2797cd
+16:28:30
+2026-05-08 16:28:28 [info     ] rls.privileged_enter           reason=shift_reminders_tick
+16:28:47
+INFO:     172.19.28.209:56448 - "GET /healthz HTTP/1.1" 200 OK
+16:28:51
+[2026-05-08 16:28:50,630][taskiq.receiver.receiver][INFO   ][worker-0] Executing task shiftops.recurring_shifts_tick with ID: aee3821e91494793aa8b17e8d9e5223d
+16:28:52
+2026-05-08 16:28:50 [info     ] rls.privileged_enter           reason=recurring_shifts_tick
+16:28:53
+[2026-05-08 16:28:52,571][INFO   ][run:send:169] Sending task shiftops.recurring_shifts_tick with schedule_id 17b2f4a1a5c5458b8b1943f2bb449d1b.
+16:28:57
+[2026-05-08 16:28:55,590][INFO   ][run:send:169] Sending task shiftops.vacant_before_start_alert_tick with schedule_id 67c2a9d9d9ee4fc591e70c6ef684abb4.
+16:29:00
+[2026-05-08 16:28:59,324][INFO   ][run:send:169] Sending task shiftops.shift_reminders_tick with schedule_id db28a944aeaa4bd2a9e306733bbd2195.
