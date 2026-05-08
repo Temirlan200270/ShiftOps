@@ -149,10 +149,6 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
 
   const handleSubmit = React.useCallback(async () => {
     if (!task) return;
-    if (task.requiresPhoto && !photo) {
-      toast({ variant: "warning", title: tTasks("photoRequired") });
-      return;
-    }
     if (task.requiresComment && !comment.trim()) {
       toast({ variant: "warning", title: tTasks("commentRequired") });
       return;
@@ -329,14 +325,16 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
                 {tTasks("markDone")}
               </Button>
 
-              {!task.requiresPhoto && !photo ? (
+              {!photo ? (
                 <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={submitting}
                   className="w-full py-1 text-sm text-muted-foreground active:text-foreground"
                 >
-                  {tTasks("markDoneNoPhoto")}
+                  {task.requiresPhoto
+                    ? tTasks("markDoneNoPhotoRecommended")
+                    : tTasks("markDoneNoPhoto")}
                 </button>
               ) : null}
 

@@ -14,6 +14,7 @@ apps/
   web/                    # Next.js TWA
 infra/                    # Docker Compose, nginx
 docs/                     # Продукт и эксплуатация (в т.ч. этот файл)
+  sprint/                 # Временные доки спринта (см. docs/sprint/README.md)
 scripts/                  # seed, smoke
 .github/workflows/        # CI/CD
 ```

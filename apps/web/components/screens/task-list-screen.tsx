@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { closeShift } from "@/lib/api/shifts";
+import { closeShift, completeTask } from "@/lib/api/shifts";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
@@ -84,9 +84,11 @@ function isDoneStatus(status: TaskStatus): boolean {
 function TaskRow({
   task,
   onOpen,
+  onQuickComplete,
 }: {
   task: TaskCard;
   onOpen: (id: string) => void;
+  onQuickComplete?: (id: string) => void;
 }): React.JSX.Element {
   const tTasks = useTranslations("tasks");
   const isDone = task.status === "done" || task.status === "waived";
@@ -96,43 +98,61 @@ function TaskRow({
       : task.criticality === "required"
         ? "warning"
         : "none";
+  const canQuickComplete =
+    !isDone &&
+    task.status === "pending" &&
+    !task.requiresPhoto &&
+    !task.requiresComment &&
+    onQuickComplete !== undefined;
 
   return (
     <Card accent={accent} className="mb-2">
       <CardContent className="p-4">
-        <button
-          type="button"
-          onClick={() => onOpen(task.id)}
-          className="w-full flex items-center justify-between gap-3 text-left"
-        >
-          <div className="flex-1 min-w-0">
-            <p
-              className={`text-base font-medium truncate ${
-                isDone ? "line-through text-muted-foreground" : ""
-              }`}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onOpen(task.id)}
+            className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+          >
+            <div className="flex-1 min-w-0">
+              <p
+                className={`text-base font-medium truncate ${
+                  isDone ? "line-through text-muted-foreground" : ""
+                }`}
+              >
+                {task.title}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                <span>{tTasks(`criticality.${task.criticality}`)}</span>
+                {task.requiresPhoto ? (
+                  <span className="inline-flex items-center gap-1">
+                    · <Camera className="size-3" /> {tTasks("photoRequired")}
+                  </span>
+                ) : null}
+                {task.status === "waiver_pending" ? (
+                  <span className="text-warning">· {tTasks("status.waiver_pending")}</span>
+                ) : null}
+              </p>
+            </div>
+            {isDone ? (
+              <CheckCircle2 className="size-6 text-success shrink-0" />
+            ) : task.status === "waiver_pending" ? (
+              <MessageSquareWarning className="size-6 text-warning shrink-0" />
+            ) : task.criticality === "critical" ? (
+              <ShieldAlert className="size-6 text-critical shrink-0" />
+            ) : null}
+          </button>
+          {canQuickComplete ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onQuickComplete(task.id); }}
+              className="shrink-0 size-8 flex items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-success hover:border-success/50 active:scale-95 transition-colors"
+              aria-label={tTasks("markDone")}
             >
-              {task.title}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-              <span>{tTasks(`criticality.${task.criticality}`)}</span>
-              {task.requiresPhoto ? (
-                <span className="inline-flex items-center gap-1">
-                  · <Camera className="size-3" /> {tTasks("photoRequired")}
-                </span>
-              ) : null}
-              {task.status === "waiver_pending" ? (
-                <span className="text-warning">· {tTasks("status.waiver_pending")}</span>
-              ) : null}
-            </p>
-          </div>
-          {isDone ? (
-            <CheckCircle2 className="size-6 text-success shrink-0" />
-          ) : task.status === "waiver_pending" ? (
-            <MessageSquareWarning className="size-6 text-warning shrink-0" />
-          ) : task.criticality === "critical" ? (
-            <ShieldAlert className="size-6 text-critical shrink-0" />
+              <CheckCircle2 className="size-5" />
+            </button>
           ) : null}
-        </button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -165,7 +185,22 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
     (t) => t.criticality === "required" && !isDoneStatus(t.status),
   ).length;
 
+  const markOptimistic = useShiftStore((s) => s.markTaskOptimistic);
   const [delayReason, setDelayReason] = React.useState("");
+  const [violationReason, setViolationReason] = React.useState("");
+
+  const handleQuickComplete = React.useCallback(
+    async (taskId: string) => {
+      haptic("medium");
+      markOptimistic(taskId, { status: "done" });
+      const result = await completeTask({ taskId });
+      if (!result.ok) {
+        markOptimistic(taskId, { status: "pending" });
+        toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      }
+    },
+    [markOptimistic, tErr],
+  );
 
   const showDelayField = React.useMemo(() => {
     if (!shift) return false;
@@ -189,6 +224,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         shiftId: shift.id,
         confirmViolations,
         delayReason: showDelayField ? delayReason.trim() || null : null,
+        violationReason: confirmViolations ? violationReason.trim() || null : null,
       });
       setClosing(false);
       if (result.ok) {
@@ -223,7 +259,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         description: localiseApiFailure(result, tErr),
       });
     },
-    [shift, setShift, onClosed, tErr, biometricEnabled, tClose, showDelayField, delayReason],
+    [shift, setShift, onClosed, tErr, biometricEnabled, tClose, showDelayField, delayReason, violationReason],
   );
 
   if (!shift) return <></>;
@@ -281,10 +317,11 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
               key={group.section ?? "__no_section__"}
               group={group}
               onOpen={setActiveTaskId}
+              onQuickComplete={handleQuickComplete}
             />
           ))
         : allTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onOpen={setActiveTaskId} />
+            <TaskRow key={task.id} task={task} onOpen={setActiveTaskId} onQuickComplete={handleQuickComplete} />
           ))}
 
       <div className="fixed inset-x-0 bottom-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-background/95 backdrop-blur border-t border-border">
@@ -307,7 +344,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         </div>
       </div>
 
-      <Sheet open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Sheet open={confirmOpen} onOpenChange={(open) => { setConfirmOpen(open); if (!open) setViolationReason(""); }}>
         <SheetTrigger asChild>
           <span hidden />
         </SheetTrigger>
@@ -315,11 +352,23 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
           <p className="text-sm text-muted-foreground mb-4">
             {tClose("warningBody", { count: requiredMissing })}
           </p>
+          <label className="block text-sm font-medium mb-1" htmlFor="violation-reason">
+            {tClose("violationReasonLabel")}
+          </label>
+          <textarea
+            id="violation-reason"
+            className="w-full min-h-[80px] rounded-md border border-border bg-background px-3 py-2 text-sm mb-4"
+            value={violationReason}
+            onChange={(e) => setViolationReason(e.target.value)}
+            placeholder={tClose("violationReasonPlaceholder")}
+            maxLength={500}
+            rows={3}
+          />
           <div className="flex gap-2">
             <Button
               variant="secondary"
               size="block"
-              onClick={() => setConfirmOpen(false)}
+              onClick={() => { setConfirmOpen(false); setViolationReason(""); }}
               disabled={closing}
             >
               {tClose("cancel")}
@@ -328,7 +377,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
               variant="danger"
               size="block"
               onClick={() => void handleClose(true)}
-              disabled={closing}
+              disabled={closing || violationReason.trim().length < 5}
             >
               {tClose("confirm")}
             </Button>
@@ -354,9 +403,11 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
 function SectionGroup({
   group,
   onOpen,
+  onQuickComplete,
 }: {
   group: TaskGroup;
   onOpen: (id: string) => void;
+  onQuickComplete?: (id: string) => void;
 }): React.JSX.Element {
   const total = group.tasks.length;
   const done = group.tasks.filter((t) => isDoneStatus(t.status)).length;
@@ -389,7 +440,7 @@ function SectionGroup({
         />
       </div>
       {group.tasks.map((task) => (
-        <TaskRow key={task.id} task={task} onOpen={onOpen} />
+        <TaskRow key={task.id} task={task} onOpen={onOpen} onQuickComplete={onQuickComplete} />
       ))}
     </section>
   );

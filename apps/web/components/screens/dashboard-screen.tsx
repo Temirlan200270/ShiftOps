@@ -369,35 +369,6 @@ export function DashboardScreen(): React.JSX.Element {
         />
       ) : null}
 
-      <section className="mb-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {caps.canAccessAdminModules
-            ? tDash("shiftSection.eyebrowAdmin")
-            : tDash("shiftSection.eyebrow")}
-        </p>
-        <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString()}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-          {shift?.templateName ?? "ShiftOps"}
-        </h1>
-        {shift ? (
-          <div className="mt-2 space-y-0.5">
-            {shift.stationLabel ? (
-              <p className="text-sm text-muted-foreground">
-                {tDash("stationLabel", { label: shift.stationLabel })} ·{" "}
-                {tDash("slotIndexShort", { index: shift.slotIndex })}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {tDash("slotIndexShort", { index: shift.slotIndex })}
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {tDash("operatorOnShift", { name: shift.operatorFullName })}
-            </p>
-          </div>
-        ) : null}
-      </section>
-
       {loading && !shift ? (
         <div className="so-glass mb-4 h-40 animate-pulse rounded-2xl" />
       ) : !shift ? (
@@ -500,6 +471,21 @@ export function DashboardScreen(): React.JSX.Element {
           </Button>
         </div>
       )}
+
+      <section className="mb-1 mt-4">
+        <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
+        <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-foreground">
+          {shift?.templateName ?? "ShiftOps"}
+        </h1>
+        {shift ? (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {shift.stationLabel
+              ? `${tDash("stationLabel", { label: shift.stationLabel })} · ${tDash("slotIndexShort", { index: shift.slotIndex })}`
+              : tDash("slotIndexShort", { index: shift.slotIndex })}
+            {" · "}{tDash("operatorOnShift", { name: shift.operatorFullName })}
+          </p>
+        ) : null}
+      </section>
 
       <p className="so-sec-title so-sec-flush mb-2 mt-8">{tDash("workSection.title")}</p>
       <GlassMenu>

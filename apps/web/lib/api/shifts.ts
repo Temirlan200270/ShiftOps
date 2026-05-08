@@ -364,10 +364,12 @@ export async function closeShift(input: {
   shiftId: string;
   confirmViolations: boolean;
   delayReason?: string | null;
+  violationReason?: string | null;
 }): Promise<ApiResult<ClosedShiftPatch>> {
   const result = await api.post<CloseShiftDTO>(`/v1/shifts/${input.shiftId}/close`, {
     confirm_violations: input.confirmViolations,
     delay_reason: input.delayReason ?? null,
+    violation_reason: input.violationReason ?? null,
   });
   if (!result.ok) return result;
   const closed = result.data;

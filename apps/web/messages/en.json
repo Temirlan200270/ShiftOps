@@ -121,6 +121,7 @@
     "removePhoto": "Remove",
     "pickFromGallery": "Choose from gallery",
     "markDoneNoPhoto": "Mark done without photo",
+    "markDoneNoPhotoRecommended": "Complete without photo (photo recommended)",
     "addComment": "Comment (optional)",
     "submit": "Submit",
     "requestWaiver": "Cannot complete?",
@@ -141,7 +142,9 @@
     "biometricCancelled": "Shift not closed — biometric was cancelled",
     "delayReasonLabel": "Reason for delay (overtime)",
     "delayReasonPlaceholder": "e.g. late handover from the morning shift",
-    "delayReasonHint": "Planned end time has passed — add a short note for the manager."
+    "delayReasonHint": "Planned end time has passed — add a short note for the manager.",
+    "violationReasonLabel": "Reason for incomplete tasks *",
+    "violationReasonPlaceholder": "Briefly explain why tasks were not completed"
   },
   "summary": {
     "title": "Shift report",
@@ -342,6 +345,8 @@
     "filterLocationChip": "Location: {name}",
     "filterDateChip": "{from} – {to}",
     "clearFilters": "Clear filters",
+    "openedAt": "Opened:",
+    "closedAt": "Closed:",
     "handoverCta": "Handover summary",
     "handoverTitle": "Shift handover",
     "postMeta": "{label} · slot {index}",

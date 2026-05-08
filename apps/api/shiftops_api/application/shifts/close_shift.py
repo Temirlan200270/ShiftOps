@@ -34,6 +34,7 @@ from shiftops_api.domain.score import (
 from shiftops_api.infra.db.models import Attachment, Shift, TaskInstance, TemplateTask
 
 _MAX_DELAY_REASON_LEN = 500
+_MAX_VIOLATION_REASON_LEN = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +59,7 @@ class CloseShiftUseCase:
         user: CurrentUser,
         confirm_violations: bool,
         delay_reason: str | None = None,
+        violation_reason: str | None = None,
     ) -> Result[ClosedShift, DomainError]:
         shift = (
             await self._session.execute(select(Shift).where(Shift.id == shift_id))
@@ -80,6 +82,13 @@ class CloseShiftUseCase:
             if len(stripped) > _MAX_DELAY_REASON_LEN:
                 return Failure(DomainError("delay_reason_too_long"))
             normalized_delay = stripped or None
+
+        normalized_violation_reason: str | None = None
+        if violation_reason is not None:
+            stripped_v = violation_reason.strip()
+            if len(stripped_v) > _MAX_VIOLATION_REASON_LEN:
+                return Failure(DomainError("violation_reason_too_long"))
+            normalized_violation_reason = stripped_v or None
 
         rows = (
             await self._session.execute(
@@ -179,6 +188,7 @@ class CloseShiftUseCase:
         # never silently restate past scores — see docs/SCORE_FORMULA.md.
         shift.score_formula_version = score_result.formula_version
         shift.delay_reason = normalized_delay
+        shift.violation_reason = normalized_violation_reason
         shift.handover_summary = _build_handover_summary(
             template_task_rows=rows,
             required_missed=required_missed,
@@ -209,6 +219,7 @@ class CloseShiftUseCase:
                 "formula_version": score_result.formula_version,
                 "required_missed": [str(t) for t in required_missed],
                 **({"delay_reason": normalized_delay} if normalized_delay else {}),
+                **({"violation_reason": normalized_violation_reason} if normalized_violation_reason else {}),
             },
         )
         await self._session.commit()

@@ -113,6 +113,7 @@ scripts/               # вспомогательные скрипты (напр
 | [SECURITY](docs/SECURITY.md) | initData, anti-fake, GDPR |
 | [OBSERVABILITY](docs/OBSERVABILITY.md) | Логи и метрики |
 | [DEPLOY](docs/DEPLOY.md) | Fly, Vercel, секреты, теги релиза |
+| [docs/sprint/](docs/sprint/README.md) | Временные документы спринта (черновики → перенести в канон или удалить) |
 | [PILOT_SMOKE](docs/PILOT_SMOKE.md) | Чеклист перед пилотом |
 | [ROADMAP](docs/ROADMAP.md) | V0 → V3 |
 

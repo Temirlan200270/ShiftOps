@@ -6,6 +6,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
+  LogIn,
+  LogOut,
   ShieldAlert,
   TrendingUp,
   X,
@@ -162,8 +165,28 @@ function HistoryRow({
           )}
         </CardContent>
       </button>
-      {expanded && (item.breakdown || item.handoverSummary) ? (
+      {expanded ? (
         <CardContent className="px-4 pb-4 pt-0 border-t border-border/60">
+          <div className="mt-3 space-y-1">
+            {item.actualStart ? (
+              <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+                <LogIn className="size-3 text-success" />
+                {tHist("openedAt")} {new Date(item.actualStart).toLocaleString()}
+              </p>
+            ) : null}
+            {item.actualEnd ? (
+              <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+                <LogOut className="size-3 text-warning" />
+                {tHist("closedAt")} {new Date(item.actualEnd).toLocaleString()}
+              </p>
+            ) : null}
+            {!item.actualStart && !item.actualEnd ? (
+              <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+                <Clock className="size-3" />
+                {new Date(item.scheduledStart).toLocaleString()} → {new Date(item.scheduledEnd).toLocaleTimeString()}
+              </p>
+            ) : null}
+          </div>
           {item.handoverSummary ? (
             <div className="mt-3">
               <Button variant="secondary" size="sm" onClick={onOpenHandover}>

@@ -111,6 +111,7 @@ class CloseShiftIn(BaseModel):
 
     confirm_violations: bool = False
     delay_reason: str | None = None
+    violation_reason: str | None = None
 
 
 class CloseShiftResponse(BaseModel):
@@ -452,6 +453,7 @@ async def close_shift(
         user=user,
         confirm_violations=body.confirm_violations,
         delay_reason=body.delay_reason,
+        violation_reason=body.violation_reason,
     )
     if isinstance(result, Failure):
         if result.error.code == "delay_reason_too_long":

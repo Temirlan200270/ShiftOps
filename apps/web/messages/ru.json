@@ -121,6 +121,7 @@
     "removePhoto": "Удалить",
     "pickFromGallery": "Из галереи",
     "markDoneNoPhoto": "Отметить без фото",
+    "markDoneNoPhotoRecommended": "Завершить без фото (рекомендуется фото)",
     "addComment": "Комментарий (опц.)",
     "submit": "Отправить",
     "requestWaiver": "Невозможно выполнить?",
@@ -141,7 +142,9 @@
     "biometricCancelled": "Без биометрии смена не закрыта",
     "delayReasonLabel": "Причина задержки (переработка)",
     "delayReasonPlaceholder": "например, поздняя передача от утренней смены",
-    "delayReasonHint": "Плановое время окончания прошло — кратко опишите для руководителя."
+    "delayReasonHint": "Плановое время окончания прошло — кратко опишите для руководителя.",
+    "violationReasonLabel": "Причина незакрытых задач *",
+    "violationReasonPlaceholder": "Кратко объясните, почему задачи не выполнены"
   },
   "summary": {
     "title": "Отчёт смены",
@@ -342,6 +345,8 @@
     "filterLocationChip": "Локация: {name}",
     "filterDateChip": "{from} – {to}",
     "clearFilters": "Сбросить фильтры",
+    "openedAt": "Открыта:",
+    "closedAt": "Закрыта:",
     "handoverCta": "Сводка (handover)",
     "handoverTitle": "Сводка смены",
     "postMeta": "{label} · слот {index}",

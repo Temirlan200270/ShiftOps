@@ -33,7 +33,7 @@ sequenceDiagram
 
 1. Владелец или админ в TWA вызывает `POST /api/v1/invites` — в ответе `deep_link` вида `https://t.me/<bot>?start=inv_<token>`.
 2. Сотрудник открывает ссылку: бот получает `/start` с payload `inv_<token>`.
-3. `RedeemInviteUseCase` (модуль `shiftops_api.application.invites.redeem_invite`) в одной транзакции, после `SET LOCAL row_security = off` (тот же приём, что в `ExchangeInitDataUseCase`), создаёт строки `users` и `telegram_accounts` и помечает строку `invites` как использованную.
+3. `RedeemInviteUseCase` (модуль `shiftops_api.application.invites.redeem_invite`) в одной транзакции включает **привилегированный RLS-bypass** через `enter_privileged_rls_mode(..., reason="redeem_invite")` и создаёт строки `users` и `telegram_accounts`, помечая `invites` как использованную.
 4. Дальше TWA: снова `POST /api/v1/auth/exchange` с тем же `initData` — пользователь уже в базе, JWT выдаётся штатно.
 
 ## Валидация initData
@@ -50,7 +50,7 @@ sequenceDiagram
 8. Проверить, что `auth_date` в пределах 24 часов от часов сервера —
    защита от replay.
 
-Реализация живёт в `infra/telegram/init_data.py`.
+Реализация живёт в `apps/api/shiftops_api/infra/telegram/init_data.py`.
 
 ## Формат JWT
 
@@ -73,24 +73,19 @@ sequenceDiagram
 
 ## Middleware контекста арендатора
 
-Каждый аутентифицированный запрос проходит через:
+Каждый аутентифицированный запрос выставляет tenant‑контекст **через dependency** `require_user` (см. `apps/api/shiftops_api/application/auth/deps.py`):
 
 ```python
-@app.middleware("http")
-async def tenant_context(request: Request, call_next):
-    user = await resolve_user(request)
-    request.state.user = user
-    if user is not None:
-        async with get_session() as session:
-            await session.execute(
-                text("SET LOCAL app.org_id = :org_id"),
-                {"org_id": str(user.organization_id)},
-            )
-            request.state.session = session
-    return await call_next(request)
+async def require_user(..., session: AsyncSession = Depends(get_session)) -> CurrentUser:
+    payload = JwtService().verify(...)
+    await session.execute(
+        text("SELECT set_config('app.org_id', :org_id, true)"),
+        {"org_id": str(payload.org)},
+    )
+    return CurrentUser(...)
 ```
 
-`SET LOCAL` живёт в рамках транзакции и не утекает между запросами.
+`set_config(..., true)` — параметризованный эквивалент `SET LOCAL`, живёт в рамках транзакции и не утекает между запросами.
 RLS-политики читают `current_setting('app.org_id', true)::uuid`.
 
 ## Тест межарендной изоляции

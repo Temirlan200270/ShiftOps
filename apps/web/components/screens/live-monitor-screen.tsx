@@ -24,13 +24,14 @@
  *    thrashing the React tree on every event arrival.
  */
 
-import { ArrowLeft, ChevronRight, Radio, ShieldAlert, WifiOff } from "lucide-react";
+import { ArrowLeft, ChevronRight, Clock, Radio, ShieldAlert, WifiOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   fetchMonitorSnapshot,
   useRealtimeStream,
@@ -104,6 +105,7 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
   const [feed, setFeed] = React.useState<FeedItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [lastEventAt, setLastEventAt] = React.useState<number | null>(null);
+  const [selectedShift, setSelectedShift] = React.useState<ActiveShift | null>(null);
   const tick = useTick(15_000);
 
   // Snapshot: paint the screen instantly so admins don't see a blank
@@ -301,7 +303,8 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
               <li key={shift.shiftId}>
                 <Card
                   accent={shift.progressCriticalPending > 0 ? "critical" : "none"}
-                  className="overflow-hidden"
+                  className="overflow-hidden cursor-pointer active:opacity-80"
+                  onClick={() => setSelectedShift(shift)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
@@ -359,6 +362,14 @@ export function LiveMonitorScreen({ onBack }: LiveMonitorScreenProps): React.JSX
           </CardContent>
         </Card>
       ) : null}
+
+      <Sheet open={selectedShift !== null} onOpenChange={(open) => { if (!open) setSelectedShift(null); }}>
+        <SheetContent title={selectedShift?.operatorName ?? ""}>
+          {selectedShift ? (
+            <ShiftDetailContent shift={selectedShift} tick={tick} />
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }
@@ -372,4 +383,58 @@ function pushFeed(
     if (next.length > FEED_MAX) next.length = FEED_MAX;
     return next;
   });
+}
+
+function ShiftDetailContent({
+  shift,
+  tick,
+}: {
+  shift: ActiveShift;
+  tick: number;
+}): React.JSX.Element {
+  const tLive = useTranslations("live");
+  const total = Math.max(1, shift.progressTotal);
+  const pct = Math.round((shift.progressDone / total) * 100);
+  const elapsed = shift.actualStart
+    ? Math.floor((tick - new Date(shift.actualStart).getTime()) / 60_000)
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-sm text-muted-foreground">{shift.locationName}</p>
+        <p className="text-base font-medium mt-0.5">{shift.templateName}</p>
+        {shift.actualStart ? (
+          <p className="text-xs text-muted-foreground mt-1 inline-flex items-center gap-1">
+            <Clock className="size-3" />
+            {new Date(shift.actualStart).toLocaleTimeString()}
+            {elapsed !== null ? ` · ${elapsed} мин` : ""}
+          </p>
+        ) : null}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-sm font-medium">{tLive("subtitle")}</span>
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {shift.progressDone}/{shift.progressTotal} · {pct}%
+          </span>
+        </div>
+        <Progress value={pct} />
+      </div>
+
+      {shift.progressCriticalPending > 0 ? (
+        <div className="rounded-xl border border-critical/30 bg-critical/10 p-3 flex items-center gap-2">
+          <ShieldAlert className="size-4 text-critical shrink-0" />
+          <p className="text-sm text-critical">
+            {tLive("criticalLeft", { count: shift.progressCriticalPending })}
+          </p>
+        </div>
+      ) : null}
+
+      <p className="text-xs text-muted-foreground text-center pt-2">
+        Детальный список задач — в следующем обновлении
+      </p>
+    </div>
+  );
 }
