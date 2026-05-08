@@ -35,7 +35,10 @@ from shiftops_api.infra.metrics import (
     RECURRING_SHIFTS_CREATED_TOTAL,
     RECURRING_TICK_CREATED_LAST,
     RECURRING_TICK_TEMPLATES_VISIBLE,
+    SHIFT_REMINDERS_SENT_TOTAL,
+    SHIFT_REMINDERS_SKIPPED_TOTAL,
 )
+from shiftops_api.infra.notifications.dispatcher import _privileged_session, _resolve_owner_dm_ids
 from shiftops_api.infra.notifications.tasks import send_telegram_message
 from shiftops_api.infra.queue import broker
 
@@ -212,8 +215,10 @@ async def shift_reminders_tick() -> dict[str, int]:
                 ok = await _send_reminder_once(redis, rkey, tg_account.tg_user_id, text)
                 if ok:
                     sent += 1
+                    SHIFT_REMINDERS_SENT_TOTAL.labels(milestone=key_suffix).inc()
                 else:
                     skipped += 1
+                    SHIFT_REMINDERS_SKIPPED_TOTAL.labels(milestone=key_suffix).inc()
 
         # ── Active-shift 1-hour unclosed notification ─────────────────────────
         for shift, location, operator, tg_account in active_rows:
@@ -230,16 +235,20 @@ async def shift_reminders_tick() -> dict[str, int]:
             ok = await _send_reminder_once(redis, op_key, tg_account.tg_user_id, op_text)
             if ok:
                 sent += 1
+                SHIFT_REMINDERS_SENT_TOTAL.labels(milestone="active_1h_op").inc()
             else:
                 skipped += 1
+                SHIFT_REMINDERS_SKIPPED_TOTAL.labels(milestone="active_1h_op").inc()
 
         # Notify owner about unclosed active shifts via dispatcher (uses its own session + RLS).
         for shift, location, operator, _tg_account in active_rows:
             owner_key = f"shiftops:reminder:{shift.id}:active_1h_owner"
-            if await redis.exists(owner_key):
+            # Atomic SET NX — only one worker wins even under concurrent ticks.
+            acquired = await redis.set(owner_key, "1", ex=_REMINDER_TTL_SECONDS, nx=True)
+            if not acquired:
                 skipped += 1
+                SHIFT_REMINDERS_SKIPPED_TOTAL.labels(milestone="active_1h_owner").inc()
                 continue
-            from shiftops_api.infra.notifications.dispatcher import _privileged_session, _resolve_owner_dm_ids  # noqa: PLC0415
             async with _privileged_session() as session:
                 owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
             if owner_chats:
@@ -251,8 +260,8 @@ async def shift_reminders_tick() -> dict[str, int]:
                 )
                 for oc in owner_chats:
                     await send_telegram_message.kiq(oc, owner_text)
-                await redis.set(owner_key, "1", ex=_REMINDER_TTL_SECONDS, nx=True)
                 sent += len(owner_chats)
+                SHIFT_REMINDERS_SENT_TOTAL.labels(milestone="active_1h_owner").inc(len(owner_chats))
 
     finally:
         await redis.aclose()

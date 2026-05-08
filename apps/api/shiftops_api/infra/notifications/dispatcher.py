@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -28,19 +30,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.enums import ShiftStatus, UserRole
-
-_ROLE_RU: dict[str, str] = {
-    "owner": "владелец",
-    "admin": "администратор",
-    "operator": "оператор",
-    "bartender": "бармен",
-}
-
-
-def _op_label(operator: "User") -> str:
-    """'Иван Петров (оператор)'"""
-    role_ru = _ROLE_RU.get(str(operator.role), str(operator.role))
-    return f"{operator.full_name} ({role_ru})"
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import (
     Attachment,
@@ -79,6 +68,19 @@ from shiftops_api.infra.realtime import publish_event
 
 _log = logging.getLogger(__name__)
 
+_ROLE_RU: dict[str, str] = {
+    "owner": "владелец",
+    "admin": "администратор",
+    "operator": "оператор",
+    "bartender": "бармен",
+}
+
+
+def _op_label(operator: User) -> str:
+    """'Иван Петров (оператор)'"""
+    role_ru = _ROLE_RU.get(str(operator.role), str(operator.role))
+    return f"{operator.full_name} ({role_ru})"
+
 
 def _fmt_local_hhmm(dt: datetime | None, tz_name: str | None) -> str:
     """Format UTC timestamp in a location timezone for Telegram copy."""
@@ -89,10 +91,6 @@ def _fmt_local_hhmm(dt: datetime | None, tz_name: str | None) -> str:
     except ZoneInfoNotFoundError:
         tz = ZoneInfo("UTC")
     return dt.astimezone(tz).strftime("%H:%M")
-
-
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
 
 
 def _open_session() -> AsyncSession:

@@ -192,6 +192,23 @@ AUTH_EXCHANGE_FAILURES_TOTAL = Counter(
     labelnames=("reason",),
 )
 
+# ---------------------------------------------------------------------------
+# Shift reminders (shift_reminders_tick)
+# milestone label values: t30 | t0 | t15 | t30_late | active_1h_op | active_1h_owner
+# ---------------------------------------------------------------------------
+
+SHIFT_REMINDERS_SENT_TOTAL = Counter(
+    "shiftops_shift_reminders_sent_total",
+    "Reminder DMs successfully sent via Telegram (Redis NX succeeded).",
+    labelnames=("milestone",),
+)
+
+SHIFT_REMINDERS_SKIPPED_TOTAL = Counter(
+    "shiftops_shift_reminders_skipped_total",
+    "Reminder DMs skipped — already sent within the dedup TTL window.",
+    labelnames=("milestone",),
+)
+
 
 __all__ = [
     "ATTACHMENTS_UPLOADED_TOTAL",
@@ -205,6 +222,8 @@ __all__ = [
     "RECURRING_SHIFTS_CREATED_TOTAL",
     "RECURRING_TICK_CREATED_LAST",
     "RECURRING_TICK_TEMPLATES_VISIBLE",
+    "SHIFT_REMINDERS_SENT_TOTAL",
+    "SHIFT_REMINDERS_SKIPPED_TOTAL",
     "SHIFTS_CLOSED_TOTAL",
     "SHIFTS_STARTED_TOTAL",
     "TASKS_COMPLETED_TOTAL",

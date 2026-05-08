@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -32,7 +32,15 @@ from shiftops_api.domain.score import (
     ShiftScoreInputs,
     compute_score,
 )
-from shiftops_api.infra.db.models import Attachment, Location, Shift, TaskInstance, Template, TemplateTask, User
+from shiftops_api.infra.db.models import (
+    Attachment,
+    Location,
+    Shift,
+    TaskInstance,
+    Template,
+    TemplateTask,
+    User,
+)
 
 _ROLE_LABELS: dict[str, str] = {
     "owner": "владелец",
