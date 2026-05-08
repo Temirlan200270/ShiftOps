@@ -353,22 +353,6 @@ export function DashboardScreen(): React.JSX.Element {
 
   return (
     <main className="mx-auto max-w-md px-4 pt-6 pb-24 animate-fade-in-up">
-      {caps.canAccessAdminModules ? (
-        <AdminHub
-          hubLoading={hubLoading}
-          activeShiftsCount={hubActiveCount}
-          averageScore={hubScore}
-          liveUnavailable={!hubLiveOk}
-          kpiUnavailable={!hubKpiOk}
-          onNavigate={handleAdminNavigate}
-          onOpenTemplates={() => {
-            haptic("light");
-            setEditingTemplateId(null);
-            setView("templatesList");
-          }}
-        />
-      ) : null}
-
       {caps.canStartShift ? (
         loading && !shift ? (
           <div className="so-glass mb-4 h-40 animate-pulse rounded-2xl" />
@@ -472,6 +456,22 @@ export function DashboardScreen(): React.JSX.Element {
             </Button>
           </div>
         )
+      ) : null}
+
+      {caps.canAccessAdminModules ? (
+        <AdminHub
+          hubLoading={hubLoading}
+          activeShiftsCount={hubActiveCount}
+          averageScore={hubScore}
+          liveUnavailable={!hubLiveOk}
+          kpiUnavailable={!hubKpiOk}
+          onNavigate={handleAdminNavigate}
+          onOpenTemplates={() => {
+            haptic("light");
+            setEditingTemplateId(null);
+            setView("templatesList");
+          }}
+        />
       ) : null}
 
       <section className="mb-1 mt-4">
