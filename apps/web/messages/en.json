@@ -17,14 +17,14 @@
   "dashboard": {
     "noShift": "No shift today",
     "noShiftBody": "If you came in to work, ask the admin to assign a shift to you.",
-    "noShiftHintOperator": "A shift is tied to your ShiftOps user. You only see it if you are the assigned operator, or if it appears under open slots. If the template assigns someone else, or the slot is not materialised yet, ask your admin.",
-    "noShiftHintAdmin": "The API has no shift row with you as operator. Check the template: auto-create, location/time, timezone; set default assignee to this staff member, or enable the vacant pool so shifts appear as open slots. Slots are created by the background job in the time window (lead time). Saving a participant in the template does not create a DB row until the recurring job runs.",
-    "availableTitle": "Open slots to claim",
+    "noShiftHintOperator": "A shift is only visible to the person it's assigned to. If you came in to work, ask your admin to assign the shift to you.",
+    "noShiftHintAdmin": "The shift hasn't been created yet or is assigned to someone else. Check the template — is auto-create on, is the location and time correct, is the right staff member selected as default? If everything looks right, the shift will appear automatically at the scheduled time.",
+    "availableTitle": "Open shifts",
     "claimCta": "Take this shift",
     "slotHint": "{location} · {template}",
     "stationLabel": "Post: {label}",
-    "operatorOnShift": "Operator: {name}",
-    "slotIndexShort": "Slot {index}",
+    "operatorOnShift": "Staff: {name}",
+    "slotIndexShort": "Position {index}",
     "shiftStatus": {
       "scheduled": "Starting soon",
       "active": "Active shift",
@@ -124,10 +124,10 @@
     "markDoneNoPhotoRecommended": "Complete without photo (photo recommended)",
     "addComment": "Comment (optional)",
     "submit": "Submit",
-    "requestWaiver": "Cannot complete?",
-    "waiverReason": "Describe why the task cannot be done right now",
-    "waiverSubmit": "Send request",
-    "waiverPendingHint": "Request sent to the admin",
+    "requestWaiver": "Can't complete this?",
+    "waiverReason": "Describe why this task can't be done right now",
+    "waiverSubmit": "Request exemption",
+    "waiverPendingHint": "Your request was sent to the manager",
     "suspiciousFlagged": "Photo looks like a previous one — the admin will be notified"
   },
   "close": {
@@ -174,7 +174,7 @@
     "shiftTaken": "Someone just claimed this slot. Pick another — the list was refreshed.",
     "generic": "Something went wrong. Please try again.",
     "sessionExpired": "Session expired. Reopen ShiftOps from the bot.",
-    "privilegedRlsUnavailable": "System DB access is not configured. Contact an admin.",
+    "privilegedRlsUnavailable": "Internal server error. Please contact your admin.",
     "criticalBlocked": "Close critical tasks to continue."
   },
   "orgBusinessHours": {
@@ -215,7 +215,7 @@
     "saveErrorNoteTooLong": "Note must be at most 256 characters.",
     "saveErrorWeekdays": "Each weekly row must include at least one weekday.",
     "saveErrorTooManyRows": "Too many rows for one request (weekly max 24, dated max 366).",
-    "apiNotFoundHint": "This is usually HTTP 404: the request did not reach the ShiftOps API (e.g. it hit the Next.js host instead). Set NEXT_PUBLIC_API_URL to your FastAPI origin as in .env.example. From the same PC, http://localhost:8000 is fine; from a phone or Telegram WebApp, use your machine's LAN URL (e.g. http://192.168.x.x:8000) and allow it in API CORS. Rebuild the web app and try again."
+    "apiNotFoundHint": "The app can't reach the server. Make sure the server address is set correctly (NEXT_PUBLIC_API_URL) and the server is running. If the problem persists, contact your developer."
   },
   "audit": {
     "openCta": "Audit trail",
@@ -235,12 +235,22 @@
   "settings": {
     "openCta": "Settings",
     "title": "Settings",
-    "subtitle": "Optional Telegram Mini App features.",
+    "subtitle": "Optional app features.",
+    "account": {
+      "title": "My account",
+      "name": "Name",
+      "role": "Role"
+    },
     "biometric": {
       "title": "Biometrics when closing a shift",
       "body": "Optional Face ID / fingerprint before closing a shift. This is not a legal signature—only an on-device check.",
       "toggle": "Require biometrics",
       "unsupported": "Biometrics are not available in this Telegram client—the option is disabled."
+    },
+    "about": {
+      "title": "About",
+      "app": "App",
+      "hint": "ShiftOps — shift control for cafés, bars and restaurants, running inside Telegram."
     }
   },
   "team": {
@@ -319,8 +329,8 @@
       "body": "Operators get tasks with photo proof and comments. No paper checklists, no skipped steps."
     },
     "slide2": {
-      "title": "Anti-fake protection and quality score",
-      "body": "Photo similarity checks and an automatic shift score show exactly where discipline slipped."
+      "title": "Genuine photos and quality score",
+      "body": "The app checks that photos are fresh and genuine, then automatically scores the shift — so you can see exactly where things slipped."
     },
     "slide3": {
       "title": "You're ready",
@@ -347,20 +357,20 @@
     "clearFilters": "Clear filters",
     "openedAt": "Opened:",
     "closedAt": "Closed:",
-    "handoverCta": "Handover summary",
-    "handoverTitle": "Shift handover",
-    "postMeta": "{label} · slot {index}",
-    "postMetaNoLabel": "Slot {index}",
+    "handoverCta": "Shift report",
+    "handoverTitle": "Shift report",
+    "postMeta": "{label} · position {index}",
+    "postMetaNoLabel": "Position {index}",
     "delayReason": "Delay: {reason}",
-    "filterPostSlot": "Post filter",
-    "filterSlotIndex": "Slot #",
-    "filterStationLabel": "Station name",
+    "filterPostSlot": "Filter by position",
+    "filterSlotIndex": "Position #",
+    "filterStationLabel": "Position name",
     "applyPostFilter": "Apply",
-    "clearPostFilter": "Clear post filter",
-    "filterPostChipSlot": "Slot {index}",
+    "clearPostFilter": "Clear",
+    "filterPostChipSlot": "Position {index}",
     "filterPostChipStation": "Station: {name}",
-    "filterPostChipNoLabel": "Unlabeled post",
-    "invalidSlotNumber": "Enter a valid slot number (0 or greater)."
+    "filterPostChipNoLabel": "Unnamed position",
+    "invalidSlotNumber": "Enter a valid position number (0 or greater)."
   },
   "swap": {
     "openCta": "Shift swap requests",
@@ -369,8 +379,8 @@
     "back": "Back",
     "newRequest": "New request",
     "myShiftLabel": "Your scheduled shift",
-    "counterpartyShiftLabel": "Colleague's shift ID",
-    "counterpartyShiftHint": "Ask them to copy the shift ID from their app (scheduled shift).",
+    "counterpartyShiftLabel": "Colleague's shift number",
+    "counterpartyShiftHint": "Ask them to open their scheduled shift and copy the number.",
     "messageLabel": "Message (optional)",
     "submit": "Send request",
     "submitting": "Sending…",
@@ -382,7 +392,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "cancel": "Cancel",
-    "invalidUuid": "Colleague's shift ID must be a valid UUID.",
+    "invalidUuid": "Enter the correct shift number — it's visible on your colleague's scheduled shift screen.",
     "created": "Swap request sent",
     "resolved": "Updated",
     "status": {
@@ -402,7 +412,7 @@
     "pickShiftPlaceholder": "Choose your shift…",
     "submitDeepLink": "Send swap request",
     "noScheduledForCounterparty": "You have no scheduled shifts. Ask your admin to assign one.",
-    "slotShort": "Slot {index}",
+    "slotShort": "Position {index}",
     "shareInviteCta": "Share invite link",
     "shareInviteHint": "Opens Telegram so you can forward the link to a colleague — no copy-paste.",
     "shareNoBot": "Bot username is not configured (NEXT_PUBLIC_TG_BOT_USERNAME).",
@@ -430,7 +440,7 @@
     "nameLabel": "Name",
     "namePlaceholder": "e.g. Morning bar shift",
     "roleLabel": "Assigned to",
-    "slotCountLabel": "Shift slots (per day)",
+    "slotCountLabel": "Positions per day (for this template)",
     "unassignedPoolLabel": "Vacant pool — staff claim shifts in the app (no default assignee)",
     "tasksHeading": "Tasks ({count})",
     "addTaskCta": "Add task",
@@ -513,6 +523,12 @@
   "analytics": {
     "openCta": "Owner analytics",
     "title": "Owner analytics",
+    "tabs": {
+      "overview": "Overview",
+      "team": "Team",
+      "locations": "Venues",
+      "quality": "Quality"
+    },
     "subtitleDays": "Last {days} days",
     "subtitleRange": "{from} – {to}",
     "kpis": {
@@ -583,11 +599,11 @@
       "violationsRate": "{rate}% with violations"
     },
     "posts": {
-      "title": "By post (station)",
-      "help": "Closed shifts grouped by location, slot index, and station label. Tap a row to open history with the same date range. If a post was renamed in the template, older shifts may still show the previous label as a separate row.",
-      "empty": "No post-level rows in range.",
-      "line": "{label} · slot {index}",
-      "slotOnly": "Slot {index}",
+      "title": "By position",
+      "help": "Closed shifts grouped by venue, position number, and name. Tap a row to open history for the same period. If a position was renamed, older shifts may show the old name as a separate row.",
+      "empty": "No position-level data in range.",
+      "line": "{label} · position {index}",
+      "slotOnly": "Position {index}",
       "shifts": "{count, plural, one {# shift} other {# shifts}}",
       "violationsRate": "{rate}% with violations"
     },
@@ -605,40 +621,40 @@
       "suspicious": "{count} suspicious"
     },
     "antifake": {
-      "title": "Anti-fake",
-      "help": "Photos that perceptually match a previous attachment are flagged suspicious.",
-      "totalAttachments": "{count} attachments",
+      "title": "Photo authenticity",
+      "help": "Photos that look too similar to a previous one are flagged — the staff member may have sent an old photo.",
+      "totalAttachments": "{count} photos",
       "suspicious": "{count} suspicious",
       "rate": "{rate}% suspicious",
-      "openMonitor": "Open in live monitor",
+      "openMonitor": "Go to monitoring",
       "empty": "No photos uploaded yet."
     },
     "sla": {
-      "title": "SLA: late start",
-      "help": "Shifts that started more than {threshold} min after schedule.",
+      "title": "Late shift starts",
+      "help": "Shifts that started more than {threshold} min after the scheduled time.",
       "lateRate": "{rate}% late",
       "lateCount": "{count, plural, one {# late shift} other {# late shifts}}",
       "avgLate": "Average lateness {value} min",
       "empty": "No timestamped starts in range."
     },
     "roleSplit": {
-      "title": "Operators vs bartenders",
-      "help": "Same KPIs, split by the role of the shift's operator.",
+      "title": "Operators and bartenders",
+      "help": "Same metrics, split by staff role.",
       "operator": "Operators",
       "bartender": "Bartenders",
       "noBartenders": "No bartender shifts in range.",
       "noOperators": "No operator shifts in range."
     },
     "lowData": {
-      "kpis": "Few closed shifts — KPIs may swing wildly.",
-      "heatmap": "Heatmap is sparse. With more shifts the pattern stabilises.",
-      "violators": "Few operators with enough shifts to rank.",
-      "templates": "Only a couple of templates — comparison may be unfair.",
-      "posts": "Few posts or few shifts per post — averages may be unstable."
+      "kpis": "Not enough shifts yet — numbers may vary a lot.",
+      "heatmap": "Not enough data yet. The picture will become clearer with more shifts.",
+      "violators": "Not enough shifts per person to draw conclusions.",
+      "templates": "Too few shifts per checklist — comparison may not be fair.",
+      "posts": "Not enough data per position — averages may not be reliable."
     },
     "loading": "Loading analytics…",
     "empty": "No closed shifts in this range.",
-    "emptyHint": "Once shifts close, the dashboard fills with insight."
+    "emptyHint": "Once shifts close, this section will fill with data."
   },
   "operatorSheet": {
     "title": "Operator profile",
@@ -669,7 +685,7 @@
     "selectedFile": "Selected: {name}",
     "noFile": "No file chosen",
     "dryRunCta": "Validate",
-    "dryRunHint": "Dry run — nothing is written to the database.",
+    "dryRunHint": "Validation only — no shifts will be added yet.",
     "applyCta": "Import for real",
     "applying": "Importing…",
     "validating": "Validating…",
@@ -705,16 +721,16 @@
     }
   },
   "live": {
-    "openCta": "Live monitor",
-    "title": "Live monitor",
-    "subtitle": "Active shifts across the organisation.",
+    "openCta": "Live monitoring",
+    "title": "Live monitoring",
+    "subtitle": "What's happening at your venues right now.",
     "statusConnected": "Live",
     "statusReconnecting": "Reconnecting…",
     "statusOffline": "Offline",
     "empty": "No active shifts right now.",
     "emptyHint": "When operators start shifts, they appear here in real time.",
-    "vacantTitle": "Unclaimed slots (at risk)",
-    "vacantSubtitle": "Scheduled but no operator — overdue, shift window started, or ending soon.",
+    "vacantTitle": "Nobody showed up",
+    "vacantSubtitle": "Scheduled shifts with no staff — overdue, started, or ending soon.",
     "vacantKind": {
       "overdue": "Past scheduled end — still unclaimed",
       "unclaimed_started": "Shift window started — not claimed",
@@ -727,8 +743,8 @@
       "taskCompleted": "{operator}: {title}",
       "taskSuspicious": "Suspicious photo on «{title}»",
       "shiftClosed": "{operator} closed «{template}»",
-      "waiverRequested": "{operator} asks waiver on «{title}»",
-      "waiverDecided": "Waiver {decision}: «{title}»"
+      "waiverRequested": "{operator} can't complete «{title}» — awaiting approval",
+      "waiverDecided": "Decision on «{title}»: {decision}"
     }
   }
 }

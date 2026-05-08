@@ -37,6 +37,8 @@ export interface AppCapabilities {
   canOpenHistory: boolean;
   canOpenSettings: boolean;
   canOpenSwapRequests: boolean;
+  /** True when this user can be assigned shifts and run checklists (operator, bartender, admin). Owner has no checklist. */
+  canStartShift: boolean;
 }
 
 export interface GetCapabilitiesInput {
@@ -76,5 +78,6 @@ export function getCapabilities(input: GetCapabilitiesInput): AppCapabilities {
     canOpenHistory: true,
     canOpenSettings: true,
     canOpenSwapRequests: true,
+    canStartShift: !isOwner || isGodMode,
   };
 }

@@ -372,6 +372,8 @@ interface RangeState {
   to: string;
 }
 
+type AnalyticsTab = "overview" | "team" | "locations" | "quality";
+
 export function AnalyticsScreen({
   onBack,
   onOpenInHistory,
@@ -394,6 +396,7 @@ export function AnalyticsScreen({
 
   const [violator, setViolator] = React.useState<AnalyticsViolator | null>(null);
   const [violatorOpen, setViolatorOpen] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<AnalyticsTab>("overview");
 
   // Locations are static across this session (org doesn't change), so a
   // single fetch on mount is enough. We tolerate failure quietly — the
@@ -585,127 +588,170 @@ export function AnalyticsScreen({
         </Card>
       ) : (
         <>
-          <KpiGrid
-            kpis={data.kpis}
-            previousKpis={previous?.kpis ?? null}
-            previousLabel={tA("compare.previousLabel")}
-            labels={{
-              shiftsClosed: tA("kpis.shiftsClosed"),
-              averageScore: tA("kpis.averageScore"),
-              shiftsClean: tA("kpis.shiftsClean"),
-              shiftsWithViolations: tA("kpis.shiftsWithViolations"),
-            }}
-          />
+          {/* Tab bar */}
+          <div className="flex gap-1 mb-4 overflow-x-auto pb-0.5">
+            {(["overview", "team", "locations", "quality"] as AnalyticsTab[]).map((tab) => {
+              const labels: Record<AnalyticsTab, string> = {
+                overview: tA("tabs.overview"),
+                team: tA("tabs.team"),
+                locations: tA("tabs.locations"),
+                quality: tA("tabs.quality"),
+              };
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={
+                    "flex-shrink-0 px-3 h-8 rounded-full text-xs font-medium transition border " +
+                    (activeTab === tab
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-elevated text-muted-foreground border-border hover:bg-elevated/80")
+                  }
+                >
+                  {labels[tab]}
+                </button>
+              );
+            })}
+          </div>
 
-          <LowDataNote flag={data.density?.kpis ?? "ok"} message={tA("lowData.kpis")} />
-
-          {cleanlinessPct !== null ? (
-            <Card className="mb-4 mt-3">
-              <CardContent className="p-4">
-                <div className="flex items-baseline justify-between mb-2">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                    {tA("kpis.cleanlinessRate")}
-                  </p>
-                  <p className={`text-base font-semibold tabular-nums ${scoreColor(cleanlinessPct)}`}>
-                    {cleanlinessPct}%
-                  </p>
-                </div>
-                <Progress value={cleanlinessPct} />
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3 className="size-4 text-primary" />
-                {tA("heatmap.title")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-1">
-              <HeatmapGrid
-                cells={data.heatmap}
-                emptyLabel={tA("heatmap.noData")}
-                dayLabels={dayLabels}
+          {/* Tab: Обзор */}
+          {activeTab === "overview" && (
+            <>
+              <KpiGrid
+                kpis={data.kpis}
+                previousKpis={previous?.kpis ?? null}
+                previousLabel={tA("compare.previousLabel")}
+                labels={{
+                  shiftsClosed: tA("kpis.shiftsClosed"),
+                  averageScore: tA("kpis.averageScore"),
+                  shiftsClean: tA("kpis.shiftsClean"),
+                  shiftsWithViolations: tA("kpis.shiftsWithViolations"),
+                }}
               />
-              <p className="text-[10px] text-muted-foreground mt-3">{tA("heatmap.help")}</p>
-              <LowDataNote
-                flag={data.density?.heatmap ?? "ok"}
-                message={tA("lowData.heatmap")}
-              />
-            </CardContent>
-          </Card>
+              <LowDataNote flag={data.density?.kpis ?? "ok"} message={tA("lowData.kpis")} />
 
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="size-4 text-warning" />
-                {tA("violators.title")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-1">
-              {data.topViolators.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{tA("violators.empty")}</p>
-              ) : (
-                <ul className="space-y-2">
-                  {data.topViolators.map((v) => (
-                    <li key={v.userId}>
-                      <button
-                        type="button"
-                        onClick={() => onViolatorClick(v)}
-                        className="w-full flex items-center gap-3 p-2 -mx-2 rounded-md bg-elevated/40 hover:bg-elevated text-left"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{v.fullName}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {tA("violators.shiftsTotal", { count: v.shiftsTotal })} ·{" "}
-                            {tA("violators.violations", { count: v.shiftsWithViolations })}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={`text-base font-semibold tabular-nums ${scoreColor(v.averageScore)}`}
+              {cleanlinessPct !== null ? (
+                <Card className="mb-4 mt-3">
+                  <CardContent className="p-4">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                        {tA("kpis.cleanlinessRate")}
+                      </p>
+                      <p className={`text-base font-semibold tabular-nums ${scoreColor(cleanlinessPct)}`}>
+                        {cleanlinessPct}%
+                      </p>
+                    </div>
+                    <Progress value={cleanlinessPct} />
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <BarChart3 className="size-4 text-primary" />
+                    {tA("heatmap.title")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-1">
+                  <HeatmapGrid
+                    cells={data.heatmap}
+                    emptyLabel={tA("heatmap.noData")}
+                    dayLabels={dayLabels}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-3">{tA("heatmap.help")}</p>
+                  <LowDataNote
+                    flag={data.density?.heatmap ?? "ok"}
+                    message={tA("lowData.heatmap")}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Tab: Команда */}
+          {activeTab === "team" && (
+            <>
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Users className="size-4 text-warning" />
+                    {tA("violators.title")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-1">
+                  {data.topViolators.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{tA("violators.empty")}</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {data.topViolators.map((v) => (
+                        <li key={v.userId}>
+                          <button
+                            type="button"
+                            onClick={() => onViolatorClick(v)}
+                            className="w-full flex items-center gap-3 p-2 -mx-2 rounded-md bg-elevated/40 hover:bg-elevated text-left"
                           >
-                            {formatScore(v.averageScore)}
-                          </p>
-                        </div>
-                        <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="text-[10px] text-muted-foreground mt-3">{tA("violators.help")}</p>
-              <LowDataNote
-                flag={data.density?.violators ?? "ok"}
-                message={tA("lowData.violators")}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{v.fullName}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {tA("violators.shiftsTotal", { count: v.shiftsTotal })} ·{" "}
+                                {tA("violators.violations", { count: v.shiftsWithViolations })}
+                              </p>
+                              <Progress
+                                value={v.shiftsTotal > 0 ? Math.round((v.shiftsWithViolations / v.shiftsTotal) * 100) : 0}
+                                className="h-1 mt-1.5"
+                              />
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className={`text-base font-semibold tabular-nums ${scoreColor(v.averageScore)}`}>
+                                {formatScore(v.averageScore)}
+                              </p>
+                            </div>
+                            <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-3">{tA("violators.help")}</p>
+                  <LowDataNote
+                    flag={data.density?.violators ?? "ok"}
+                    message={tA("lowData.violators")}
+                  />
+                </CardContent>
+              </Card>
+              <RoleSplitCard data={data} />
+            </>
+          )}
+
+          {/* Tab: Точки */}
+          {activeTab === "locations" && (
+            <>
+              <LocationsCard
+                data={data}
+                tTitle={tA("locations.title")}
+                tNoData={tA("locations.noData")}
+                tShifts={(count) => tA("locations.shifts", { count })}
+                tViolations={(count) => tA("locations.violations", { count })}
               />
-            </CardContent>
-          </Card>
+              <TemplatesCard data={data} />
+              <PostsCard
+                data={data}
+                range={range}
+                onOpenInHistory={onOpenInHistory}
+              />
+            </>
+          )}
 
-          <LocationsCard
-            data={data}
-            tTitle={tA("locations.title")}
-            tNoData={tA("locations.noData")}
-            tShifts={(count) => tA("locations.shifts", { count })}
-            tViolations={(count) => tA("locations.violations", { count })}
-          />
-
-          <TemplatesCard data={data} />
-
-          <PostsCard
-            data={data}
-            range={range}
-            onOpenInHistory={onOpenInHistory}
-          />
-
-          <CriticalityCard data={data} />
-
-          <RoleSplitCard data={data} />
-
-          <SlaCard data={data} />
-
-          <AntifakeCard data={data} />
+          {/* Tab: Качество */}
+          {activeTab === "quality" && (
+            <>
+              <CriticalityCard data={data} />
+              <SlaCard data={data} />
+              <AntifakeCard data={data} />
+            </>
+          )}
         </>
       )}
 
@@ -862,29 +908,31 @@ function LocationsCard({
             {data.locations.map((loc) => (
               <li
                 key={loc.locationId}
-                className="flex items-center gap-3 p-2 -mx-2 rounded-md hover:bg-elevated/40"
+                className="p-2 -mx-2 rounded-md hover:bg-elevated/40"
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{loc.locationName}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {tShifts(loc.shiftsTotal)}
-                    {loc.shiftsWithViolations > 0 ? (
-                      <>
-                        {" "}
-                        ·{" "}
-                        <span className="text-warning inline-flex items-center gap-0.5">
-                          <ShieldAlert className="size-3" />
-                          {tViolations(loc.shiftsWithViolations)}
-                        </span>
-                      </>
-                    ) : null}
+                <div className="flex items-center gap-3 mb-1.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{loc.locationName}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {tShifts(loc.shiftsTotal)}
+                      {loc.shiftsWithViolations > 0 ? (
+                        <>
+                          {" · "}
+                          <span className="text-warning inline-flex items-center gap-0.5">
+                            <ShieldAlert className="size-3" />
+                            {tViolations(loc.shiftsWithViolations)}
+                          </span>
+                        </>
+                      ) : null}
+                    </p>
+                  </div>
+                  <p className={`text-base font-semibold tabular-nums shrink-0 ${scoreColor(loc.averageScore)}`}>
+                    {formatScore(loc.averageScore)}
                   </p>
                 </div>
-                <p
-                  className={`text-base font-semibold tabular-nums ${scoreColor(loc.averageScore)}`}
-                >
-                  {formatScore(loc.averageScore)}
-                </p>
+                {loc.averageScore !== null ? (
+                  <Progress value={loc.averageScore} className="h-1" />
+                ) : null}
               </li>
             ))}
           </ul>
@@ -921,27 +969,30 @@ function TemplatesCard({ data }: { data: AnalyticsOverview }): React.JSX.Element
               return (
                 <li
                   key={t.templateId}
-                  className="flex items-center gap-3 p-2 -mx-2 rounded-md bg-elevated/30"
+                  className="p-2 -mx-2 rounded-md bg-elevated/30"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{t.templateName}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {tA("templates.shifts", { count: t.shiftsTotal })}
-                      {violationsRate !== null && t.shiftsWithViolations > 0 ? (
-                        <>
-                          {" · "}
-                          <span className="text-warning">
-                            {tA("templates.violationsRate", { rate: violationsRate })}
-                          </span>
-                        </>
-                      ) : null}
+                  <div className="flex items-center gap-3 mb-1.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{t.templateName}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {tA("templates.shifts", { count: t.shiftsTotal })}
+                        {violationsRate !== null && t.shiftsWithViolations > 0 ? (
+                          <>
+                            {" · "}
+                            <span className="text-warning">
+                              {tA("templates.violationsRate", { rate: violationsRate })}
+                            </span>
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                    <p className={`text-base font-semibold tabular-nums shrink-0 ${scoreColor(t.averageScore)}`}>
+                      {formatScore(t.averageScore)}
                     </p>
                   </div>
-                  <p
-                    className={`text-base font-semibold tabular-nums ${scoreColor(t.averageScore)}`}
-                  >
-                    {formatScore(t.averageScore)}
-                  </p>
+                  {t.averageScore !== null ? (
+                    <Progress value={t.averageScore} className="h-1" />
+                  ) : null}
                 </li>
               );
             })}

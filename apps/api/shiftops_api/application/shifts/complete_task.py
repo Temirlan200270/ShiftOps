@@ -106,8 +106,9 @@ class CompleteTaskUseCase:
         if task.status not in (TaskStatus.PENDING, TaskStatus.WAIVER_REJECTED):
             return Failure(DomainError("task_not_in_pending_state"))
 
-        if template_task.requires_photo and not photo_bytes:
-            return Failure(DomainError("photo_required"))
+        # requires_photo is a UI hint, not a hard server-side block — the operator
+        # may submit without a photo with a UI warning. The anti-fake pipeline
+        # simply runs only when photo_bytes is present.
 
         if template_task.requires_comment and not comment:
             return Failure(DomainError("comment_required"))

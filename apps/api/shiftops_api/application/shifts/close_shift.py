@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +32,14 @@ from shiftops_api.domain.score import (
     ShiftScoreInputs,
     compute_score,
 )
-from shiftops_api.infra.db.models import Attachment, Shift, TaskInstance, TemplateTask
+from shiftops_api.infra.db.models import Attachment, Location, Shift, TaskInstance, Template, TemplateTask, User
+
+_ROLE_LABELS: dict[str, str] = {
+    "owner": "владелец",
+    "admin": "администратор",
+    "operator": "оператор",
+    "bartender": "бармен",
+}
 
 _MAX_DELAY_REASON_LEN = 500
 _MAX_VIOLATION_REASON_LEN = 500
@@ -164,6 +172,12 @@ class CloseShiftUseCase:
         photo_unique = await self._count_unique_photos(shift_id)
         photo_total, suspicious_photos = await self._count_photos(shift_id)
 
+        # Load context for the human-readable handover summary.
+        tpl = (await self._session.execute(select(Template).where(Template.id == shift.template_id))).scalar_one_or_none()
+        loc = (await self._session.execute(select(Location).where(Location.id == shift.location_id))).scalar_one_or_none()
+        op = (await self._session.execute(select(User).where(User.id == shift.operator_user_id))).scalar_one_or_none() if shift.operator_user_id else None
+        operator_role_label = _ROLE_LABELS.get(op.role, op.role) if op and op.role else None
+
         now = datetime.now(tz=UTC)
         score_result = compute_score(
             ShiftScoreInputs(
@@ -194,11 +208,18 @@ class CloseShiftUseCase:
             required_missed=required_missed,
             final_status=final_status.value,
             score=score_result.total,
+            scheduled_start=shift.scheduled_start,
             scheduled_end=shift.scheduled_end,
+            actual_start=shift.actual_start,
             actual_end=now,
             photo_total=photo_total,
             photo_unique=photo_unique,
             suspicious_photos=suspicious_photos,
+            template_name=tpl.name if tpl else None,
+            location_name=loc.name if loc else None,
+            location_timezone=loc.timezone if loc else None,
+            operator_name=f"{op.full_name} ({operator_role_label})" if op and operator_role_label else (op.full_name if op else None),
+            violation_reason=normalized_violation_reason,
         )
 
         await write_audit(
@@ -280,17 +301,60 @@ class CloseShiftUseCase:
         return int(total or 0), int(suspicious or 0)
 
 
+def _fmt_duration(total_minutes: int) -> str:
+    """Format minutes into human-readable duration: '4 дн. 2 ч. 58 мин.'"""
+    if total_minutes <= 0:
+        return "0 мин."
+    days, rem = divmod(total_minutes, 60 * 24)
+    hours, mins = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{days} дн.")
+    if hours:
+        parts.append(f"{hours} ч.")
+    if mins or not parts:
+        parts.append(f"{mins} мин.")
+    return " ".join(parts)
+
+
+def _fmt_local_dt(dt: datetime | None, tz_name: str | None) -> str:
+    if dt is None:
+        return "?"
+    try:
+        tz = ZoneInfo(tz_name or "UTC")
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+    return dt.astimezone(tz).strftime("%d.%m.%Y %H:%M")
+
+
+def _fmt_local_time(dt: datetime | None, tz_name: str | None) -> str:
+    if dt is None:
+        return "?"
+    try:
+        tz = ZoneInfo(tz_name or "UTC")
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+    return dt.astimezone(tz).strftime("%H:%M")
+
+
 def _build_handover_summary(
     *,
     template_task_rows: list[tuple[TaskInstance, TemplateTask]],
     required_missed: list[uuid.UUID],
     final_status: str,
     score: Decimal,
+    scheduled_start: datetime,
     scheduled_end: datetime,
+    actual_start: datetime | None,
     actual_end: datetime,
     photo_total: int,
     photo_unique: int,
     suspicious_photos: int,
+    template_name: str | None = None,
+    location_name: str | None = None,
+    location_timezone: str | None = None,
+    operator_name: str | None = None,
+    violation_reason: str | None = None,
 ) -> str:
     total = len(template_task_rows)
     done_or_waived = sum(
@@ -304,43 +368,85 @@ def _build_handover_summary(
     waiver_pending = sum(
         1 for ti, _tt in template_task_rows if TaskStatus(ti.status) == TaskStatus.WAIVER_PENDING
     )
-    # CloseShiftUseCase may leave WAIVER_REJECTED in the data set if it was pending,
-    # but those count as "not done".
     waiver_rejected = sum(
         1 for ti, _tt in template_task_rows if TaskStatus(ti.status) == TaskStatus.WAIVER_REJECTED
     )
 
+    is_clean = final_status == ShiftStatus.CLOSED_CLEAN.value
+    status_line = "✅ Смена закрыта — без нарушений" if is_clean else "🟠 Смена закрыта — с нарушениями"
+
+    tz = location_timezone
+
+    lines: list[str] = [status_line]
+
+    # Context block
+    if location_name or template_name:
+        ctx_parts = []
+        if location_name:
+            ctx_parts.append(location_name)
+        if template_name:
+            ctx_parts.append(template_name)
+        lines.append("📍 " + " · ".join(ctx_parts))
+    if operator_name:
+        lines.append(f"👤 {operator_name}")
+
+    lines.append("")
+
+    # Timeline
+    open_time = _fmt_local_time(actual_start, tz)
+    close_time = _fmt_local_dt(actual_end, tz)
+    sched_open = _fmt_local_time(scheduled_start, tz)
+    sched_close = _fmt_local_time(scheduled_end, tz)
+    lines.append(f"🕐 Расписание: {sched_open} → {sched_close}")
+    lines.append(f"   Факт:       {open_time} → {close_time}")
+
+    # Late close
     late_min = max(0, int((actual_end - scheduled_end).total_seconds() // 60))
-    status_emoji = "✅" if final_status == ShiftStatus.CLOSED_CLEAN.value else "🟠"
+    if late_min > 15:
+        lines.append(f"⏰ Опоздание закрытия: +{_fmt_duration(late_min)}")
 
-    missed_titles = [
-        tt.title
-        for ti, tt in template_task_rows
-        if ti.id in required_missed  # NOTE: required_missed contains TaskInstance ids
-    ]
-    missed_preview = ""
-    if missed_titles:
-        clipped = missed_titles[:8]
-        more = len(missed_titles) - len(clipped)
-        lines = "\n".join(f"  - {t}" for t in clipped)
-        tail = f"\n  …ещё {more}" if more > 0 else ""
-        missed_preview = f"\n\nНе выполнено (required):\n{lines}{tail}"
+    lines.append("")
 
-    photos_line = f"{photo_unique}/{photo_total}" if photo_total else "0"
-    suspicious_line = f", suspicious: {suspicious_photos}" if suspicious_photos else ""
-    waiver_line = ""
-    if waiver_pending or waiver_rejected:
-        waiver_line = f"\nWaiver: pending {waiver_pending}, rejected {waiver_rejected}"
+    # Tasks
+    tasks_line = f"📋 Задачи: {done_or_waived}/{total} выполнено"
+    if skipped:
+        tasks_line += f"  (пропущено {skipped})"
+    lines.append(tasks_line)
 
-    late_line = f"\nОпоздание закрытия: {late_min} мин" if late_min > 0 else ""
+    # Photos
+    if photo_total:
+        photos_line = f"📸 Фото: {photo_unique} уник. / {photo_total} всего"
+        if suspicious_photos:
+            photos_line += f"  ⚠️ {suspicious_photos} подозрит."
+        lines.append(photos_line)
+    else:
+        lines.append("📸 Фото: нет")
 
-    return (
-        f"{status_emoji} Handover\n"
-        f"Прогресс: {done_or_waived}/{total} (skipped {skipped})\n"
-        f"Фото (unique/total): {photos_line}{suspicious_line}\n"
-        f"Нарушения (required missed): {len(required_missed)}"
-        f"{waiver_line}"
-        f"{late_line}\n"
-        f"Score: {score}%"
-        f"{missed_preview}"
-    )
+    # Score
+    lines.append(f"⭐ Оценка: {score:.1f}%")
+
+    # Violations
+    if required_missed or waiver_pending or waiver_rejected:
+        lines.append("")
+        if required_missed:
+            missed_titles = [
+                tt.title
+                for ti, tt in template_task_rows
+                if ti.id in required_missed
+            ]
+            clipped = missed_titles[:8]
+            more = len(missed_titles) - len(clipped)
+            lines.append(f"❗ Обязательные задачи не выполнены ({len(required_missed)} шт.):")
+            for t in clipped:
+                lines.append(f"  — {t}")
+            if more:
+                lines.append(f"  … ещё {more}")
+        if waiver_pending:
+            lines.append(f"⏳ Ждут решения у администратора: {waiver_pending}")
+        if waiver_rejected:
+            lines.append(f"❌ Администратор не разрешил пропустить: {waiver_rejected}")
+
+    if violation_reason:
+        lines.append(f"\n📝 Причина нарушений: {violation_reason}")
+
+    return "\n".join(lines)

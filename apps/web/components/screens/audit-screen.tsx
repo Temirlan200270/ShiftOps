@@ -22,6 +22,35 @@ interface AuditScreenProps {
   onBack: () => void;
 }
 
+function groupAuditByDate(
+  items: AuditEventRow[],
+  locale: string,
+): { label: string; events: AuditEventRow[] }[] {
+  const groups = new Map<string, AuditEventRow[]>();
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86_400_000).toDateString();
+
+  for (const ev of items) {
+    const d = new Date(ev.createdAt);
+    const key = d.toDateString();
+    let label: string;
+    if (key === today) {
+      label = "Сегодня";
+    } else if (key === yesterday) {
+      label = "Вчера";
+    } else {
+      label = d.toLocaleDateString(locale, { day: "numeric", month: "long" });
+    }
+    const existing = groups.get(label);
+    if (existing) {
+      existing.push(ev);
+    } else {
+      groups.set(label, [ev]);
+    }
+  }
+  return Array.from(groups.entries()).map(([label, evs]) => ({ label, events: evs }));
+}
+
 export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
   const t = useTranslations("audit");
   const tErr = useTranslations("errors");
@@ -109,53 +138,60 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {items.map((ev) => {
-            const accent = normalizeAuditAccent(ev.accent);
-            const Icon = auditEventIcon(ev.eventType, accent);
-            const initials = actorInitials(ev.actorName);
-            const displayName = ev.actorName?.trim() ? ev.actorName : t("bySystem");
+        <div className="space-y-4">
+          {groupAuditByDate(items, locale).map(({ label, events }) => (
+            <section key={label}>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                {label}
+              </p>
+              <div className="space-y-2">
+                {events.map((ev) => {
+                  const accent = normalizeAuditAccent(ev.accent);
+                  const Icon = auditEventIcon(ev.eventType, accent);
+                  const initials = actorInitials(ev.actorName);
+                  const displayName = ev.actorName?.trim() ? ev.actorName : t("bySystem");
 
-            return (
-              <Card
-                key={ev.id}
-                className={cn("overflow-hidden border-l-4 shadow-sm", auditBorderClass(accent))}
-              >
-                <CardContent className="p-4">
-                  <div className="flex gap-3">
-                    <div
-                      className={cn(
-                        "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg",
-                        auditIconWrapClass(accent),
-                      )}
+                  return (
+                    <Card
+                      key={ev.id}
+                      className={cn("overflow-hidden border-l-4 shadow-sm", auditBorderClass(accent))}
                     >
-                      <Icon className="size-4" aria-hidden />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium leading-snug break-words">{ev.message}</p>
-                      <div className="mt-3 flex items-center gap-2.5">
-                        <div
-                          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
-                          aria-hidden
-                        >
-                          {initials}
+                      <CardContent className="p-3.5">
+                        <div className="flex gap-3">
+                          <div
+                            className={cn(
+                              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg",
+                              auditIconWrapClass(accent),
+                            )}
+                          >
+                            <Icon className="size-3.5" aria-hidden />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm leading-snug break-words">{ev.message}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <div
+                                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground"
+                                aria-hidden
+                              >
+                                {initials}
+                              </div>
+                              <p className="min-w-0 text-xs text-muted-foreground">
+                                <span className="font-medium text-foreground/80">{displayName}</span>
+                                <span className="mx-1.5 opacity-50" aria-hidden>·</span>
+                                <time dateTime={ev.createdAt} className="tabular-nums">
+                                  {formatTime(ev.createdAt)}
+                                </time>
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        <p className="min-w-0 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground/90">{displayName}</span>
-                          <span className="mx-1.5 opacity-60" aria-hidden>
-                            ·
-                          </span>
-                          <time dateTime={ev.createdAt} className="tabular-nums">
-                            {formatTime(ev.createdAt)}
-                          </time>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
           <Button
             variant="secondary"
             size="block"

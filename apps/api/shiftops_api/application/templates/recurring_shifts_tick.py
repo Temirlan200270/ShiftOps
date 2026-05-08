@@ -55,7 +55,7 @@ from shiftops_api.infra.db.models import (
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 
 _log = logging.getLogger(__name__)
-TRAILING_TOLERANCE_MIN = 5
+TRAILING_TOLERANCE_MIN = 5  # original narrow window kept for normal operation
 
 # ``_already_exists`` must ignore ``aborted`` rows. Deactivating a member runs
 # :func:`~shiftops_api.application.shifts.abort_open_shifts_for_operator.abort_open_shifts_for_operator`,
@@ -81,7 +81,15 @@ def is_window_open(
     without a database session. Returns True when:
 
     - Today's local weekday is in ``cfg.weekdays``;
-    - ``time_of_day - lead_time_min ≤ now_local ≤ time_of_day + 5 min``.
+    - ``time_of_day - lead_time_min ≤ now_local`` AND we are still
+      within the same local calendar day.
+
+    Same-day catch-up semantics: once the creation window opens it stays
+    open until local midnight.  This means a transient worker outage or
+    TaskIQ reconnect that delays the tick by several hours will not silently
+    drop the shift — the next tick after the outage resolves will still
+    create it.  ``_already_exists_slot`` prevents duplicates regardless of
+    how many ticks fire while the window is open.
     """
 
     try:
@@ -94,8 +102,13 @@ def is_window_open(
         return False
     scheduled_local = datetime.combine(local_now.date(), cfg.time_of_day, tzinfo=tz)
     window_open = scheduled_local - timedelta(minutes=cfg.lead_time_min)
-    window_close = scheduled_local + timedelta(minutes=TRAILING_TOLERANCE_MIN)
-    return window_open <= local_now <= window_close
+    # Window stays open until local midnight (same calendar day as window_open).
+    tomorrow_local = datetime.combine(
+        local_now.date() + timedelta(days=1),
+        datetime.min.time(),
+        tzinfo=tz,
+    )
+    return window_open <= local_now < tomorrow_local
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,6 +346,16 @@ class CreateRecurringShiftsTickUseCase:
                 },
             )
             created_here += 1
+            if operator_id is not None:
+                # Notify the operator asynchronously — do not block the tick.
+                from shiftops_api.infra.notifications.dispatcher import dispatch_shift_assigned  # noqa: PLC0415
+                try:
+                    await dispatch_shift_assigned(shift_id=shift_id)
+                except Exception:  # noqa: BLE001
+                    _log.warning(
+                        "recurring.tick.notify_failed",
+                        extra={"shift_id": str(shift_id)},
+                    )
 
         return created_here
 

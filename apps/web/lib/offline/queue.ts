@@ -73,8 +73,11 @@ async function drainQueueOnce(): Promise<{ ok: number; failed: number }> {
     if (result.ok) {
       await del(key);
       ok += 1;
+    } else if (result.status === 401) {
+      // Token expired — keep the entry; it may succeed after the next token refresh.
+      failed += 1;
     } else if (result.status >= 400 && result.status < 500 && result.status !== 408) {
-      // 4xx (other than timeout) means retrying won't help — drop the entry.
+      // Other 4xx (403, 404, 422 …) — retrying won't help, drop the entry.
       await del(key);
       failed += 1;
     } else {

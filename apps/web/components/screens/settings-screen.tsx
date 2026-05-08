@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Fingerprint } from "lucide-react";
+import { ArrowLeft, BadgeInfo, Fingerprint, User } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -8,16 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { isShiftCloseBiometricSupported } from "@/lib/telegram/biometric";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface SettingsScreenProps {
   onBack: () => void;
 }
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Владелец",
+  admin: "Администратор",
+  operator: "Оператор",
+  bartender: "Бармен",
+};
 
 export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Element {
   const t = useTranslations("settings");
   const enabled = usePreferencesStore((s) => s.shiftCloseBiometricEnabled);
   const setEnabled = usePreferencesStore((s) => s.setShiftCloseBiometricEnabled);
   const supported = isShiftCloseBiometricSupported();
+  const me = useAuthStore((s) => s.me);
 
   React.useEffect(() => {
     if (!supported && enabled) {
@@ -37,7 +46,32 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
         </div>
       </header>
 
-      <Card>
+      {/* Account info */}
+      {me ? (
+        <Card className="mb-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <User className="size-5 text-muted-foreground" />
+              {t("account.title")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg bg-elevated/40 px-3 py-2.5">
+              <span className="text-sm text-muted-foreground">{t("account.name")}</span>
+              <span className="text-sm font-medium">{me.fullName}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-elevated/40 px-3 py-2.5">
+              <span className="text-sm text-muted-foreground">{t("account.role")}</span>
+              <span className="text-sm font-medium">
+                {ROLE_LABELS[me.role] ?? me.role}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Biometric */}
+      <Card className="mb-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Fingerprint className="size-5 text-muted-foreground" />
@@ -59,6 +93,23 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
               onChange={(e) => setEnabled(e.target.checked)}
             />
           </label>
+        </CardContent>
+      </Card>
+
+      {/* About */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BadgeInfo className="size-5 text-muted-foreground" />
+            {t("about.title")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-center justify-between rounded-lg bg-elevated/40 px-3 py-2.5">
+            <span className="text-sm text-muted-foreground">{t("about.app")}</span>
+            <span className="text-sm font-medium">ShiftOps</span>
+          </div>
+          <p className="text-xs text-muted-foreground px-1">{t("about.hint")}</p>
         </CardContent>
       </Card>
     </main>

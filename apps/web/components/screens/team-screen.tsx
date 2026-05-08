@@ -383,74 +383,87 @@ export function TeamScreen({ onBack }: TeamScreenProps): React.JSX.Element {
           ) : members.length === 0 ? (
             <p className="text-sm text-muted-foreground">—</p>
           ) : (
-            <ul className="space-y-0 divide-y divide-border/60" aria-label={t("membersTitle")}>
+            <ul className="space-y-2" aria-label={t("membersTitle")}>
               {members.map((member) => {
                 const roleKey = member.role as "owner" | "admin" | "operator" | "bartender";
                 const badge =
+                  roleKey === "owner" ? t("roleOwner")
+                  : roleKey === "admin" ? t("roleAdmin")
+                  : roleKey === "operator" ? t("roleOperator")
+                  : roleKey === "bartender" ? t("roleBartender")
+                  : member.role;
+                const roleBadgeClass =
                   roleKey === "owner"
-                    ? t("roleOwner")
+                    ? "bg-amber-500/15 text-amber-600 border-amber-400/30"
                     : roleKey === "admin"
-                      ? t("roleAdmin")
+                      ? "bg-blue-500/15 text-blue-600 border-blue-400/30"
                       : roleKey === "operator"
-                        ? t("roleOperator")
-                        : roleKey === "bartender"
-                          ? t("roleBartender")
-                          : member.role;
+                        ? "bg-emerald-500/15 text-emerald-700 border-emerald-400/30"
+                        : "bg-purple-500/15 text-purple-700 border-purple-400/30";
                 const isSelf = member.id === me?.id;
                 const showActions = rowHasTeamActions(member, me, canManageTeamMembers);
+                const initials = member.full_name
+                  .split(" ")
+                  .slice(0, 2)
+                  .map((w) => w[0]?.toUpperCase() ?? "")
+                  .join("");
+                const avatarClass =
+                  roleKey === "owner"
+                    ? "bg-amber-500/20 text-amber-700"
+                    : roleKey === "admin"
+                      ? "bg-blue-500/20 text-blue-700"
+                      : roleKey === "operator"
+                        ? "bg-emerald-500/20 text-emerald-700"
+                        : "bg-purple-500/20 text-purple-700";
+
                 return (
                   <li
                     key={member.id}
-                    className={
-                      member.is_active
-                        ? "flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
-                        : "flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0 opacity-70"
-                    }
+                    className={`flex items-center gap-3 rounded-xl border border-border/60 bg-elevated/30 px-3 py-3 ${!member.is_active ? "opacity-60" : ""}`}
                   >
+                    {/* Avatar */}
+                    <div
+                      className={`size-10 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold ${avatarClass}`}
+                      aria-hidden
+                    >
+                      {initials || "?"}
+                    </div>
+
+                    {/* Info */}
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium leading-snug break-words">
+                      <p className="text-sm font-medium leading-snug break-words">
                         {member.full_name}
                         {isSelf ? (
-                          <span className="text-muted-foreground font-normal text-xs ms-1.5">
-                            {t("memberYou")}
-                          </span>
+                          <span className="text-muted-foreground font-normal text-xs ms-1.5">{t("memberYou")}</span>
                         ) : null}
                         {!member.is_active ? (
-                          <span className="text-muted-foreground font-normal text-xs ms-1.5">
-                            ({t("memberInactive")})
-                          </span>
+                          <span className="text-muted-foreground font-normal text-xs ms-1.5">({t("memberInactive")})</span>
                         ) : null}
                       </p>
-                      {member.tg_username ? (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          @{member.tg_username}
-                        </p>
-                      ) : null}
-                      {member.job_title ? (
-                        <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                          <span className="text-muted-foreground/80">{t("jobTitleLine")}: </span>
-                          {member.job_title}
-                        </p>
-                      ) : null}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${roleBadgeClass}`}>
+                          {badge}
+                        </span>
+                        {member.job_title ? (
+                          <span className="text-[11px] text-muted-foreground truncate">{member.job_title}</span>
+                        ) : null}
+                        {member.tg_username ? (
+                          <span className="text-[11px] text-muted-foreground">@{member.tg_username}</span>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground border border-border rounded-full px-2 py-0.5 whitespace-nowrap">
-                        {badge}
-                      </span>
-                      {showActions ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            openActionMenu(member);
-                          }}
-                          className="rounded-full p-1 text-muted-foreground hover:bg-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
-                          aria-label={t("actions.open")}
-                          title={t("actions.open")}
-                        >
-                          <MoreVertical className="size-4" />
-                        </button>
-                      ) : null}
-                    </div>
+
+                    {/* Actions */}
+                    {showActions ? (
+                      <button
+                        type="button"
+                        onClick={() => openActionMenu(member)}
+                        className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-elevated focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        aria-label={t("actions.open")}
+                      >
+                        <MoreVertical className="size-4" />
+                      </button>
+                    ) : null}
                   </li>
                 );
               })}

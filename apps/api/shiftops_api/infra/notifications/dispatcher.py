@@ -28,6 +28,19 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shiftops_api.domain.enums import ShiftStatus, UserRole
+
+_ROLE_RU: dict[str, str] = {
+    "owner": "владелец",
+    "admin": "администратор",
+    "operator": "оператор",
+    "bartender": "бармен",
+}
+
+
+def _op_label(operator: "User") -> str:
+    """'Иван Петров (оператор)'"""
+    role_ru = _ROLE_RU.get(str(operator.role), str(operator.role))
+    return f"{operator.full_name} ({role_ru})"
 from shiftops_api.infra.db.engine import get_sessionmaker
 from shiftops_api.infra.db.models import (
     Attachment,
@@ -40,6 +53,7 @@ from shiftops_api.infra.db.models import (
     TemplateTask,
     User,
 )
+from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.metrics import (
     ATTACHMENT_LOW_LUMINANCE_TOTAL,
     ATTACHMENT_PHASH_COLLISIONS_TOTAL,
@@ -77,16 +91,30 @@ def _fmt_local_hhmm(dt: datetime | None, tz_name: str | None) -> str:
     return dt.astimezone(tz).strftime("%H:%M")
 
 
-def _open_session() -> AsyncSession:
-    """Open an unmanaged session — caller is responsible for `await session.close()`.
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
-    Notifications run *outside* a per-request RLS-enforcing transaction (they
-    are dispatched from use-cases that have already committed). We therefore
-    operate with the privileged service role; tenant isolation is preserved
-    by always filtering by `organization_id` derived from the entity itself.
-    """
+
+def _open_session() -> AsyncSession:
+    """Open an unmanaged session — caller is responsible for `await session.close()`."""
     factory = get_sessionmaker()
     return factory()
+
+
+@asynccontextmanager
+async def _privileged_session() -> AsyncIterator[AsyncSession]:
+    """Open a session with RLS bypass for cross-tenant notification dispatchers.
+
+    Notifications run outside a per-request tenant transaction. Without the
+    bypass role, FORCE RLS silently returns 0 rows (no org GUC set), causing
+    all dispatcher lookups to fail quietly.
+    """
+    session = _open_session()
+    try:
+        await enter_privileged_rls_mode(session, reason="notification_dispatch")
+        yield session
+    finally:
+        await session.close()
 
 
 async def _resolve_admin_chat_id(session: AsyncSession, location_id: uuid.UUID) -> int | None:
@@ -169,9 +197,35 @@ async def _emit_violation_metrics(
             ).inc()
 
 
+async def dispatch_shift_assigned(*, shift_id: uuid.UUID) -> None:
+    """DM to operator when the recurring tick creates a scheduled shift for them."""
+    async with _privileged_session() as session:
+        row = (
+            await session.execute(
+                select(Shift, Location, Template, User)
+                .join(Location, Location.id == Shift.location_id)
+                .join(Template, Template.id == Shift.template_id)
+                .join(User, User.id == Shift.operator_user_id)
+                .where(Shift.id == shift_id)
+            )
+        ).first()
+        if row is None:
+            return
+        shift, location, template, operator = row
+        operator_chat = await _resolve_operator_dm_id(session, operator.id)
+        if not operator_chat:
+            return
+        start_time = _fmt_local_hhmm(shift.scheduled_start, location.timezone)
+        end_time = _fmt_local_hhmm(shift.scheduled_end, location.timezone)
+        msg = (
+            f"📋 [{location.name}] Ваша смена «{template.name}» сегодня с {start_time} до {end_time}.\n"
+            f"Откройте приложение ShiftOps и начните выполнять задачи вовремя."
+        )
+        await send_telegram_message.kiq(operator_chat, msg)
+
+
 async def dispatch_shift_opened(*, shift_id: uuid.UUID) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(Shift, Location, Template, User)
@@ -185,7 +239,7 @@ async def dispatch_shift_opened(*, shift_id: uuid.UUID) -> None:
             return
         shift, location, template, operator = row
         text = (
-            f"🟢 [{location.name}] {operator.full_name} начал «{template.name}» в "
+            f"🟢 [{location.name}] {_op_label(operator)} начал «{template.name}» в "
             f"{_fmt_local_hhmm(shift.actual_start, location.timezone)}"
         )
         admin_chat_id = location.tg_admin_chat_id
@@ -216,15 +270,11 @@ async def dispatch_shift_opened(*, shift_id: uuid.UUID) -> None:
             location_id=str(location.id),
             template_id=str(template.id),
         ).inc()
-    finally:
-        await session.close()
 
 
 async def dispatch_vacant_before_start_alert(*, shift_id: uuid.UUID) -> None:
     """Proactive ping: scheduled pool slot still has no operator shortly before open."""
-
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(Shift, Location, Template)
@@ -255,8 +305,6 @@ async def dispatch_vacant_before_start_alert(*, shift_id: uuid.UUID) -> None:
         owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
         for owner_chat in owner_chats:
             await send_telegram_message.kiq(owner_chat, text)
-    finally:
-        await session.close()
 
 
 async def dispatch_task_progress(
@@ -268,15 +316,8 @@ async def dispatch_task_progress(
     phash_collision: bool = False,
     low_luminance: bool = False,
 ) -> None:
-    """Publish a real-time progress event for the admin live monitor.
-
-    Telegram is intentionally *not* notified per task — that's the
-    `dispatch_shift_closed` media-group strategy. The realtime bus is
-    cheaper than a TG message and can carry the per-task firehose
-    without spamming any chats.
-    """
-    session = _open_session()
-    try:
+    """Publish a real-time progress event for the admin live monitor."""
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(Shift, Location, TemplateTask, TaskInstance)
@@ -290,8 +331,6 @@ async def dispatch_task_progress(
             return
         shift, location, template_task, task_instance = row
 
-        # Compute live progress so the admin UI can render the same
-        # progress bar the operator sees, without a follow-up GET.
         progress_row = (
             await session.execute(
                 select(
@@ -322,9 +361,6 @@ async def dispatch_task_progress(
             },
         )
 
-        # Only count terminal "done" transitions toward tasks_completed.
-        # `waived` flows through this dispatcher too (status=waived) and
-        # should not inflate the task-completion rate dashboards.
         if new_status == "done":
             TASKS_COMPLETED_TOTAL.labels(criticality=str(template_task.criticality)).inc()
             if phash_collision:
@@ -340,10 +376,8 @@ async def dispatch_task_progress(
                     location_id=str(location.id),
                 ).inc()
 
-        _ = actor_user_id  # currently unused but reserved for "by whom" UI
+        _ = actor_user_id
         _ = task_instance
-    finally:
-        await session.close()
 
 
 async def dispatch_suspicious_photo_alert(
@@ -352,8 +386,7 @@ async def dispatch_suspicious_photo_alert(
     task_id: uuid.UUID,
     actor_user_id: uuid.UUID,
 ) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(Shift, Location, TemplateTask, User)
@@ -389,8 +422,6 @@ async def dispatch_suspicious_photo_alert(
                 "operator_name": actor.full_name,
             },
         )
-    finally:
-        await session.close()
 
 
 async def dispatch_waiver_request(
@@ -400,8 +431,7 @@ async def dispatch_waiver_request(
     actor_user_id: uuid.UUID,
     reason: str,
 ) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(Shift, Location, TemplateTask, User)
@@ -448,8 +478,6 @@ async def dispatch_waiver_request(
         )
 
         WAIVER_REQUESTS_TOTAL.labels(status=WAIVER_STATUS_OPEN).inc()
-    finally:
-        await session.close()
 
 
 async def dispatch_waiver_decision(
@@ -458,8 +486,7 @@ async def dispatch_waiver_decision(
     decision: str,
     decided_by: uuid.UUID,
 ) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(TaskInstance, Shift, TemplateTask, User)
@@ -496,19 +523,13 @@ async def dispatch_waiver_decision(
         )
 
         WAIVER_DECISIONS_TOTAL.labels(decision=decision).inc()
-        # Mirror the decision into the lifecycle counter so the funnel
-        # `requests_total{status="open"}` → `{status="approved"|"rejected"}`
-        # is computable from a single metric in dashboards.
         request_status = WAIVER_STATUS_APPROVED if decision == "approve" else WAIVER_STATUS_REJECTED
         WAIVER_REQUESTS_TOTAL.labels(status=request_status).inc()
         _ = decided_by
-    finally:
-        await session.close()
 
 
 async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         row = (
             await session.execute(
                 select(Shift, Location, Template, User)
@@ -524,21 +545,30 @@ async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> No
 
         score_text = f"score {shift.score}%" if shift.score is not None else "score n/a"
         if final_status == "closed_clean":
-            head = f"✅ [{location.name}] {operator.full_name} закрыл «{template.name}» — {score_text}, без нарушений"
+            head = (
+                f"✅ [{location.name}] {_op_label(operator)} закрыл «{template.name}»"
+                f" — {score_text}, без нарушений"
+            )
         else:
-            head = f"🟠 [{location.name}] {operator.full_name} закрыл «{template.name}» с нарушениями — {score_text}"
+            head = (
+                f"🟠 [{location.name}] {_op_label(operator)} закрыл «{template.name}»"
+                f" с нарушениями — {score_text}"
+            )
+        if shift.violation_reason:
+            head += f"\nПричина: {shift.violation_reason}"
 
         admin_chat_id = location.tg_admin_chat_id
         owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
 
-        # Collect all photos for the shift and batch into media groups (max 10).
+        # Collect all photos with their task titles for captioned media groups.
         attachments_stmt = (
-            select(Attachment)
+            select(Attachment, TemplateTask.title)
             .join(TaskInstance, TaskInstance.id == Attachment.task_instance_id)
+            .join(TemplateTask, TemplateTask.id == TaskInstance.template_task_id)
             .where(TaskInstance.shift_id == shift_id)
             .order_by(Attachment.captured_at_server.asc())
         )
-        attachments = (await session.execute(attachments_stmt)).scalars().all()
+        attachment_rows = (await session.execute(attachments_stmt)).all()
 
         if admin_chat_id:
             await send_telegram_message.kiq(admin_chat_id, head)
@@ -570,36 +600,34 @@ async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> No
 
         SHIFTS_CLOSED_TOTAL.labels(location_id=str(location.id), status=final_status).inc()
 
-        # Per-violation breakdown. The CloseShiftUseCase has already
-        # marked missed required tasks as `skipped` and persisted
-        # `actual_end`, so we can read the final state authoritatively
-        # off the same row.
         await _emit_violation_metrics(session=session, shift=shift, location_id=str(location.id))
 
-        for batch_start in range(0, len(attachments), 10):
-            chunk = attachments[batch_start : batch_start + 10]
-            media = [
-                {
-                    "type": "photo",
-                    "media": a.tg_file_id,
-                    "caption": "⚠️ suspicious" if a.suspicious else "",
-                }
-                for a in chunk
-                if a.tg_file_id  # R2 attachments need a different path (V2)
-            ]
+        for batch_start in range(0, len(attachment_rows), 10):
+            chunk = attachment_rows[batch_start : batch_start + 10]
+            media = []
+            for attachment, task_title in chunk:
+                if not attachment.tg_file_id:  # R2 attachments need a different path (V2)
+                    continue
+                caption_parts = [f"📋 {task_title}"]
+                if attachment.suspicious:
+                    caption_parts.append("⚠️ подозрительное")
+                media.append(
+                    {
+                        "type": "photo",
+                        "media": attachment.tg_file_id,
+                        "caption": " · ".join(caption_parts),
+                    }
+                )
             if not media:
                 continue
             if admin_chat_id:
                 await send_telegram_media_group.kiq(admin_chat_id, media)
             for owner_chat in owner_chats:
                 await send_telegram_media_group.kiq(owner_chat, media)
-    finally:
-        await session.close()
 
 
 async def dispatch_swap_request_created(*, request_id: uuid.UUID) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         req = await session.get(ShiftSwapRequest, request_id)
         if req is None:
             return
@@ -613,13 +641,10 @@ async def dispatch_swap_request_created(*, request_id: uuid.UUID) -> None:
         dm = await _resolve_operator_dm_id(session, req.counterparty_user_id)
         if dm:
             await send_telegram_message.kiq(dm, text)
-    finally:
-        await session.close()
 
 
 async def dispatch_swap_request_resolved(*, request_id: uuid.UUID, accepted: bool) -> None:
-    session = _open_session()
-    try:
+    async with _privileged_session() as session:
         req = await session.get(ShiftSwapRequest, request_id)
         if req is None:
             return
@@ -635,5 +660,3 @@ async def dispatch_swap_request_resolved(*, request_id: uuid.UUID, accepted: boo
             dm = await _resolve_operator_dm_id(session, uid)
             if dm:
                 await send_telegram_message.kiq(dm, body)
-    finally:
-        await session.close()

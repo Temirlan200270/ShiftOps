@@ -165,6 +165,9 @@ scrape_configs:
 - `ShiftOpsRecurringTickStalled`: воркер не обновлял gauge 10 минут (scheduler/worker умер).
 - `ShiftOpsRecurringTickSeesZeroTemplates`: воркер 5 минут видит 0 шаблонов
   (типичный симптом сломанного privileged RLS bypass / grants).
+- `ShiftOpsRemindersSilent`: если `shiftops_telegram_send_total{method="sendMessage"}` растёт,
+  но в логах нет `shift_reminders_tick.summary` в течение 10 минут — возможно,
+  воркер не импортировал scheduling tasks или scheduler не запущен.
 
 **CI / релиз:** в `.github/workflows/ci.yml` после `alembic upgrade head` проверяется,
 что `alembic current` помечен как `(head)`; отдельный шаг гоняет

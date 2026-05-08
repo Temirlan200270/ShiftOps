@@ -133,13 +133,6 @@ export async function fetchMonitorSnapshot(): Promise<ApiResult<MonitorSnapshot>
   };
 }
 
-/** @deprecated Prefer fetchMonitorSnapshot — kept for older callers. */
-export async function fetchActiveShifts(): Promise<ApiResult<ActiveShift[]>> {
-  const snap = await fetchMonitorSnapshot();
-  if (!snap.ok) return snap;
-  return { ok: true, status: snap.status, data: snap.data.active };
-}
-
 // All event payloads we care about on the wire. The server can always
 // add new types — unknown types are no-ops for older clients, which is
 // exactly what we want for a forward-compatible streaming protocol.

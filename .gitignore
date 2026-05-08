@@ -61,6 +61,8 @@ docker-data/
 
 # Claude Code — machine-specific overrides (paths, permissions); not team-shared.
 .claude/settings.local.json
+# Cursor/Claude worktrees (local-only)
+.claude/worktrees/vigorous-williamson-f24a0e/
 
 # Vercel CLI project link (root and app; apps/web also lists `.vercel`)
 .vercel/

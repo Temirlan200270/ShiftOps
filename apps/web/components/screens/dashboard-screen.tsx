@@ -369,108 +369,110 @@ export function DashboardScreen(): React.JSX.Element {
         />
       ) : null}
 
-      {loading && !shift ? (
-        <div className="so-glass mb-4 h-40 animate-pulse rounded-2xl" />
-      ) : !shift ? (
-        <>
-          {vacantShifts.length > 0 ? (
-            <div className="so-glass mb-3 rounded-2xl p-4">
-              <p className="mb-3 font-medium text-foreground">{tDash("availableTitle")}</p>
-              <div className="space-y-3">
-                {vacantShifts.map((row) => (
-                  <div
-                    key={row.id}
-                    className="flex flex-col gap-2 rounded-xl border border-white/[0.06] bg-black/35 p-4"
-                  >
-                    <p className="text-sm font-medium text-foreground">{row.templateName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {tDash("slotHint", {
-                        location: row.locationName,
-                        template: row.templateName,
-                      })}
-                    </p>
-                    {row.stationLabel ? (
-                      <p className="text-xs text-muted-foreground">
-                        {tDash("stationLabel", { label: row.stationLabel })}
-                      </p>
-                    ) : null}
-                    <Button
-                      size="block"
-                      variant="secondary"
-                      className="rounded-xl bg-white/10"
-                      disabled={claimingId !== null}
-                      onClick={() => void handleClaimVacant(row)}
+      {caps.canStartShift ? (
+        loading && !shift ? (
+          <div className="so-glass mb-4 h-40 animate-pulse rounded-2xl" />
+        ) : !shift ? (
+          <>
+            {vacantShifts.length > 0 ? (
+              <div className="so-glass mb-3 rounded-2xl p-4">
+                <p className="mb-3 font-medium text-foreground">{tDash("availableTitle")}</p>
+                <div className="space-y-3">
+                  {vacantShifts.map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex flex-col gap-2 rounded-xl border border-white/[0.06] bg-black/35 p-4"
                     >
-                      <PlayCircle className="size-5" />
-                      {claimingId === row.id ? "…" : tDash("claimCta")}
-                    </Button>
-                  </div>
-                ))}
+                      <p className="text-sm font-medium text-foreground">{row.templateName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {tDash("slotHint", {
+                          location: row.locationName,
+                          template: row.templateName,
+                        })}
+                      </p>
+                      {row.stationLabel ? (
+                        <p className="text-xs text-muted-foreground">
+                          {tDash("stationLabel", { label: row.stationLabel })}
+                        </p>
+                      ) : null}
+                      <Button
+                        size="block"
+                        variant="secondary"
+                        className="rounded-xl bg-white/10"
+                        disabled={claimingId !== null}
+                        onClick={() => void handleClaimVacant(row)}
+                      >
+                        <PlayCircle className="size-5" />
+                        {claimingId === row.id ? "…" : tDash("claimCta")}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
+            ) : null}
+            <div className="so-glass rounded-2xl p-4">
+              <p className="mb-2 font-medium text-foreground">{tDash("noShift")}</p>
+              <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                {caps.canAccessAdminModules
+                  ? tDash("noShiftHintAdmin")
+                  : tDash("noShiftHintOperator")}
+              </p>
             </div>
-          ) : null}
+          </>
+        ) : shift.status === "scheduled" ? (
+          <div className="so-glass mb-3 rounded-2xl p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Clock3 className="h-5 w-5 text-primary" aria-hidden />
+              <span className="font-medium text-foreground">{tDash("shiftStatus.scheduled")}</span>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              {new Date(shift.scheduledStart).toLocaleString()} →{" "}
+              {new Date(shift.scheduledEnd).toLocaleTimeString()}
+            </p>
+            <Button
+              size="block"
+              className={cn(primaryCtaClass)}
+              onClick={() => void handleStart()}
+              disabled={acting}
+            >
+              <PlayCircle className="size-5" />
+              {tDash("startCta")}
+            </Button>
+          </div>
+        ) : shift.status === "active" ? (
+          <div className="so-glass mb-3 rounded-2xl p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="font-medium text-foreground">{tDash("shiftStatus.active")}</span>
+              <span className="text-sm font-normal text-muted-foreground">{progress}%</span>
+            </div>
+            <Progress value={progress} className="mb-3" />
+            <p className="text-sm text-muted-foreground">
+              {done} / {total} {tDash("completed")} · {remaining} {tDash("remaining")}
+            </p>
+            {criticalLeft > 0 ? (
+              <p className="text-sm text-critical mt-2">
+                {tDash("criticalLeft", { count: criticalLeft })}
+              </p>
+            ) : null}
+            <Button
+              size="block"
+              className={cn("mt-4", primaryCtaClass)}
+              onClick={() => setView("tasks")}
+            >
+              <Sparkles className="size-5" />
+              {tDash("continueCta")}
+            </Button>
+          </div>
+        ) : (
           <div className="so-glass rounded-2xl p-4">
-            <p className="mb-2 font-medium text-foreground">{tDash("noShift")}</p>
-            <p className="text-sm text-muted-foreground">{tDash("noShiftBody")}</p>
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              {caps.canAccessAdminModules
-                ? tDash("noShiftHintAdmin")
-                : tDash("noShiftHintOperator")}
-            </p>
+            <p className="mb-3 font-medium text-foreground">{tDash(`shiftStatus.${shift.status}`)}</p>
+            <Button variant="secondary" size="block" className="rounded-2xl" onClick={() => setView("summary")}>
+              {tDash("summaryCta")}
+            </Button>
           </div>
-        </>
-      ) : shift.status === "scheduled" ? (
-        <div className="so-glass mb-3 rounded-2xl p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Clock3 className="h-5 w-5 text-primary" aria-hidden />
-            <span className="font-medium text-foreground">{tDash("shiftStatus.scheduled")}</span>
-          </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {new Date(shift.scheduledStart).toLocaleString()} →{" "}
-            {new Date(shift.scheduledEnd).toLocaleTimeString()}
-          </p>
-          <Button
-            size="block"
-            className={cn(primaryCtaClass)}
-            onClick={() => void handleStart()}
-            disabled={acting}
-          >
-            <PlayCircle className="size-5" />
-            {tDash("startCta")}
-          </Button>
-        </div>
-      ) : shift.status === "active" ? (
-        <div className="so-glass mb-3 rounded-2xl p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="font-medium text-foreground">{tDash("shiftStatus.active")}</span>
-            <span className="text-sm font-normal text-muted-foreground">{progress}%</span>
-          </div>
-          <Progress value={progress} className="mb-3" />
-          <p className="text-sm text-muted-foreground">
-            {done} / {total} {tDash("completed")} · {remaining} {tDash("remaining")}
-          </p>
-          {criticalLeft > 0 ? (
-            <p className="text-sm text-critical mt-2">
-              {tDash("criticalLeft", { count: criticalLeft })}
-            </p>
-          ) : null}
-          <Button
-            size="block"
-            className={cn("mt-4", primaryCtaClass)}
-            onClick={() => setView("tasks")}
-          >
-            <Sparkles className="size-5" />
-            {tDash("continueCta")}
-          </Button>
-        </div>
-      ) : (
-        <div className="so-glass rounded-2xl p-4">
-          <p className="mb-3 font-medium text-foreground">{tDash(`shiftStatus.${shift.status}`)}</p>
-          <Button variant="secondary" size="block" className="rounded-2xl" onClick={() => setView("summary")}>
-            {tDash("summaryCta")}
-          </Button>
-        </div>
-      )}
+        )
+      ) : null}
 
       <section className="mb-1 mt-4">
         <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>

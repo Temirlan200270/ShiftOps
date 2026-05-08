@@ -48,8 +48,7 @@ interface TaskDetailSheetProps {
 export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
   const markOptimistic = useShiftStore((s) => s.markTaskOptimistic);
-  const cameraInputRef = React.useRef<HTMLInputElement>(null);
-  const galleryInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = React.useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
   const [comment, setComment] = React.useState("");
@@ -127,11 +126,20 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
   }, [waiverReason, taskId, draftReady]);
 
   const handleTakePhoto = React.useCallback(() => {
-    cameraInputRef.current?.click();
+    const el = fileInputRef.current;
+    if (!el) return;
+    // Dynamically set capture attribute before triggering — this is the most
+    // reliable way to open the camera on Android WebView without falling back
+    // to the gallery.
+    el.setAttribute("capture", "environment");
+    el.click();
   }, []);
 
   const handlePickFromGallery = React.useCallback(() => {
-    galleryInputRef.current?.click();
+    const el = fileInputRef.current;
+    if (!el) return;
+    el.removeAttribute("capture");
+    el.click();
   }, []);
 
   const handleRemovePhoto = React.useCallback(() => {
@@ -182,7 +190,12 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
     } else {
       notify("error");
       markOptimistic(task.id, { status: "pending" });
-      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+      // Show the specific error code when available so it's easier to diagnose in the field.
+      const errorDetail =
+        result.code && result.code !== `http_${result.status}` && result.code !== "network"
+          ? `${result.message} (${result.code})`
+          : result.message;
+      toast({ variant: "critical", title: tErr("generic"), description: errorDetail });
     }
   }, [task, photo, comment, markOptimistic, onClose, tTasks, tErr]);
 
@@ -298,15 +311,7 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
               )}
 
               <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={handleFileChange}
-              />
-              <input
-                ref={galleryInputRef}
+                ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 hidden
