@@ -351,7 +351,7 @@ class CreateRecurringShiftsTickUseCase:
                 # Lazy import to break the circular chain:
                 # recurring_shifts_tick → dispatcher → notifications/tasks → queue →
                 # import_tasks() → scheduling/tasks → vacant_alert_tick → dispatcher (circular)
-                from shiftops_api.infra.notifications.dispatcher import dispatch_shift_assigned  # noqa: PLC0415
+                from shiftops_api.infra.notifications.dispatcher import dispatch_shift_assigned  # noqa: PLC0415, I001
                 try:
                     await dispatch_shift_assigned(shift_id=shift_id)
                 except Exception:  # noqa: BLE001

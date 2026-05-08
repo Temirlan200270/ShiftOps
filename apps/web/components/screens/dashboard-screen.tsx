@@ -474,20 +474,22 @@ export function DashboardScreen(): React.JSX.Element {
         />
       ) : null}
 
-      <section className="mb-1 mt-4">
-        <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
-        <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-foreground">
-          {shift?.templateName ?? "ShiftOps"}
-        </h1>
-        {shift ? (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {shift.stationLabel
-              ? `${tDash("stationLabel", { label: shift.stationLabel })} · ${tDash("slotIndexShort", { index: shift.slotIndex })}`
-              : tDash("slotIndexShort", { index: shift.slotIndex })}
-            {" · "}{tDash("operatorOnShift", { name: shift.operatorFullName })}
-          </p>
-        ) : null}
-      </section>
+      {caps.canStartShift ? (
+        <section className="mb-1 mt-4">
+          <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-foreground">
+            {shift?.templateName ?? "ShiftOps"}
+          </h1>
+          {shift ? (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {shift.stationLabel
+                ? `${tDash("stationLabel", { label: shift.stationLabel })} · ${tDash("slotIndexShort", { index: shift.slotIndex })}`
+                : tDash("slotIndexShort", { index: shift.slotIndex })}
+              {" · "}{tDash("operatorOnShift", { name: shift.operatorFullName })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <p className="so-sec-title so-sec-flush mb-2 mt-8">{tDash("workSection.title")}</p>
       <GlassMenu>
@@ -501,15 +503,17 @@ export function DashboardScreen(): React.JSX.Element {
             setView("history");
           }}
         />
-        <GlassMenuRow
-          icon={ArrowLeftRight}
-          title={tSwap("openCta")}
-          subtitle={tDash("workSection.swapSubtitle")}
-          onClick={() => {
-            haptic("light");
-            setView("swapRequests");
-          }}
-        />
+        {caps.canStartShift ? (
+          <GlassMenuRow
+            icon={ArrowLeftRight}
+            title={tSwap("openCta")}
+            subtitle={tDash("workSection.swapSubtitle")}
+            onClick={() => {
+              haptic("light");
+              setView("swapRequests");
+            }}
+          />
+        ) : null}
         <GlassMenuRow
           icon={Settings}
           title={tSettings("openCta")}

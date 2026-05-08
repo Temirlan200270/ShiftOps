@@ -4,7 +4,6 @@ import {
   BarChart3,
   CalendarDays,
   FileStack,
-  History,
   Radio,
   ScrollText,
   Upload,
@@ -167,12 +166,6 @@ export function AdminHub({
           title={t("more.csv.title")}
           subtitle={t("more.csv.subtitle")}
           onClick={() => onNavigate("csvImport")}
-        />
-        <GlassMenuRow
-          icon={History}
-          title={t("more.history.title")}
-          subtitle={t("more.history.subtitle")}
-          onClick={() => onNavigate("history")}
         />
       </GlassMenu>
     </section>

@@ -249,7 +249,7 @@ async def shift_reminders_tick() -> dict[str, int]:
                 SHIFT_REMINDERS_SKIPPED_TOTAL.labels(milestone="active_1h_owner").inc()
                 continue
             # Lazy import to avoid circular: tasks → dispatcher → notifications/tasks → queue → tasks
-            from shiftops_api.infra.notifications.dispatcher import _privileged_session, _resolve_owner_dm_ids  # noqa: PLC0415
+            from shiftops_api.infra.notifications.dispatcher import _privileged_session, _resolve_owner_dm_ids  # noqa: PLC0415, I001
             async with _privileged_session() as session:
                 owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
             if owner_chats:
