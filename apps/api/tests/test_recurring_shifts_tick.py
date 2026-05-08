@@ -75,12 +75,27 @@ def test_window_opens_at_lead_time_boundary() -> None:
     assert is_window_open(cfg, location_tz_name="Asia/Almaty", now_utc=boundary_utc)
 
 
-def test_window_closes_after_trailing_tolerance() -> None:
+def test_window_stays_open_during_same_day_then_closes_at_midnight() -> None:
+    """Same-day catch-up: the window stays open until local midnight, not just
+    5 minutes after the scheduled time.  This lets a delayed worker still
+    create the shift later in the day without missing it entirely.
+    """
     cfg = _cfg(time_of_day=time(9, 0), lead_time_min=0)
-    too_late_utc = datetime(
+
+    # 09:06 Almaty (UTC+6) → still within the same local calendar day → open.
+    still_open_utc = datetime(
         2026, 5, 4, 4, TRAILING_TOLERANCE_MIN + 1, tzinfo=UTC
-    )  # Mon, 09:06 local
-    assert not is_window_open(cfg, location_tz_name="Asia/Almaty", now_utc=too_late_utc)
+    )  # Mon 09:06 Almaty
+    assert is_window_open(cfg, location_tz_name="Asia/Almaty", now_utc=still_open_utc)
+
+    # Asia/Almaty is UTC+5. Midnight local == 19:00 UTC.
+    # 23:59 Almaty == 18:59 UTC on the same Monday → still open (1 min to midnight).
+    just_before_midnight_utc = datetime(2026, 5, 4, 18, 59, tzinfo=UTC)
+    assert is_window_open(cfg, location_tz_name="Asia/Almaty", now_utc=just_before_midnight_utc)
+
+    # 00:01 Almaty on Tuesday == 19:01 UTC Monday → next calendar day, window closed.
+    after_midnight_utc = datetime(2026, 5, 4, 19, 1, tzinfo=UTC)
+    assert not is_window_open(cfg, location_tz_name="Asia/Almaty", now_utc=after_midnight_utc)
 
 
 def test_window_closed_outside_weekdays() -> None:

@@ -144,7 +144,8 @@
     "delayReasonPlaceholder": "e.g. late handover from the morning shift",
     "delayReasonHint": "Planned end time has passed — add a short note for the manager.",
     "violationReasonLabel": "Reason for incomplete tasks *",
-    "violationReasonPlaceholder": "Briefly explain why tasks were not completed"
+    "violationReasonPlaceholder": "Briefly explain why tasks were not completed",
+    "queuedHint": "Close saved — we'll send it automatically when you're back online."
   },
   "summary": {
     "title": "Shift report",

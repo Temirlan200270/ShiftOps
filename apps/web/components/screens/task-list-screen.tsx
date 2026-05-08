@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { closeShift, completeTask } from "@/lib/api/shifts";
+import { enqueueShiftClose } from "@/lib/offline/close-queue";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
 import { useShiftStore } from "@/lib/stores/shift-store";
@@ -219,6 +220,19 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         }
       }
 
+      // Offline path: enqueue the close and let the watcher retry on reconnect.
+      if (!navigator.onLine) {
+        await enqueueShiftClose({
+          shiftId: shift.id,
+          confirmViolations,
+          delayReason: showDelayField ? delayReason.trim() || null : null,
+          violationReason: confirmViolations ? violationReason.trim() || null : null,
+        });
+        toast({ variant: "default", title: tErr("network"), description: tClose("queuedHint") });
+        setConfirmOpen(false);
+        return;
+      }
+
       setClosing(true);
       const result = await closeShift({
         shiftId: shift.id,
@@ -261,6 +275,18 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
     },
     [shift, setShift, onClosed, tErr, biometricEnabled, tClose, showDelayField, delayReason, violationReason],
   );
+
+  // When the offline close-queue drains successfully, navigate to summary.
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ shiftId: string }>).detail;
+      if (shift && detail.shiftId === shift.id) {
+        onClosed();
+      }
+    };
+    window.addEventListener("shiftclose:drained", handler);
+    return () => window.removeEventListener("shiftclose:drained", handler);
+  }, [shift, onClosed]);
 
   if (!shift) return <></>;
 

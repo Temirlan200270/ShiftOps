@@ -140,6 +140,7 @@ class CompleteTaskUseCase:
                     mime=photo_mime or "image/jpeg",
                     meta={
                         "caption": (
+                            f"📋 {template_task.title}\n"
                             f"shift={shift.id} task={task.id} "
                             f"by={user.id} suspicious={'yes' if suspicious else 'no'}"
                         ),

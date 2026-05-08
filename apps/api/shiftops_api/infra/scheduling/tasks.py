@@ -38,7 +38,6 @@ from shiftops_api.infra.metrics import (
     SHIFT_REMINDERS_SENT_TOTAL,
     SHIFT_REMINDERS_SKIPPED_TOTAL,
 )
-from shiftops_api.infra.notifications.dispatcher import _privileged_session, _resolve_owner_dm_ids
 from shiftops_api.infra.notifications.tasks import send_telegram_message
 from shiftops_api.infra.queue import broker
 
@@ -249,6 +248,8 @@ async def shift_reminders_tick() -> dict[str, int]:
                 skipped += 1
                 SHIFT_REMINDERS_SKIPPED_TOTAL.labels(milestone="active_1h_owner").inc()
                 continue
+            # Lazy import to avoid circular: tasks → dispatcher → notifications/tasks → queue → tasks
+            from shiftops_api.infra.notifications.dispatcher import _privileged_session, _resolve_owner_dm_ids  # noqa: PLC0415
             async with _privileged_session() as session:
                 owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
             if owner_chats:

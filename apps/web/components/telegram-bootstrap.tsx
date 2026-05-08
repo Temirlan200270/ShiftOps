@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { runBootstrapAuthSession } from "@/lib/auth/bootstrap-session";
 import { refreshAccessToken } from "@/lib/auth/refresh-access";
+import { startCloseQueueWatcher } from "@/lib/offline/close-queue";
 import { startOfflineQueueWatcher } from "@/lib/offline/queue";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
@@ -42,6 +43,7 @@ export function TelegramBootstrap({ children }: BootstrapProps): React.JSX.Eleme
   React.useEffect(() => {
     void runBootstrapAuthSession();
     const stopQueue = startOfflineQueueWatcher();
+    const stopCloseQueue = startCloseQueueWatcher();
 
     let unsubViewport: (() => void) | undefined;
     void waitForTelegramWebApp({ timeoutMs: 12_000 }).then((tg) => {
@@ -61,6 +63,7 @@ export function TelegramBootstrap({ children }: BootstrapProps): React.JSX.Eleme
 
     return () => {
       stopQueue();
+      stopCloseQueue();
       unsubViewport?.();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

@@ -53,7 +53,6 @@ from shiftops_api.infra.db.models import (
     User,
 )
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
-from shiftops_api.infra.notifications.dispatcher import dispatch_shift_assigned
 
 _log = logging.getLogger(__name__)
 TRAILING_TOLERANCE_MIN = 5  # original narrow window kept for normal operation
@@ -349,6 +348,10 @@ class CreateRecurringShiftsTickUseCase:
             created_here += 1
             if operator_id is not None:
                 # Notify the operator asynchronously — do not block the tick.
+                # Lazy import to break the circular chain:
+                # recurring_shifts_tick → dispatcher → notifications/tasks → queue →
+                # import_tasks() → scheduling/tasks → vacant_alert_tick → dispatcher (circular)
+                from shiftops_api.infra.notifications.dispatcher import dispatch_shift_assigned  # noqa: PLC0415
                 try:
                     await dispatch_shift_assigned(shift_id=shift_id)
                 except Exception:  # noqa: BLE001
