@@ -70,7 +70,7 @@ async def recurring_shifts_tick() -> dict[str, int]:
         "recurring.tick.summary",
         extra={
             "inspected": report.inspected,
-            "created": report.created,
+            "created_count": report.created,
             "skipped": report.skipped,
             "aborted_expired_vacant": report.aborted_expired_vacant,
         },
