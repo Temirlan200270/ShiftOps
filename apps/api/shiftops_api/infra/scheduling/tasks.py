@@ -16,7 +16,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import redis.asyncio as redis_async
-from sqlalchemy import delete, select
+from sqlalchemy import Date, cast, delete, func, select
 from taskiq import TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 
@@ -27,9 +27,17 @@ from shiftops_api.application.templates.recurring_shifts_tick import (
     CreateRecurringShiftsTickUseCase,
 )
 from shiftops_api.config import get_settings
-from shiftops_api.domain.enums import ShiftStatus
+from shiftops_api.domain.enums import ShiftStatus, UserRole
 from shiftops_api.infra.db.engine import get_sessionmaker
-from shiftops_api.infra.db.models import Location, Organization, Shift, TelegramAccount, User
+from shiftops_api.infra.db.models import (
+    Attachment,
+    Location,
+    Organization,
+    Shift,
+    TaskInstance,
+    TelegramAccount,
+    User,
+)
 from shiftops_api.infra.db.rls import enter_privileged_rls_mode
 from shiftops_api.infra.metrics import (
     RECURRING_SHIFTS_CREATED_TOTAL,
@@ -272,6 +280,116 @@ async def shift_reminders_tick() -> dict[str, int]:
 
 
 @broker.task(
+    task_name="shiftops.daily_digest_tick",
+    schedule=[{"cron": "0 6 * * *"}],  # 06:00 UTC = 09:00 Moscow (UTC+3)
+)
+async def daily_digest_tick() -> dict[str, int]:
+    """Daily at 06:00 UTC. Send yesterday's shift summary to every org owner via Telegram DM."""
+    factory = get_sessionmaker()
+    yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).date()
+    sent = 0
+    orgs_notified = 0
+
+    async with factory() as session:
+        await enter_privileged_rls_mode(session, reason="daily_digest_tick")
+
+        # Per-org aggregates for shifts scheduled yesterday (UTC date).
+        agg_rows = (
+            await session.execute(
+                select(
+                    Shift.organization_id,
+                    func.count(Shift.id).label("total"),
+                    func.count(Shift.actual_start).label("started"),
+                    func.count(Shift.id)
+                    .filter(Shift.status.in_(["closed_clean", "closed_with_violations"]))
+                    .label("closed"),
+                    func.count(Shift.id)
+                    .filter(Shift.status == "closed_clean")
+                    .label("clean"),
+                    func.count(Shift.id)
+                    .filter(Shift.status == "closed_with_violations")
+                    .label("violations"),
+                    func.round(func.avg(Shift.score).filter(Shift.score.isnot(None)), 1).label(
+                        "avg_score"
+                    ),
+                )
+                .where(cast(Shift.scheduled_start, Date) == yesterday)
+                .group_by(Shift.organization_id)
+            )
+        ).all()
+
+        if not agg_rows:
+            return {"sent": 0, "orgs": 0}
+
+        org_ids = [r.organization_id for r in agg_rows]
+
+        # Suspicious-photo count per org.
+        susp_by_org: dict = {
+            r.organization_id: int(r.cnt)
+            for r in (
+                await session.execute(
+                    select(
+                        Shift.organization_id,
+                        func.count(Attachment.id).label("cnt"),
+                    )
+                    .join(TaskInstance, TaskInstance.shift_id == Shift.id)
+                    .join(Attachment, Attachment.task_instance_id == TaskInstance.id)
+                    .where(cast(Shift.scheduled_start, Date) == yesterday)
+                    .where(Attachment.suspicious.is_(True))
+                    .where(Shift.organization_id.in_(org_ids))
+                    .group_by(Shift.organization_id)
+                )
+            ).all()
+        }
+
+        # Owner Telegram DMs per org.
+        owner_rows = (
+            await session.execute(
+                select(User.organization_id, TelegramAccount.tg_user_id)
+                .join(TelegramAccount, TelegramAccount.user_id == User.id)
+                .where(User.organization_id.in_(org_ids))
+                .where(User.role == UserRole.OWNER)
+                .where(User.is_active.is_(True))
+                .where(TelegramAccount.tg_user_id.isnot(None))
+            )
+        ).all()
+
+    owners_by_org: dict = {}
+    for org_id, tg_id in owner_rows:
+        owners_by_org.setdefault(org_id, []).append(tg_id)
+
+    date_label = yesterday.strftime("%d.%m.%Y")
+
+    for row in agg_rows:
+        owner_chats = owners_by_org.get(row.organization_id, [])
+        if not owner_chats:
+            continue
+
+        suspicious = susp_by_org.get(row.organization_id, 0)
+        avg_score_str = f"{row.avg_score}%" if row.avg_score is not None else "—"
+
+        lines = [f"📊 Отчёт за {date_label}"]
+        lines.append(f"\nСмен запланировано: {row.total}")
+        lines.append(f"Начато: {row.started}")
+        if row.closed:
+            lines.append(f"Закрыто: {row.closed}  (✅ {row.clean} / 🟠 {row.violations})")
+        else:
+            lines.append("Закрыто: 0")
+        lines.append(f"Средний балл: {avg_score_str}")
+        if suspicious:
+            lines.append(f"⚠️ Подозрительных фото: {suspicious}")
+
+        text = "\n".join(lines)
+        for chat_id in owner_chats:
+            await send_telegram_message.kiq(chat_id, text)
+            sent += 1
+        orgs_notified += 1
+
+    _log.info("daily_digest_tick.summary", extra={"sent": sent, "orgs": orgs_notified})
+    return {"sent": sent, "orgs": orgs_notified}
+
+
+@broker.task(
     task_name="shiftops.purge_deleted_orgs_tick",
     schedule=[{"cron": "27 4 * * *"}],
 )
@@ -317,6 +435,7 @@ async def purge_deleted_orgs_tick() -> dict[str, int]:
 # Re-export `scheduler` from the broker module so the worker entrypoint
 # (`taskiq scheduler ...`) can find the `LabelScheduleSource`.
 __all__ = [
+    "daily_digest_tick",
     "purge_deleted_orgs_tick",
     "recurring_shifts_tick",
     "shift_reminders_tick",

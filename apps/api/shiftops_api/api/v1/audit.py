@@ -57,7 +57,10 @@ async def list_audit_events(
         default=None, description="ISO timestamp from next_cursor of a previous response"
     ),
     limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-    event_type: str | None = Query(default=None, description="Optional exact event_type filter"),
+    event_type: str | None = Query(
+        default=None,
+        description="Filter by event_type. Trailing dot treated as prefix (e.g. 'shift.' matches 'shift.started', 'shift.closed').",
+    ),
     user: CurrentUser = Depends(_view_audit),
     session: AsyncSession = Depends(get_session),
 ) -> AuditPageOut:
@@ -77,7 +80,10 @@ async def list_audit_events(
         # Keyset pagination (DESC): fetch items strictly older than cursor.
         stmt = stmt.where(AuditEvent.created_at < cursor)
     if event_type is not None:
-        stmt = stmt.where(AuditEvent.event_type == event_type)
+        if event_type.endswith("."):
+            stmt = stmt.where(AuditEvent.event_type.like(f"{event_type}%"))
+        else:
+            stmt = stmt.where(AuditEvent.event_type == event_type)
 
     rows = (
         await session.execute(stmt.order_by(desc(AuditEvent.created_at)).limit(limit + 1))

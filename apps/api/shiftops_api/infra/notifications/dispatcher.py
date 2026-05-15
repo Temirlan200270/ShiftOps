@@ -573,6 +573,35 @@ async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> No
         for owner_chat in owner_chats:
             await send_telegram_message.kiq(owner_chat, head)
 
+        # ── Operator personal summary DM ──────────────────────────────────────
+        operator_chat = await _resolve_operator_dm_id(session, operator.id)
+        if operator_chat:
+            task_rows = (
+                await session.execute(
+                    select(TaskInstance.status, TemplateTask.title, TemplateTask.criticality)
+                    .join(TemplateTask, TemplateTask.id == TaskInstance.template_task_id)
+                    .where(TaskInstance.shift_id == shift_id)
+                    .order_by(TaskInstance.status)
+                )
+            ).all()
+            total_tasks = len(task_rows)
+            done_tasks = sum(1 for r in task_rows if r.status in ("done", "waived"))
+            skipped = [r.title for r in task_rows if r.status == "skipped"]
+
+            score_text = f"{shift.score}%" if shift.score is not None else "—"
+            start_str = _fmt_local_hhmm(shift.actual_start, location.timezone)
+            end_str = _fmt_local_hhmm(shift.actual_end, location.timezone)
+
+            op_lines = [
+                f"📋 Смена закрыта — {template.name}",
+                f"🏠 {location.name}  {start_str} → {end_str}",
+                f"⭐ Ваш балл: {score_text}",
+                f"✅ Выполнено: {done_tasks}/{total_tasks}",
+            ]
+            if skipped:
+                op_lines.append("❌ Пропущено: " + ", ".join(f"«{t}»" for t in skipped))
+            await send_telegram_message.kiq(operator_chat, "\n".join(op_lines))
+
         # Handover summary: persisted at close time for audit stability.
         if shift.handover_summary:
             if admin_chat_id:

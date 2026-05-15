@@ -22,6 +22,19 @@ interface AuditScreenProps {
   onBack: () => void;
 }
 
+type AuditFilter = "all" | "shifts" | "tasks" | "waivers" | "team" | "templates";
+
+const FILTER_EVENT_TYPES: Record<AuditFilter, string | null> = {
+  all: null,
+  shifts: "shift.",
+  tasks: "task.",
+  waivers: "waiver.",
+  team: "member.",
+  templates: "template.",
+};
+
+const FILTER_KEYS: AuditFilter[] = ["all", "shifts", "tasks", "waivers", "team", "templates"];
+
 function groupAuditByDate(
   items: AuditEventRow[],
   locale: string,
@@ -55,6 +68,7 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
   const t = useTranslations("audit");
   const tErr = useTranslations("errors");
   const locale = useLocale();
+  const [filter, setFilter] = React.useState<AuditFilter>("all");
   const [items, setItems] = React.useState<AuditEventRow[]>([]);
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -69,9 +83,12 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
     [locale, t],
   );
 
-  const loadFirst = React.useCallback(async () => {
+  const loadFirst = React.useCallback(async (activeFilter: AuditFilter) => {
     setLoading(true);
-    const result = await fetchAuditEvents({ limit: 30 });
+    const result = await fetchAuditEvents({
+      limit: 30,
+      eventType: FILTER_EVENT_TYPES[activeFilter],
+    });
     if (result.ok) {
       setItems(result.data.items);
       setNextCursor(result.data.nextCursor);
@@ -88,7 +105,11 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
   const loadMore = React.useCallback(async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
-    const result = await fetchAuditEvents({ cursor: nextCursor, limit: 30 });
+    const result = await fetchAuditEvents({
+      cursor: nextCursor,
+      limit: 30,
+      eventType: FILTER_EVENT_TYPES[filter],
+    });
     setLoadingMore(false);
     if (!result.ok) {
       toast({
@@ -100,10 +121,17 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
     }
     setItems((prev) => [...prev, ...result.data.items]);
     setNextCursor(result.data.nextCursor);
-  }, [nextCursor, loadingMore, tErr]);
+  }, [nextCursor, loadingMore, filter, tErr]);
+
+  const handleFilterChange = React.useCallback((next: AuditFilter) => {
+    setFilter(next);
+    setItems([]);
+    setNextCursor(null);
+    void loadFirst(next);
+  }, [loadFirst]);
 
   React.useEffect(() => {
-    void loadFirst();
+    void loadFirst("all");
   }, [loadFirst]);
 
   return (
@@ -120,6 +148,25 @@ export function AuditScreen({ onBack }: AuditScreenProps): React.JSX.Element {
           </p>
         </div>
       </header>
+
+      {/* Filter chips */}
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+        {FILTER_KEYS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => handleFilterChange(key)}
+            className={[
+              "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              filter === key
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-elevated/60 text-muted-foreground active:bg-elevated",
+            ].join(" ")}
+          >
+            {t(`filter.${key}`)}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <Card className="animate-pulse">

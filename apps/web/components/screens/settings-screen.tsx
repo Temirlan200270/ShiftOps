@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft, BadgeInfo, Fingerprint, User } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { ArrowLeft, BadgeInfo, Fingerprint, Languages, LogOut, User } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { isShiftCloseBiometricSupported } from "@/lib/telegram/biometric";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import type { SupportedLocale } from "@/i18n";
+
+function setLocaleCookie(locale: SupportedLocale): void {
+  document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=31536000; SameSite=Lax`;
+}
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -23,10 +28,23 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Element {
   const t = useTranslations("settings");
+  const locale = useLocale() as SupportedLocale;
   const enabled = usePreferencesStore((s) => s.shiftCloseBiometricEnabled);
   const setEnabled = usePreferencesStore((s) => s.setShiftCloseBiometricEnabled);
   const supported = isShiftCloseBiometricSupported();
   const me = useAuthStore((s) => s.me);
+  const clearAuth = useAuthStore((s) => s.clear);
+
+  const handleLocaleChange = React.useCallback((next: SupportedLocale) => {
+    if (next === locale) return;
+    setLocaleCookie(next);
+    window.location.reload();
+  }, [locale]);
+
+  const handleLogout = React.useCallback(() => {
+    clearAuth();
+    window.location.reload();
+  }, [clearAuth]);
 
   React.useEffect(() => {
     if (!supported && enabled) {
@@ -96,8 +114,37 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
         </CardContent>
       </Card>
 
+      {/* Language */}
+      <Card className="mb-3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Languages className="size-5 text-muted-foreground" />
+            {t("language.title")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {(["ru", "en"] as SupportedLocale[]).map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => handleLocaleChange(l)}
+                className={[
+                  "flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+                  locale === l
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-elevated/40 text-muted-foreground active:bg-elevated",
+                ].join(" ")}
+              >
+                {t(`language.${l}`)}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* About */}
-      <Card>
+      <Card className="mb-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <BadgeInfo className="size-5 text-muted-foreground" />
@@ -110,6 +157,22 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
             <span className="text-sm font-medium">ShiftOps</span>
           </div>
           <p className="text-xs text-muted-foreground px-1">{t("about.hint")}</p>
+        </CardContent>
+      </Card>
+
+      {/* Logout */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LogOut className="size-5 text-muted-foreground" />
+            {t("logout.button")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground px-1">{t("logout.hint")}</p>
+          <Button variant="destructive" size="block" onClick={handleLogout}>
+            {t("logout.button")}
+          </Button>
         </CardContent>
       </Card>
     </main>

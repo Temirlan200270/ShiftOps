@@ -231,7 +231,15 @@
     "emptyHint": "When someone edits a template, starts/closes a shift, or imports a schedule, it will show up here.",
     "bySystem": "System",
     "loadMore": "Load more",
-    "loadingMore": "Loading…"
+    "loadingMore": "Loading…",
+    "filter": {
+      "all": "All",
+      "shifts": "Shifts",
+      "tasks": "Tasks",
+      "waivers": "Waivers",
+      "team": "Team",
+      "templates": "Templates"
+    }
   },
   "settings": {
     "openCta": "Settings",
@@ -247,6 +255,15 @@
       "body": "Optional Face ID / fingerprint before closing a shift. This is not a legal signature—only an on-device check.",
       "toggle": "Require biometrics",
       "unsupported": "Biometrics are not available in this Telegram client—the option is disabled."
+    },
+    "language": {
+      "title": "Language",
+      "ru": "Русский",
+      "en": "English"
+    },
+    "logout": {
+      "button": "Sign out",
+      "hint": "Your session will be cleared. To sign back in, open ShiftOps through the Telegram bot."
     },
     "about": {
       "title": "About",
@@ -564,6 +581,11 @@
     "filters": {
       "locationLabel": "Location",
       "locationAll": "All locations"
+    },
+    "scoreTrend": {
+      "title": "Score trend",
+      "noData": "Not enough data for a trend",
+      "noShifts": "—"
     },
     "heatmap": {
       "title": "Performance heatmap",

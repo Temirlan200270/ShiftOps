@@ -260,6 +260,125 @@ function KpiCard({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Score trend (weekly buckets, CSS bars — no chart library)
+// ---------------------------------------------------------------------------
+
+interface TrendBucket {
+  from: string;
+  to: string;
+  label: string;
+}
+
+function buildTrendBuckets(from: string, to: string, count: number): TrendBucket[] {
+  const fromMs = new Date(`${from}T00:00:00Z`).getTime();
+  const toMs = new Date(`${to}T00:00:00Z`).getTime();
+  const bucketMs = Math.floor((toMs - fromMs) / count);
+  return Array.from({ length: count }, (_, i) => {
+    const bFromMs = fromMs + i * bucketMs;
+    const bToMs = i === count - 1 ? toMs : fromMs + (i + 1) * bucketMs - 86_400_000;
+    const bFrom = new Date(bFromMs);
+    const bTo = new Date(bToMs);
+    const label = `${bFrom.getUTCDate()} ${bFrom.toLocaleString("ru", { month: "short", timeZone: "UTC" })}`;
+    return { from: toIsoDate(bFrom), to: toIsoDate(bTo), label };
+  });
+}
+
+function ScoreTrend({
+  from,
+  to,
+  days,
+  locationId,
+}: {
+  from: string;
+  to: string;
+  days: number;
+  locationId: string | null;
+}): React.JSX.Element | null {
+  const tA = useTranslations("analytics");
+  const [scores, setScores] = React.useState<(number | null)[]>([]);
+  const [labels, setLabels] = React.useState<string[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (days <= 7) return;
+    const count = days <= 60 ? 4 : 4;
+    const buckets = buildTrendBuckets(from, to, count);
+    setLoading(true);
+    void Promise.all(
+      buckets.map((b) =>
+        fetchOverview({ from: b.from, to: b.to, locationId }),
+      ),
+    ).then((results) => {
+      setLabels(buckets.map((b) => b.label));
+      setScores(results.map((r) => (r.ok ? (r.data.kpis.averageScore ?? null) : null)));
+      setLoading(false);
+    });
+  }, [from, to, days, locationId]);
+
+  if (days <= 7) return null;
+  if (loading) {
+    return (
+      <Card className="mb-4 animate-pulse">
+        <CardContent className="h-24 p-4" />
+      </Card>
+    );
+  }
+  const hasAny = scores.some((s) => s !== null);
+  if (!hasAny) {
+    return (
+      <Card className="mb-4">
+        <CardContent className="p-4 text-center text-sm text-muted-foreground">
+          {tA("scoreTrend.noData")}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const max = Math.max(...scores.filter((s): s is number => s !== null), 1);
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Radio className="size-4 text-primary" />
+          {tA("scoreTrend.title")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-1">
+        <div className="flex items-end gap-2 h-20">
+          {scores.map((score, i) => {
+            const pct = score !== null ? Math.round((score / max) * 100) : 0;
+            const color =
+              score === null
+                ? "bg-border"
+                : score >= 90
+                  ? "bg-success/70"
+                  : score >= 70
+                    ? "bg-primary/70"
+                    : score >= 50
+                      ? "bg-warning/70"
+                      : "bg-critical/70";
+            return (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {score !== null ? `${score.toFixed(0)}%` : tA("scoreTrend.noShifts")}
+                </span>
+                <div className="w-full rounded-t-sm" style={{ height: `${Math.max(pct, 4)}%` }}>
+                  <div className={`w-full h-full rounded-t-sm ${color}`} />
+                </div>
+                <span className="text-[9px] text-muted-foreground text-center leading-tight">
+                  {labels[i]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function LowDataNote({ flag, message }: { flag: DensityFlag; message: string }): React.JSX.Element | null {
   if (flag !== "low") return null;
   return (
@@ -646,6 +765,13 @@ export function AnalyticsScreen({
                   </CardContent>
                 </Card>
               ) : null}
+
+              <ScoreTrend
+                from={range.from}
+                to={range.to}
+                days={diffDays(range.from, range.to)}
+                locationId={locationId}
+              />
 
               <Card className="mb-4">
                 <CardHeader>
