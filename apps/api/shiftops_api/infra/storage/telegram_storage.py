@@ -19,6 +19,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -30,6 +31,9 @@ from .interface import AttachmentRef, StorageProvider, UploadFailed
 
 _log = logging.getLogger(__name__)
 _TG_API = "https://api.telegram.org"
+_UPLOAD_MAX_ATTEMPTS = 3
+_UPLOAD_BACKOFF_SECONDS = [1.0, 3.0]  # wait before attempt 2 and 3
+_RETRYABLE_TG_ERROR_CODES = {429, 500, 502, 503, 504}
 
 
 class TelegramStorage(StorageProvider):
@@ -47,7 +51,7 @@ class TelegramStorage(StorageProvider):
             raise UploadFailed("TG_BOT_TOKEN is not configured")
         if not self._archive_chat_id:
             raise UploadFailed("TG_ARCHIVE_CHAT_ID is not configured")
-        self._client = client or httpx.AsyncClient(timeout=30.0)
+        self._client = client or httpx.AsyncClient(timeout=60.0)
 
     @property
     def _base(self) -> str:
@@ -59,29 +63,59 @@ class TelegramStorage(StorageProvider):
 
     async def upload(self, file: bytes, mime: str, meta: dict[str, str]) -> AttachmentRef:
         caption = meta.get("caption", "")
-        files = {"photo": ("upload.jpg", file, mime)}
-        data: dict[str, Any] = {"chat_id": self._archive_chat_id, "caption": caption}
-        try:
-            resp = await self._client.post(f"{self._base}/sendPhoto", data=data, files=files)
-        except httpx.HTTPError as exc:
-            raise UploadFailed(f"telegram_send_photo_network: {exc}") from exc
+        last_exc: Exception | None = None
 
-        body = resp.json()
-        if not body.get("ok"):
-            raise UploadFailed(f"telegram_send_photo: {body!r}")
+        for attempt in range(_UPLOAD_MAX_ATTEMPTS):
+            if attempt > 0:
+                backoff = _UPLOAD_BACKOFF_SECONDS[attempt - 1]
+                _log.warning(
+                    "telegram_storage.upload_retry",
+                    extra={"attempt": attempt + 1, "backoff": backoff},
+                )
+                await asyncio.sleep(backoff)
 
-        message = body["result"]
-        photos = message["photo"]
-        # Telegram returns multiple sizes; pick the largest.
-        biggest = max(photos, key=lambda p: int(p.get("file_size", 0)))
-        return AttachmentRef(
-            provider="telegram",
-            mime=mime,
-            size_bytes=int(biggest.get("file_size", len(file))),
-            tg_file_id=biggest["file_id"],
-            tg_file_unique_id=biggest["file_unique_id"],
-            tg_archive_chat_id=int(message["chat"]["id"]),
-            tg_archive_message_id=int(message["message_id"]),
+            files = {"photo": ("upload.jpg", file, mime)}
+            data: dict[str, Any] = {"chat_id": self._archive_chat_id, "caption": caption}
+            try:
+                resp = await self._client.post(
+                    f"{self._base}/sendPhoto", data=data, files=files
+                )
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                _log.warning(
+                    "telegram_storage.upload_network_error",
+                    extra={"attempt": attempt + 1, "error": str(exc)},
+                )
+                continue
+
+            body = resp.json()
+            if not body.get("ok"):
+                tg_error_code = body.get("error_code", 0)
+                if tg_error_code in _RETRYABLE_TG_ERROR_CODES:
+                    last_exc = UploadFailed(f"telegram_send_photo: {body!r}")
+                    _log.warning(
+                        "telegram_storage.upload_retryable_error",
+                        extra={"attempt": attempt + 1, "error_code": tg_error_code},
+                    )
+                    continue
+                raise UploadFailed(f"telegram_send_photo: {body!r}")
+
+            message = body["result"]
+            photos = message["photo"]
+            # Telegram returns multiple sizes; pick the largest.
+            biggest = max(photos, key=lambda p: int(p.get("file_size", 0)))
+            return AttachmentRef(
+                provider="telegram",
+                mime=mime,
+                size_bytes=int(biggest.get("file_size", len(file))),
+                tg_file_id=biggest["file_id"],
+                tg_file_unique_id=biggest["file_unique_id"],
+                tg_archive_chat_id=int(message["chat"]["id"]),
+                tg_archive_message_id=int(message["message_id"]),
+            )
+
+        raise UploadFailed(
+            f"telegram_send_photo_failed_after_{_UPLOAD_MAX_ATTEMPTS}_attempts: {last_exc}"
         )
 
     async def get_url(

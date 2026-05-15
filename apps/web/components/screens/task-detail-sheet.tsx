@@ -188,9 +188,25 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
       }
       onClose();
     } else {
+      // Transient failures (network drop, 5xx, upload_failed) — queue the photo
+      // so the bartender isn't blocked and it retries automatically on reconnect.
+      const isRetryable =
+        photo !== null &&
+        (result.status === 0 ||
+          result.status === 408 ||
+          result.status >= 500 ||
+          result.code === "upload_failed");
+
+      if (isRetryable) {
+        await enqueuePhotoUpload({ taskId: task.id, photo: photo!, comment });
+        void cloudStorageRemove(taskCommentDraftKey(task.id));
+        toast({ variant: "default", title: tErr("uploadRetrying") });
+        onClose();
+        return;
+      }
+
       notify("error");
       markOptimistic(task.id, { status: "pending" });
-      // Show the specific error code when available so it's easier to diagnose in the field.
       const errorDetail =
         result.code && result.code !== `http_${result.status}` && result.code !== "network"
           ? `${result.message} (${result.code})`
