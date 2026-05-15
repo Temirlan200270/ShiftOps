@@ -48,7 +48,8 @@ interface TaskDetailSheetProps {
 export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): React.JSX.Element {
   const shift = useShiftStore((s) => s.shift);
   const markOptimistic = useShiftStore((s) => s.markTaskOptimistic);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const galleryInputRef = React.useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = React.useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
   const [comment, setComment] = React.useState("");
@@ -126,20 +127,11 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
   }, [waiverReason, taskId, draftReady]);
 
   const handleTakePhoto = React.useCallback(() => {
-    const el = fileInputRef.current;
-    if (!el) return;
-    // Dynamically set capture attribute before triggering — this is the most
-    // reliable way to open the camera on Android WebView without falling back
-    // to the gallery.
-    el.setAttribute("capture", "environment");
-    el.click();
+    cameraInputRef.current?.click();
   }, []);
 
   const handlePickFromGallery = React.useCallback(() => {
-    const el = fileInputRef.current;
-    if (!el) return;
-    el.removeAttribute("capture");
-    el.click();
+    galleryInputRef.current?.click();
   }, []);
 
   const handleRemovePhoto = React.useCallback(() => {
@@ -327,7 +319,15 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
               )}
 
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={handleFileChange}
+              />
+              <input
+                ref={galleryInputRef}
                 type="file"
                 accept="image/*"
                 hidden
