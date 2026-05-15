@@ -269,6 +269,7 @@ export function TaskDetailSheet({ taskId, onClose }: TaskDetailSheetProps): Reac
               {/* Photo capture area */}
               {photoUrl ? (
                 <div className="relative mb-3 rounded-xl overflow-hidden bg-elevated">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- blob: URL from camera, Next Image doesn't support blob URLs */}
                   <img
                     src={photoUrl}
                     alt=""

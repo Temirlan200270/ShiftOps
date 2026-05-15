@@ -170,7 +170,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground px-1">{t("logout.hint")}</p>
-          <Button variant="destructive" size="block" onClick={handleLogout}>
+          <Button variant="danger" size="block" onClick={handleLogout}>
             {t("logout.button")}
           </Button>
         </CardContent>
