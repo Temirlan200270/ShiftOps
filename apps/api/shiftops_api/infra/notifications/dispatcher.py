@@ -686,7 +686,7 @@ async def dispatch_checklist_overdue(
         ).first()
         if row is None:
             return
-        shift, location, template, operator = row
+        _shift, location, template, operator = row
 
         operator_chat = await _resolve_operator_dm_id(session, operator.id)
         if not operator_chat:
