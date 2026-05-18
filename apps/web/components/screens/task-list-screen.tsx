@@ -285,16 +285,21 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const executeBatchComplete = React.useCallback(async () => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    // Capture original statuses before the optimistic update so rollback is correct
+    // for tasks that were in waiver_rejected state (not just pending).
+    const prevStatus = new Map(
+      (shift?.tasks ?? []).filter((t) => selectedIds.has(t.id)).map((t) => [t.id, t.status] as const),
+    );
     for (const id of ids) markOptimistic(id, { status: "done" });
     setBatchInProgress(true);
     exitSelectionMode();
     const result = await completeTaskBatch(ids);
     setBatchInProgress(false);
     if (!result.ok) {
-      for (const id of ids) markOptimistic(id, { status: "pending" });
+      for (const id of ids) markOptimistic(id, { status: prevStatus.get(id) ?? "pending" });
       toast({ variant: "critical", title: tErr("generic"), description: result.message });
     }
-  }, [selectedIds, markOptimistic, exitSelectionMode, tErr]);
+  }, [selectedIds, shift, markOptimistic, exitSelectionMode, tErr]);
 
   const handleBatchComplete = React.useCallback(() => {
     if (selectedIds.size === 0) return;

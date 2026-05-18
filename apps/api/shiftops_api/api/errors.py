@@ -28,6 +28,7 @@ raise via plain strings without coupling to this module.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -36,6 +37,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shiftops_api.infra.db.rls import PrivilegedRlsUnavailable
+
+_log = logging.getLogger(__name__)
 
 
 def _split_code_message_details(detail: Any) -> tuple[str, str, Any | None]:
@@ -62,8 +65,18 @@ def _split_code_message_details(detail: Any) -> tuple[str, str, Any | None]:
     return "error", str(detail), None
 
 
-async def _http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def _http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     code, message, details = _split_code_message_details(exc.detail)
+    if 400 <= exc.status_code < 500:
+        _log.info(
+            "http.client_error",
+            extra={
+                "status": exc.status_code,
+                "code": code,
+                "path": request.url.path,
+                "method": request.method,
+            },
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content={"code": code, "message": message, "details": details},
