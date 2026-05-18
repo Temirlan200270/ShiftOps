@@ -667,6 +667,40 @@ async def dispatch_swap_request_created(*, request_id: uuid.UUID) -> None:
             await send_telegram_message.kiq(dm, text)
 
 
+async def dispatch_checklist_overdue(
+    *,
+    shift_id: uuid.UUID,
+    elapsed_min: int,
+    pending_count: int,
+) -> None:
+    """Owner DM + admin chat: active shift has incomplete tasks past the alert threshold."""
+    async with _privileged_session() as session:
+        row = (
+            await session.execute(
+                select(Shift, Location, Template, User)
+                .join(Location, Location.id == Shift.location_id)
+                .join(Template, Template.id == Shift.template_id)
+                .join(User, User.id == Shift.operator_user_id)
+                .where(Shift.id == shift_id)
+            )
+        ).first()
+        if row is None:
+            return
+        shift, location, template, operator = row
+
+        text = (
+            f"⚠️ [{location.name}] Чек-лист не заполнен — смена «{template.name}»\n"
+            f"Сотрудник: {_op_label(operator)}\n"
+            f"Смена открыта уже {elapsed_min} мин, осталось задач: {pending_count}"
+        )
+        admin_chat_id = location.tg_admin_chat_id
+        owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
+        if admin_chat_id:
+            await send_telegram_message.kiq(admin_chat_id, text)
+        for owner_chat in owner_chats:
+            await send_telegram_message.kiq(owner_chat, text)
+
+
 async def dispatch_swap_request_resolved(*, request_id: uuid.UUID, accepted: bool) -> None:
     async with _privileged_session() as session:
         req = await session.get(ShiftSwapRequest, request_id)

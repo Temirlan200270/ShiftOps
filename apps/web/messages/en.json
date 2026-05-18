@@ -277,6 +277,23 @@
       "title": "About",
       "app": "App",
       "hint": "ShiftOps — shift control for cafés, bars and restaurants, running inside Telegram."
+    },
+    "notifications": {
+      "title": "Organization notifications",
+      "ownerOnly": "Owner only",
+      "checklistOverdue": "Checklist not completed",
+      "checklistOverdueBody": "Telegram alert when a shift is open but tasks are not done.",
+      "enabled": "Enable notifications",
+      "delayMin": "Delay before first alert",
+      "delayMinUnit": "min",
+      "repeatMin": "Repeat interval",
+      "repeatMinUnit": "min",
+      "maxAlerts": "Max alerts per shift",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "loadError": "Failed to load settings",
+      "saveError": "Failed to save"
     }
   },
   "team": {

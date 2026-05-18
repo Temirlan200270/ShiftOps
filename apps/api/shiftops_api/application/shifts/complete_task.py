@@ -13,6 +13,16 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+
+# Keeps strong references to fire-and-forget tasks so the GC cannot collect
+# them before they finish (required by RUF006 / asyncio docs).
+_bg_tasks: set[asyncio.Task[None]] = set()
+
+
+def _fire(coro: asyncio.coroutines.CoroutineType) -> None:  # type: ignore[type-arg]
+    task: asyncio.Task[None] = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -198,7 +208,7 @@ class CompleteTaskUseCase:
         )
 
         if suspicious:
-            asyncio.create_task(
+            _fire(
                 dispatch_suspicious_photo_alert(
                     shift_id=shift.id,
                     task_id=task.id,
@@ -208,7 +218,7 @@ class CompleteTaskUseCase:
 
         # Live-monitor event — fire-and-forget so the HTTP response is not
         # delayed by the dispatcher opening its own privileged DB session.
-        asyncio.create_task(
+        _fire(
             dispatch_task_progress(
                 shift_id=shift.id,
                 task_id=task.id,

@@ -6,13 +6,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import sentry_sdk
 import structlog
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
-from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sqlalchemy import text
@@ -26,6 +24,7 @@ from shiftops_api.infra.db.engine import dispose_engine, get_sessionmaker
 from shiftops_api.infra.logging import configure_logging
 from shiftops_api.infra.queue import broker
 from shiftops_api.infra.realtime import get_event_bus
+from shiftops_api.infra.sentry import init_sentry
 from shiftops_api.infra.telegram.bot_profile import configure_bot_profile
 
 # HTTP-latency buckets tuned for a Python service that mostly does
@@ -47,28 +46,13 @@ _HTTP_LATENCY_BUCKETS: tuple[float, ...] = (
 )
 
 
-def _init_sentry() -> None:
-    settings = get_settings()
-    if not settings.sentry_dsn:
-        return
-    sentry_sdk.init(
-        dsn=settings.sentry_dsn,
-        environment=settings.app_env,
-        release=f"shiftops-api@{__version__}",
-        traces_sample_rate=settings.sentry_traces_sample_rate,
-        integrations=[
-            FastApiIntegration(),
-            AsyncioIntegration(),
-            SqlalchemyIntegration(),
-        ],
-    )
-
-
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     assert_production_secrets_configured(get_settings())
-    _init_sentry()
+    # Re-init with FastAPI/SQLAlchemy integrations on top of the base init
+    # that already ran in queue.py (covers worker + scheduler processes).
+    init_sentry(extra_integrations=[FastApiIntegration(), SqlalchemyIntegration()])
     log = structlog.get_logger("shiftops.lifespan")
     log.info("api.startup", version=__version__, env=get_settings().app_env)
 

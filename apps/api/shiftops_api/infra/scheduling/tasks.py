@@ -20,6 +20,7 @@ from sqlalchemy import Date, cast, delete, func, select
 from taskiq import TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 
+from shiftops_api.application.monitor.checklist_overdue_tick import ChecklistOverdueTickUseCase
 from shiftops_api.application.monitor.vacant_before_start_alert_tick import (
     VacantBeforeStartAlertTickUseCase,
 )
@@ -137,6 +138,46 @@ async def _send_reminder_once(
         return False
     await send_telegram_message.kiq(chat_id, text)
     return True
+
+
+@broker.task(
+    task_name="shiftops.checklist_overdue_tick",
+    schedule=[{"cron": "* * * * *"}],
+)
+async def checklist_overdue_tick() -> dict[str, int]:
+    """Cron: every minute. Alert owners/admin when active shift checklist is overdue.
+
+    Per-org delay and repeat interval are configured in ``notification_prefs``.
+    Redis SET NX on ``(shift_id, window_index)`` guarantees at-most-once delivery
+    per window even when multiple worker processes run the same tick simultaneously.
+    """
+    settings = get_settings()
+    redis = redis_async.from_url(settings.redis_url)
+    factory = get_sessionmaker()
+    try:
+        async with factory() as session:
+            use_case = ChecklistOverdueTickUseCase(session=session, redis=redis)
+            report = await use_case.execute()
+    finally:
+        await redis.aclose()
+
+    _log.info(
+        "checklist_overdue_tick.summary",
+        extra={
+            "candidates": report.candidates,
+            "sent": report.sent,
+            "skipped_disabled": report.skipped_disabled,
+            "skipped_no_pending": report.skipped_no_pending,
+            "skipped_dedup": report.skipped_dedup,
+        },
+    )
+    return {
+        "candidates": report.candidates,
+        "sent": report.sent,
+        "skipped_disabled": report.skipped_disabled,
+        "skipped_no_pending": report.skipped_no_pending,
+        "skipped_dedup": report.skipped_dedup,
+    }
 
 
 @broker.task(
@@ -435,6 +476,7 @@ async def purge_deleted_orgs_tick() -> dict[str, int]:
 # Re-export `scheduler` from the broker module so the worker entrypoint
 # (`taskiq scheduler ...`) can find the `LabelScheduleSource`.
 __all__ = [
+    "checklist_overdue_tick",
     "daily_digest_tick",
     "purge_deleted_orgs_tick",
     "recurring_shifts_tick",

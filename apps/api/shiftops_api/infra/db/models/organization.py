@@ -23,3 +23,7 @@ class Organization(UuidPkMixin, TimestampMixin, Base):
     business_hours: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, insert_default=dict
     )
+    # Per-org notification preferences (see ``NotificationPrefsConfig``).
+    notification_prefs: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, insert_default=dict
+    )

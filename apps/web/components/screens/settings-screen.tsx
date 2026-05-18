@@ -1,11 +1,17 @@
 "use client";
 
-import { ArrowLeft, BadgeInfo, Fingerprint, Languages, LogOut, User } from "lucide-react";
+import { ArrowLeft, BadgeInfo, Bell, Fingerprint, Languages, LogOut, User } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  fetchNotificationPrefs,
+  saveNotificationPrefs,
+  type NotificationPrefsDTO,
+} from "@/lib/api/organization";
+import { toast } from "@/lib/stores/toast-store";
 import { isShiftCloseBiometricSupported } from "@/lib/telegram/biometric";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -25,6 +31,177 @@ const ROLE_LABELS: Record<string, string> = {
   operator: "Оператор",
   bartender: "Бармен",
 };
+
+const DEFAULT_NOTIF_PREFS: NotificationPrefsDTO = {
+  checklist_overdue: { enabled: true, delay_min: 60, repeat_min: 5, max_alerts: 12 },
+};
+
+function NotificationPrefsCard(): React.JSX.Element {
+  const t = useTranslations("settings");
+  const [prefs, setPrefs] = React.useState<NotificationPrefsDTO>(DEFAULT_NOTIF_PREFS);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [savedOk, setSavedOk] = React.useState(false);
+
+  React.useEffect(() => {
+    fetchNotificationPrefs().then((res) => {
+      if (res.ok) setPrefs(res.data);
+      else toast({ variant: "critical", title: t("notifications.loadError") });
+      setLoading(false);
+    });
+  }, [t]);
+
+  const patch = (next: Partial<NotificationPrefsDTO["checklist_overdue"]>): void => {
+    setSavedOk(false);
+    setPrefs((p) => ({ ...p, checklist_overdue: { ...p.checklist_overdue, ...next } }));
+  };
+
+  const handleSave = async (): Promise<void> => {
+    setSaving(true);
+    setSavedOk(false);
+    const res = await saveNotificationPrefs(prefs);
+    setSaving(false);
+    if (res.ok) {
+      setSavedOk(true);
+    } else {
+      toast({ variant: "critical", title: t("notifications.saveError"), description: res.message });
+    }
+  };
+
+  const co = prefs.checklist_overdue;
+
+  return (
+    <Card className="mb-3">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Bell className="size-5 text-muted-foreground" />
+          {t("notifications.title")}
+          <span className="ml-auto text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
+            {t("notifications.ownerOnly")}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <p className="text-sm font-medium mb-1">{t("notifications.checklistOverdue")}</p>
+          <p className="text-xs text-muted-foreground mb-3">{t("notifications.checklistOverdueBody")}</p>
+
+          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-border bg-elevated/40 px-3 py-3 mb-3">
+            <span className="text-sm font-medium">{t("notifications.enabled")}</span>
+            <input
+              type="checkbox"
+              className="size-5 accent-primary"
+              checked={co.enabled}
+              disabled={loading}
+              onChange={(e) => patch({ enabled: e.target.checked })}
+            />
+          </label>
+
+          {co.enabled && (
+            <div className="space-y-3">
+              <NumberField
+                label={t("notifications.delayMin")}
+                unit={t("notifications.delayMinUnit")}
+                value={co.delay_min}
+                min={10}
+                max={480}
+                disabled={loading}
+                onChange={(v) => patch({ delay_min: v })}
+              />
+              <NumberField
+                label={t("notifications.repeatMin")}
+                unit={t("notifications.repeatMinUnit")}
+                value={co.repeat_min}
+                min={1}
+                max={60}
+                disabled={loading}
+                onChange={(v) => patch({ repeat_min: v })}
+              />
+              <NumberField
+                label={t("notifications.maxAlerts")}
+                unit=""
+                value={co.max_alerts}
+                min={1}
+                max={48}
+                disabled={loading}
+                onChange={(v) => patch({ max_alerts: v })}
+              />
+            </div>
+          )}
+        </div>
+
+        <Button
+          size="block"
+          variant={savedOk ? "secondary" : "primary"}
+          disabled={saving || loading}
+          onClick={() => void handleSave()}
+        >
+          {saving
+            ? t("notifications.saving")
+            : savedOk
+              ? t("notifications.saved")
+              : t("notifications.save")}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NumberField({
+  label,
+  unit,
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  unit: string;
+  value: number;
+  min: number;
+  max: number;
+  disabled: boolean;
+  onChange: (v: number) => void;
+}): React.JSX.Element {
+  const clamp = (v: number): number => Math.max(min, Math.min(max, v));
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border bg-elevated/40 px-3 py-2.5 gap-3">
+      <span className="text-sm text-muted-foreground flex-1">{label}</span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          disabled={disabled || value <= min}
+          onClick={() => onChange(clamp(value - 1))}
+          className="size-7 flex items-center justify-center rounded-md border border-border text-muted-foreground active:bg-elevated disabled:opacity-30"
+        >
+          –
+        </button>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => {
+            const n = parseInt(e.target.value, 10);
+            if (!isNaN(n)) onChange(clamp(n));
+          }}
+          className="w-14 text-center text-sm font-medium bg-transparent border-0 outline-none tabular-nums"
+        />
+        <button
+          type="button"
+          disabled={disabled || value >= max}
+          onClick={() => onChange(clamp(value + 1))}
+          className="size-7 flex items-center justify-center rounded-md border border-border text-muted-foreground active:bg-elevated disabled:opacity-30"
+        >
+          +
+        </button>
+        {unit ? <span className="text-xs text-muted-foreground w-6">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
 
 export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Element {
   const t = useTranslations("settings");
@@ -142,6 +319,9 @@ export function SettingsScreen({ onBack }: SettingsScreenProps): React.JSX.Eleme
           </div>
         </CardContent>
       </Card>
+
+      {/* Notification prefs — owner only */}
+      {me?.role === "owner" ? <NotificationPrefsCard /> : null}
 
       {/* About */}
       <Card className="mb-3">

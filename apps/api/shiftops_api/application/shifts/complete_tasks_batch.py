@@ -18,6 +18,15 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+
+# Strong references to fire-and-forget tasks (RUF006 / asyncio docs).
+_bg_tasks: set[asyncio.Task[None]] = set()
+
+
+def _fire(coro: asyncio.coroutines.CoroutineType) -> None:  # type: ignore[type-arg]
+    task: asyncio.Task[None] = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -137,7 +146,7 @@ class CompleteTasksBatchUseCase:
         from shiftops_api.infra.notifications.dispatcher import dispatch_task_progress
 
         for item in completed:
-            asyncio.create_task(
+            _fire(
                 dispatch_task_progress(
                     shift_id=first_shift.id,
                     task_id=item.task_id,
