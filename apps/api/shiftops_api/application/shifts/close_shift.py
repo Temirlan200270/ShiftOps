@@ -123,7 +123,6 @@ class CloseShiftUseCase:
         required_done = 0
         total = 0
         done_or_waived = 0
-        photo_total = 0
 
         critical_pending: list[uuid.UUID] = []
         required_missed: list[uuid.UUID] = []
@@ -148,9 +147,6 @@ class CloseShiftUseCase:
 
             if status in (TaskStatus.DONE, TaskStatus.WAIVED):
                 done_or_waived += 1
-
-            if tt.requires_photo and status == TaskStatus.DONE:
-                photo_total += 1
 
         # HARD BLOCK
         if critical_pending:
@@ -181,10 +177,22 @@ class CloseShiftUseCase:
         photo_total, suspicious_photos = await self._count_photos(shift_id)
 
         # Load context for the human-readable handover summary.
-        tpl = (await self._session.execute(select(Template).where(Template.id == shift.template_id))).scalar_one_or_none()
-        loc = (await self._session.execute(select(Location).where(Location.id == shift.location_id))).scalar_one_or_none()
-        op = (await self._session.execute(select(User).where(User.id == shift.operator_user_id))).scalar_one_or_none() if shift.operator_user_id else None
-        operator_role_label = _ROLE_LABELS.get(op.role, op.role) if op and op.role else None
+        tpl = (
+            await self._session.execute(select(Template).where(Template.id == shift.template_id))
+        ).scalar_one_or_none()
+        loc = (
+            await self._session.execute(select(Location).where(Location.id == shift.location_id))
+        ).scalar_one_or_none()
+        op = (
+            (
+                await self._session.execute(
+                    select(User).where(User.id == shift.operator_user_id)
+                )
+            ).scalar_one_or_none()
+            if shift.operator_user_id
+            else None
+        )
+        operator_role_label = _ROLE_LABELS.get(str(op.role), str(op.role)) if op else None
 
         now = datetime.now(tz=UTC)
         score_result = compute_score(

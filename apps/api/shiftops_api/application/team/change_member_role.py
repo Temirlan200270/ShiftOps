@@ -174,19 +174,25 @@ async def evaluate_role_change_eligibility(
     actor: CurrentUser,
     target: User,
     session: AsyncSession,
+    target_tg_id: int | None = None,
 ) -> tuple[bool, str | None]:
-    """Whether *actor* may change *target*'s role, with stable failure code."""
+    """Whether *actor* may change *target*'s role, with stable failure code.
+
+    Pass ``target_tg_id`` when it is already known (e.g. from a prior JOIN) to
+    skip the extra SELECT against ``telegram_accounts``.
+    """
 
     if target.is_active is False:
         return False, "already_inactive"
     if target.role == UserRole.OWNER:
         return False, "cannot_change_owner_role"
 
-    target_tg_id = (
-        await session.execute(
-            select(TelegramAccount.tg_user_id).where(TelegramAccount.user_id == target.id)
-        )
-    ).scalar_one_or_none()
+    if target_tg_id is None:
+        target_tg_id = (
+            await session.execute(
+                select(TelegramAccount.tg_user_id).where(TelegramAccount.user_id == target.id)
+            )
+        ).scalar_one_or_none()
 
     allowed = can_manage_member(actor=actor, target=target, target_tg_id=target_tg_id)
     if isinstance(allowed, Failure):

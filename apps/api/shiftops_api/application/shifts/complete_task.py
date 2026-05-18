@@ -11,7 +11,7 @@ Combines:
 
 from __future__ import annotations
 
-import io
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,7 +24,6 @@ from shiftops_api.application.auth.deps import CurrentUser
 from shiftops_api.config import get_settings
 from shiftops_api.domain.enums import (
     CaptureMethod,
-    Criticality,
     ShiftStatus,
     TaskStatus,
     is_line_staff,
@@ -199,25 +198,25 @@ class CompleteTaskUseCase:
         )
 
         if suspicious:
-            await dispatch_suspicious_photo_alert(
+            asyncio.create_task(
+                dispatch_suspicious_photo_alert(
+                    shift_id=shift.id,
+                    task_id=task.id,
+                    actor_user_id=user.id,
+                )
+            )
+
+        # Live-monitor event — fire-and-forget so the HTTP response is not
+        # delayed by the dispatcher opening its own privileged DB session.
+        asyncio.create_task(
+            dispatch_task_progress(
                 shift_id=shift.id,
                 task_id=task.id,
                 actor_user_id=user.id,
+                new_status=TaskStatus.DONE.value,
+                phash_collision=phash_collision,
+                low_luminance=low_luminance,
             )
-
-        # Live-monitor event. This goes onto the realtime bus only —
-        # Telegram still batches at close time per TELEGRAM_BOT.md so we
-        # don't spam admin chats.
-        await dispatch_task_progress(
-            shift_id=shift.id,
-            task_id=task.id,
-            actor_user_id=user.id,
-            new_status=TaskStatus.DONE.value,
-            phash_collision=phash_collision,
-            low_luminance=low_luminance,
         )
-
-        _ = template_task.criticality is Criticality.CRITICAL  # placeholder for V1
-        _ = io  # silence unused-import linter for v0 (reserved for future stream API)
 
         return Success(CompletedTask(status=TaskStatus.DONE.value, suspicious=suspicious))

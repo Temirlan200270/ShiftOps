@@ -136,11 +136,12 @@ async def list_team_members(
     result: list[TeamMemberOut] = []
     for row in rows:
         u, tg_id, tg_username = row[0], row[1], row[2]
+        # Pass the already-fetched tg_id to avoid N+1 SELECTs against telegram_accounts.
         can_deact, deact_reason = await evaluate_deactivation_eligibility(
-            actor=current, target=u, session=session
+            actor=current, target=u, session=session, target_tg_id=tg_id
         )
         can_role, role_reason = await evaluate_role_change_eligibility(
-            actor=current, target=u, session=session
+            actor=current, target=u, session=session, target_tg_id=tg_id
         )
         result.append(
             TeamMemberOut(

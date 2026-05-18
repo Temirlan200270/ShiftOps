@@ -62,6 +62,12 @@ class RedeemInviteUseCase:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def _resolve_location_label(self, location_id: uuid.UUID | None) -> str | None:
+        if location_id is None:
+            return None
+        loc = await self._session.get(Location, location_id)
+        return loc.name if loc is not None else None
+
     async def execute(
         self,
         *,
@@ -132,18 +138,12 @@ class RedeemInviteUseCase:
                     operator_user_id=user_model.id,
                 )
 
-                location_label: str | None = None
-                if row.location_id is not None:
-                    loc = await self._session.get(Location, row.location_id)
-                    if loc is not None:
-                        location_label = loc.name
-
                 return Success(
                     RedeemOk(
                         full_name=display,
                         role=resolved_role.value,
                         organization_name=org.name,
-                        location_label=location_label,
+                        location_label=await self._resolve_location_label(row.location_id),
                     )
                 )
 
@@ -170,17 +170,11 @@ class RedeemInviteUseCase:
         row.used_by_user_id = new_user.id
         await self._session.flush()
 
-        location_label: str | None = None
-        if row.location_id is not None:
-            loc = await self._session.get(Location, row.location_id)
-            if loc is not None:
-                location_label = loc.name
-
         return Success(
             RedeemOk(
                 full_name=display,
                 role=resolved_role.value,
                 organization_name=org.name,
-                location_label=location_label,
+                location_label=await self._resolve_location_label(row.location_id),
             )
         )

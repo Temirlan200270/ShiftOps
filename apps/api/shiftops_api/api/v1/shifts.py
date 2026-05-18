@@ -15,6 +15,10 @@ from shiftops_api.application.auth.deps import CurrentUser, require_user
 from shiftops_api.application.shifts.claim_shift import ClaimShiftUseCase
 from shiftops_api.application.shifts.close_shift import CloseShiftUseCase
 from shiftops_api.application.shifts.complete_task import CompleteTaskUseCase
+from shiftops_api.application.shifts.complete_tasks_batch import (
+    MAX_BATCH_SIZE,
+    CompleteTasksBatchUseCase,
+)
 from shiftops_api.application.shifts.list_available_shifts import ListAvailableShiftsUseCase
 from shiftops_api.application.shifts.list_history import (
     DEFAULT_PAGE_SIZE,
@@ -93,6 +97,19 @@ class CompleteTaskResponse(BaseModel):
     task_id: UUID
     status: str
     suspicious: bool = False
+
+
+class BatchCompleteIn(BaseModel):
+    task_ids: list[UUID] = []
+
+
+class BatchCompletedTaskOut(BaseModel):
+    task_id: UUID
+    status: str
+
+
+class BatchCompleteResponse(BaseModel):
+    completed: list[BatchCompletedTaskOut]
 
 
 class ScoreBreakdown(BaseModel):
@@ -379,6 +396,29 @@ async def start_shift(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=read_result.error.code)
     assert isinstance(read_result, Success)
     return CurrentShiftResponse.model_validate(read_result.value, from_attributes=True)
+
+
+@router.post(
+    "/tasks/complete-batch",
+    response_model=BatchCompleteResponse,
+    summary=f"Mark up to {MAX_BATCH_SIZE} photo-free tasks done in one transaction",
+)
+async def complete_tasks_batch(
+    body: BatchCompleteIn,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> BatchCompleteResponse:
+    use_case = CompleteTasksBatchUseCase(session=session)
+    result = await use_case.execute(task_ids=body.task_ids, user=user)
+    if isinstance(result, Failure):
+        raise_for_domain_failure(result)
+    assert isinstance(result, Success)
+    return BatchCompleteResponse(
+        completed=[
+            BatchCompletedTaskOut(task_id=item.task_id, status=item.status)
+            for item in result.value.completed
+        ]
+    )
 
 
 @router.post("/tasks/{task_id}/complete", response_model=CompleteTaskResponse)

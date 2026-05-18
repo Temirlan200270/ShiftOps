@@ -222,6 +222,12 @@ export async function completeTask(input: {
   };
 }
 
+export async function completeTaskBatch(
+  taskIds: string[],
+): Promise<ApiResult<{ completed: { task_id: string; status: string }[] }>> {
+  return api.post("/v1/shifts/tasks/complete-batch", { task_ids: taskIds });
+}
+
 export async function requestWaiver(input: {
   taskId: string;
   reason: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Camera, CheckCircle2, MessageSquareWarning, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, CheckSquare, MessageSquareWarning, ShieldAlert, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { closeShift, completeTask } from "@/lib/api/shifts";
+import { closeShift, completeTask, completeTaskBatch } from "@/lib/api/shifts";
 import { enqueueShiftClose } from "@/lib/offline/close-queue";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
@@ -82,14 +82,34 @@ function isDoneStatus(status: TaskStatus): boolean {
   return status === "done" || status === "waived";
 }
 
+/**
+ * Tasks eligible for batch completion.
+ * - requiresPhoto: allowed — completing without a photo is permitted (same as
+ *   the single-task flow). The caller shows a warning before confirming.
+ * - requiresComment: excluded — a comment requires explicit user input;
+ *   these tasks are non-selectable and "Select all" skips them silently.
+ */
+function canBatchComplete(task: TaskCard): boolean {
+  return (
+    !task.requiresComment &&
+    (task.status === "pending" || task.status === "waiver_rejected")
+  );
+}
+
 function TaskRow({
   task,
   onOpen,
   onQuickComplete,
+  selectionMode,
+  selected,
+  onToggleSelect,
 }: {
   task: TaskCard;
   onOpen: (id: string) => void;
   onQuickComplete?: (id: string) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }): React.JSX.Element {
   const tTasks = useTranslations("tasks");
   const isDone = task.status === "done" || task.status === "waived";
@@ -105,14 +125,37 @@ function TaskRow({
     !task.requiresPhoto &&
     !task.requiresComment &&
     onQuickComplete !== undefined;
+  const selectable = selectionMode && canBatchComplete(task);
+
+  const handleRowClick = (): void => {
+    if (selectionMode) {
+      if (selectable) onToggleSelect?.(task.id);
+    } else {
+      onOpen(task.id);
+    }
+  };
 
   return (
     <Card accent={accent} className="mb-2">
       <CardContent className="p-4">
         <div className="flex items-center gap-2">
+          {selectionMode ? (
+            <button
+              type="button"
+              onClick={() => selectable && onToggleSelect?.(task.id)}
+              className={`shrink-0 transition-colors ${selectable ? "text-primary" : "text-muted-foreground/30"}`}
+              aria-label={selected ? tTasks("deselectAll") : tTasks("selectAll")}
+            >
+              {selected ? (
+                <CheckSquare className="size-5" />
+              ) : (
+                <Square className="size-5" />
+              )}
+            </button>
+          ) : null}
           <button
             type="button"
-            onClick={() => onOpen(task.id)}
+            onClick={handleRowClick}
             className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
           >
             <div className="flex-1 min-w-0">
@@ -135,15 +178,17 @@ function TaskRow({
                 ) : null}
               </p>
             </div>
-            {isDone ? (
-              <CheckCircle2 className="size-6 text-success shrink-0" />
-            ) : task.status === "waiver_pending" ? (
-              <MessageSquareWarning className="size-6 text-warning shrink-0" />
-            ) : task.criticality === "critical" ? (
-              <ShieldAlert className="size-6 text-critical shrink-0" />
-            ) : null}
+            {!selectionMode && (
+              isDone ? (
+                <CheckCircle2 className="size-6 text-success shrink-0" />
+              ) : task.status === "waiver_pending" ? (
+                <MessageSquareWarning className="size-6 text-warning shrink-0" />
+              ) : task.criticality === "critical" ? (
+                <ShieldAlert className="size-6 text-critical shrink-0" />
+              ) : null
+            )}
           </button>
-          {canQuickComplete ? (
+          {!selectionMode && canQuickComplete ? (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onQuickComplete(task.id); }}
@@ -168,6 +213,7 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const tDash = useTranslations("dashboard");
   const tClose = useTranslations("close");
   const tErr = useTranslations("errors");
+  const tTasks = useTranslations("tasks");
   const biometricEnabled = usePreferencesStore((s) => s.shiftCloseBiometricEnabled);
 
   const allTasks = React.useMemo(() => sortTasks(shift?.tasks ?? []), [shift?.tasks]);
@@ -190,6 +236,77 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   const [delayReason, setDelayReason] = React.useState("");
   const [violationReason, setViolationReason] = React.useState("");
 
+  // ── Multi-select state ────────────────────────────────────────────────────
+  const [selectionMode, setSelectionMode] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [batchInProgress, setBatchInProgress] = React.useState(false);
+  const [batchPhotoWarnOpen, setBatchPhotoWarnOpen] = React.useState(false);
+
+  const batchableTasks = React.useMemo(
+    () => allTasks.filter(canBatchComplete),
+    [allTasks],
+  );
+  const hasBatchable = batchableTasks.length > 0;
+
+  const enterSelectionMode = React.useCallback(() => {
+    setSelectionMode(true);
+    setSelectedIds(new Set());
+  }, []);
+
+  const exitSelectionMode = React.useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    setBatchPhotoWarnOpen(false);
+  }, []);
+
+  const toggleSelect = React.useCallback((taskId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }, []);
+
+  const selectAll = React.useCallback(() => {
+    setSelectedIds(new Set(batchableTasks.map((t) => t.id)));
+  }, [batchableTasks]);
+
+  const deselectAll = React.useCallback(() => setSelectedIds(new Set()), []);
+
+  const allSelected = selectedIds.size === batchableTasks.length && batchableTasks.length > 0;
+
+  // How many of the selected tasks have requiresPhoto — used for the warning.
+  const selectedPhotoCount = React.useMemo(() => {
+    if (!shift) return 0;
+    return shift.tasks.filter((t) => selectedIds.has(t.id) && t.requiresPhoto).length;
+  }, [shift, selectedIds]);
+
+  const executeBatchComplete = React.useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    for (const id of ids) markOptimistic(id, { status: "done" });
+    setBatchInProgress(true);
+    exitSelectionMode();
+    const result = await completeTaskBatch(ids);
+    setBatchInProgress(false);
+    if (!result.ok) {
+      for (const id of ids) markOptimistic(id, { status: "pending" });
+      toast({ variant: "critical", title: tErr("generic"), description: result.message });
+    }
+  }, [selectedIds, markOptimistic, exitSelectionMode, tErr]);
+
+  const handleBatchComplete = React.useCallback(() => {
+    if (selectedIds.size === 0) return;
+    haptic("heavy");
+    if (selectedPhotoCount > 0) {
+      setBatchPhotoWarnOpen(true);
+    } else {
+      void executeBatchComplete();
+    }
+  }, [selectedIds, selectedPhotoCount, executeBatchComplete]);
+
+  // ── Single quick-complete ─────────────────────────────────────────────────
   const handleQuickComplete = React.useCallback(
     async (taskId: string) => {
       haptic("medium");
@@ -295,9 +412,15 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
   return (
     <main className="mx-auto max-w-md px-4 pt-4 pb-32">
       <header className="flex items-center gap-3 mb-4">
-        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 px-2">
-          <ArrowLeft className="size-5" />
-        </Button>
+        {selectionMode ? (
+          <Button variant="ghost" size="sm" onClick={exitSelectionMode} className="-ml-2 px-2">
+            {tTasks("cancelSelect")}
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 px-2">
+            <ArrowLeft className="size-5" />
+          </Button>
+        )}
         <div className="flex-1">
           <h1 className="text-lg font-semibold">{shift.templateName}</h1>
           {shift.stationLabel ? (
@@ -310,11 +433,30 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
               {tDash("slotIndexShort", { index: shift.slotIndex })}
             </p>
           )}
-          <p className="text-[11px] text-muted-foreground">{tDash("operatorOnShift", { name: shift.operatorFullName })}</p>
-          <p className="text-xs text-muted-foreground">
-            {done}/{total} · {progress}%
-          </p>
+          {!selectionMode ? (
+            <>
+              <p className="text-[11px] text-muted-foreground">{tDash("operatorOnShift", { name: shift.operatorFullName })}</p>
+              <p className="text-xs text-muted-foreground">
+                {done}/{total} · {progress}%
+              </p>
+            </>
+          ) : null}
         </div>
+        {!selectionMode && hasBatchable ? (
+          <Button variant="ghost" size="sm" onClick={enterSelectionMode} className="px-2 shrink-0">
+            {tTasks("selectMode")}
+          </Button>
+        ) : null}
+        {selectionMode ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={allSelected ? deselectAll : selectAll}
+            className="px-2 shrink-0"
+          >
+            {allSelected ? tTasks("deselectAll") : tTasks("selectAll")}
+          </Button>
+        ) : null}
       </header>
 
       <Progress value={progress} className="mb-4" />
@@ -343,30 +485,54 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
               key={group.section ?? "__no_section__"}
               group={group}
               onOpen={setActiveTaskId}
-              onQuickComplete={handleQuickComplete}
+              onQuickComplete={selectionMode ? undefined : handleQuickComplete}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
             />
           ))
         : allTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onOpen={setActiveTaskId} onQuickComplete={handleQuickComplete} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              onOpen={setActiveTaskId}
+              onQuickComplete={selectionMode ? undefined : handleQuickComplete}
+              selectionMode={selectionMode}
+              selected={selectedIds.has(task.id)}
+              onToggleSelect={toggleSelect}
+            />
           ))}
 
       <div className="fixed inset-x-0 bottom-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-background/95 backdrop-blur border-t border-border">
         <div className="mx-auto max-w-md">
-          <Button
-            size="block"
-            variant={closeBlocked ? "secondary" : "primary"}
-            disabled={closeBlocked || closing}
-            onClick={() => {
-              haptic("heavy");
-              if (requiredMissing > 0) setConfirmOpen(true);
-              else void handleClose(false);
-            }}
-          >
-            {tClose("cta")}
-          </Button>
-          {closeBlocked ? (
-            <p className="text-xs text-critical mt-2 text-center">{tClose("blockedBody")}</p>
-          ) : null}
+          {selectionMode ? (
+            <Button
+              size="block"
+              variant="primary"
+              disabled={selectedIds.size === 0 || batchInProgress}
+              onClick={() => void handleBatchComplete()}
+            >
+              {tTasks("markSelectedDone", { count: selectedIds.size })}
+            </Button>
+          ) : (
+            <>
+              <Button
+                size="block"
+                variant={closeBlocked ? "secondary" : "primary"}
+                disabled={closeBlocked || closing}
+                onClick={() => {
+                  haptic("heavy");
+                  if (requiredMissing > 0) setConfirmOpen(true);
+                  else void handleClose(false);
+                }}
+              >
+                {tClose("cta")}
+              </Button>
+              {closeBlocked ? (
+                <p className="text-xs text-critical mt-2 text-center">{tClose("blockedBody")}</p>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
 
@@ -411,6 +577,33 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
         </SheetContent>
       </Sheet>
 
+      <Sheet open={batchPhotoWarnOpen} onOpenChange={(open) => { if (!open) setBatchPhotoWarnOpen(false); }}>
+        <SheetTrigger asChild>
+          <span hidden />
+        </SheetTrigger>
+        <SheetContent title={tTasks("batchPhotoWarningTitle")}>
+          <p className="text-sm text-muted-foreground mb-6">
+            {tTasks("batchPhotoWarningBody", { count: selectedPhotoCount })}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="block"
+              onClick={() => setBatchPhotoWarnOpen(false)}
+            >
+              {tClose("cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              size="block"
+              onClick={() => { setBatchPhotoWarnOpen(false); void executeBatchComplete(); }}
+            >
+              {tTasks("batchPhotoConfirm")}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       <TaskDetailSheet
         taskId={activeTaskId}
         onClose={() => setActiveTaskId(null)}
@@ -430,10 +623,16 @@ function SectionGroup({
   group,
   onOpen,
   onQuickComplete,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
 }: {
   group: TaskGroup;
   onOpen: (id: string) => void;
   onQuickComplete?: (id: string) => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }): React.JSX.Element {
   const total = group.tasks.length;
   const done = group.tasks.filter((t) => isDoneStatus(t.status)).length;
@@ -466,7 +665,15 @@ function SectionGroup({
         />
       </div>
       {group.tasks.map((task) => (
-        <TaskRow key={task.id} task={task} onOpen={onOpen} onQuickComplete={onQuickComplete} />
+        <TaskRow
+          key={task.id}
+          task={task}
+          onOpen={onOpen}
+          onQuickComplete={onQuickComplete}
+          selectionMode={selectionMode}
+          selected={selectedIds?.has(task.id)}
+          onToggleSelect={onToggleSelect}
+        />
       ))}
     </section>
   );

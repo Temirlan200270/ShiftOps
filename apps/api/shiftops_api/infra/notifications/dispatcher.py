@@ -327,7 +327,7 @@ async def dispatch_task_progress(
         ).first()
         if row is None:
             return
-        shift, location, template_task, task_instance = row
+        shift, location, template_task, _ = row
 
         progress_row = (
             await session.execute(
@@ -373,9 +373,6 @@ async def dispatch_task_progress(
                     type=VIOLATION_TYPE_LOW_LUMINANCE,
                     location_id=str(location.id),
                 ).inc()
-
-        _ = actor_user_id
-        _ = task_instance
 
 
 async def dispatch_suspicious_photo_alert(
@@ -517,13 +514,13 @@ async def dispatch_waiver_decision(
                 "task_id": str(task_id),
                 "template_task_title": template_task.title,
                 "decision": decision,
+                "decided_by": str(decided_by),
             },
         )
 
         WAIVER_DECISIONS_TOTAL.labels(decision=decision).inc()
         request_status = WAIVER_STATUS_APPROVED if decision == "approve" else WAIVER_STATUS_REJECTED
         WAIVER_REQUESTS_TOTAL.labels(status=request_status).inc()
-        _ = decided_by
 
 
 async def dispatch_shift_closed(*, shift_id: uuid.UUID, final_status: str) -> None:

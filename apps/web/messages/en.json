@@ -128,7 +128,15 @@
     "waiverReason": "Describe why this task can't be done right now",
     "waiverSubmit": "Request exemption",
     "waiverPendingHint": "Your request was sent to the manager",
-    "suspiciousFlagged": "Photo looks like a previous one — the admin will be notified"
+    "suspiciousFlagged": "Photo looks like a previous one — the admin will be notified",
+    "selectMode": "Select",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "cancelSelect": "Cancel",
+    "markSelectedDone": "{count, plural, one {Mark done (# task)} other {Mark done (# tasks)}}",
+    "batchPhotoWarningTitle": "Tasks without photo",
+    "batchPhotoWarningBody": "{count, plural, one {# task requires a photo} other {# tasks require a photo}}. They will be marked done without a photo.",
+    "batchPhotoConfirm": "Mark without photo"
   },
   "close": {
     "cta": "Close shift",
