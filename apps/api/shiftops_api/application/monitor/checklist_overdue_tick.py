@@ -114,7 +114,10 @@ class ChecklistOverdueTickUseCase:
 
         sent = skipped_disabled = skipped_no_pending = skipped_dedup = 0
 
-        for shift, raw_prefs, location, template, operator in rows:
+        # Lazy import to avoid circular dependency (dispatcher → queue → tasks → here).
+        from shiftops_api.infra.notifications.dispatcher import dispatch_checklist_overdue  # noqa: PLC0415
+
+        for shift, raw_prefs, _location, _template, _operator in rows:
             prefs = NotificationPrefsConfig.parse_storage(
                 raw_prefs if isinstance(raw_prefs, dict) else {}
             ).checklist_overdue
@@ -149,9 +152,6 @@ class ChecklistOverdueTickUseCase:
             if not acquired:
                 skipped_dedup += 1
                 continue
-
-            # Lazy import to avoid circular dependency.
-            from shiftops_api.infra.notifications.dispatcher import dispatch_checklist_overdue  # noqa: PLC0415
 
             await dispatch_checklist_overdue(
                 shift_id=shift.id,

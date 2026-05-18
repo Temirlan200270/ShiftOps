@@ -13,16 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-
-# Keeps strong references to fire-and-forget tasks so the GC cannot collect
-# them before they finish (required by RUF006 / asyncio docs).
-_bg_tasks: set[asyncio.Task[None]] = set()
-
-
-def _fire(coro: asyncio.coroutines.CoroutineType) -> None:  # type: ignore[type-arg]
-    task: asyncio.Task[None] = asyncio.create_task(coro)
-    _bg_tasks.add(task)
-    task.add_done_callback(_bg_tasks.discard)
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -49,6 +39,16 @@ from shiftops_api.infra.db.models import (
 )
 from shiftops_api.infra.metrics import ATTACHMENTS_UPLOADED_TOTAL
 from shiftops_api.infra.storage.interface import StorageProvider, UploadFailed
+
+# Keeps strong references to fire-and-forget tasks so the GC cannot collect
+# them before they finish (required by RUF006 / asyncio docs).
+_bg_tasks: set[asyncio.Task[None]] = set()
+
+
+def _fire(coro: asyncio.coroutines.CoroutineType) -> None:  # type: ignore[type-arg]
+    task: asyncio.Task[None] = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
 
 
 @dataclass(frozen=True, slots=True)

@@ -37,7 +37,7 @@ class NotificationPrefsConfig(BaseModel):
     )
 
     @classmethod
-    def parse_storage(cls, raw: dict[str, Any]) -> "NotificationPrefsConfig":
+    def parse_storage(cls, raw: dict[str, Any]) -> NotificationPrefsConfig:
         """Lenient parse: unknown keys are ignored, missing keys use defaults."""
         return cls.model_validate(raw)
 

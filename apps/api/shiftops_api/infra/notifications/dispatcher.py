@@ -673,7 +673,7 @@ async def dispatch_checklist_overdue(
     elapsed_min: int,
     pending_count: int,
 ) -> None:
-    """Owner DM + admin chat: active shift has incomplete tasks past the alert threshold."""
+    """Operator DM: remind the person running the shift that tasks are still pending."""
     async with _privileged_session() as session:
         row = (
             await session.execute(
@@ -688,17 +688,16 @@ async def dispatch_checklist_overdue(
             return
         shift, location, template, operator = row
 
+        operator_chat = await _resolve_operator_dm_id(session, operator.id)
+        if not operator_chat:
+            return
+
         text = (
-            f"⚠️ [{location.name}] Чек-лист не заполнен — смена «{template.name}»\n"
-            f"Сотрудник: {_op_label(operator)}\n"
-            f"Смена открыта уже {elapsed_min} мин, осталось задач: {pending_count}"
+            f"⏰ [{location.name}] Чек-лист «{template.name}» ещё не заполнен!\n"
+            f"Смена открыта уже {elapsed_min} мин, осталось задач: {pending_count}.\n"
+            f"Пожалуйста, откройте ShiftOps и выполните оставшиеся задачи."
         )
-        admin_chat_id = location.tg_admin_chat_id
-        owner_chats = await _resolve_owner_dm_ids(session, shift.organization_id)
-        if admin_chat_id:
-            await send_telegram_message.kiq(admin_chat_id, text)
-        for owner_chat in owner_chats:
-            await send_telegram_message.kiq(owner_chat, text)
+        await send_telegram_message.kiq(operator_chat, text)
 
 
 async def dispatch_swap_request_resolved(*, request_id: uuid.UUID, accepted: bool) -> None:
