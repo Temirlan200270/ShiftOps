@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { closeShift, completeTask, completeTaskBatch } from "@/lib/api/shifts";
+import { closeShift, completeTask, completeTaskBatch, fetchShiftById } from "@/lib/api/shifts";
 import { enqueueShiftClose } from "@/lib/offline/close-queue";
 import { localiseApiFailure } from "@/lib/i18n/api-errors";
 import { usePreferencesStore } from "@/lib/stores/preferences-store";
@@ -201,6 +201,29 @@ function TaskRow({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function UnclosedShiftBanner({
+  unclosedShift,
+  onSwitch,
+}: {
+  unclosedShift: { templateName: string; progressDone: number; progressTotal: number };
+  onSwitch: () => void;
+}): React.JSX.Element {
+  const tTasks = useTranslations("tasks");
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-warning">{tTasks("unclosedShiftTitle")}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          «{unclosedShift.templateName}» · {unclosedShift.progressDone}/{unclosedShift.progressTotal}
+        </p>
+      </div>
+      <Button size="sm" variant="ghost" className="shrink-0 text-xs" onClick={onSwitch}>
+        {tTasks("unclosedShiftOpen")}
+      </Button>
+    </div>
   );
 }
 
@@ -465,6 +488,17 @@ export function TaskListScreen({ onBack, onClosed }: TaskListProps): React.JSX.E
       </header>
 
       <Progress value={progress} className="mb-4" />
+
+      {shift?.unclosedShift ? (
+        <UnclosedShiftBanner
+          unclosedShift={shift.unclosedShift}
+          onSwitch={async () => {
+            if (!shift.unclosedShift) return;
+            const res = await fetchShiftById(shift.unclosedShift.id);
+            if (res.ok && res.data) setShift(res.data);
+          }}
+        />
+      ) : null}
 
       {showDelayField ? (
         <div className="mb-4 space-y-2">

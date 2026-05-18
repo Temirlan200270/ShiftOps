@@ -136,7 +136,9 @@
     "markSelectedDone": "{count, plural, one {Mark done (# task)} other {Mark done (# tasks)}}",
     "batchPhotoWarningTitle": "Tasks without photo",
     "batchPhotoWarningBody": "{count, plural, one {# task requires a photo} other {# tasks require a photo}}. They will be marked done without a photo.",
-    "batchPhotoConfirm": "Mark without photo"
+    "batchPhotoConfirm": "Mark without photo",
+    "unclosedShiftTitle": "Unclosed shift",
+    "unclosedShiftOpen": "Open"
   },
   "close": {
     "cta": "Close shift",

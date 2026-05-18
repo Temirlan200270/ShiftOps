@@ -136,7 +136,9 @@
     "markSelectedDone": "{count, plural, one {Выполнено (# задача)} few {Выполнено (# задачи)} other {Выполнено (# задач)}}",
     "batchPhotoWarningTitle": "Задачи без фото",
     "batchPhotoWarningBody": "{count, plural, one {# задача требует фото} few {# задачи требуют фото} other {# задач требуют фото}}. Они будут отмечены выполненными без фото.",
-    "batchPhotoConfirm": "Отметить без фото"
+    "batchPhotoConfirm": "Отметить без фото",
+    "unclosedShiftTitle": "Не закрытая смена",
+    "unclosedShiftOpen": "Открыть"
   },
   "close": {
     "cta": "Закрыть смену",

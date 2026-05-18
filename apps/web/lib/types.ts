@@ -55,6 +55,13 @@ export const SCORE_WEIGHTS: Record<keyof ScoreBreakdown, number> = {
   photoQuality: 10,
 };
 
+export interface UnclosedShiftInfo {
+  id: string;
+  templateName: string;
+  progressDone: number;
+  progressTotal: number;
+}
+
 export interface ShiftSummary {
   id: string;
   templateName: string;
@@ -71,4 +78,6 @@ export interface ShiftSummary {
   operatorFullName: string;
   slotIndex: number;
   stationLabel: string | null;
+  /** Older active shift that was not closed before this one started. */
+  unclosedShift: UnclosedShiftInfo | null;
 }

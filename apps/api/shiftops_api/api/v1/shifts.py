@@ -76,9 +76,17 @@ class TaskCard(BaseModel):
     completed_at: str | None
 
 
+class UnclosedShiftSummary(BaseModel):
+    id: UUID
+    template_name: str
+    progress_done: int
+    progress_total: int
+
+
 class CurrentShiftResponse(BaseModel):
     shift: ShiftSummary
     tasks: list[TaskCard]
+    unclosed_shift: UnclosedShiftSummary | None = None
 
 
 class StartShiftResponse(BaseModel):
@@ -332,6 +340,20 @@ async def get_my_shift(
 ) -> CurrentShiftResponse:
     use_case = ListMyShiftUseCase(session=session)
     result = await use_case.execute(user=user)
+    if isinstance(result, Failure):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.error.code)
+    assert isinstance(result, Success)
+    return CurrentShiftResponse.model_validate(result.value, from_attributes=True)
+
+
+@router.get("/{shift_id}", response_model=CurrentShiftResponse)
+async def get_shift_by_id(
+    shift_id: UUID,
+    user: CurrentUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> CurrentShiftResponse:
+    use_case = ListMyShiftUseCase(session=session)
+    result = await use_case.execute(user=user, shift_id=shift_id)
     if isinstance(result, Failure):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.error.code)
     assert isinstance(result, Success)

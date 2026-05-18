@@ -195,17 +195,18 @@ class CreateRecurringShiftsTickUseCase:
         )
 
     async def _abort_expired_vacant_scheduled(self) -> int:
-        """Vacant pool slots past ``scheduled_end`` would clutter dashboards forever.
+        """Scheduled shifts past ``scheduled_end`` clutter dashboards forever.
 
-        Mark them ``aborted`` so the next tick can materialise a fresh day slot if
-        needed (``aborted`` is not in ``RECURRING_SLOT_BLOCKING_STATUSES``).
+        Covers both vacant pool slots (``operator_user_id IS NULL``) and
+        assigned shifts the operator never started. Mark them ``aborted`` so
+        the next tick can materialise a fresh day slot if needed (``aborted``
+        is not in ``RECURRING_SLOT_BLOCKING_STATUSES``).
         """
 
         now = self._now
         res = await self._session.execute(
             update(Shift)
             .where(Shift.status == ShiftStatus.SCHEDULED.value)
-            .where(Shift.operator_user_id.is_(None))
             .where(Shift.scheduled_end < now)
             .values(
                 status=ShiftStatus.ABORTED.value,
@@ -215,7 +216,7 @@ class CreateRecurringShiftsTickUseCase:
         n = int(res.rowcount or 0)
         if n:
             _log.info(
-                "recurring.tick.aborted_expired_vacant",
+                "recurring.tick.aborted_expired_scheduled",
                 extra={"count": n},
             )
         return n

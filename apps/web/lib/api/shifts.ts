@@ -1,7 +1,7 @@
 "use client";
 
 import { api, type ApiResult } from "@/lib/api/client";
-import type { ScoreBreakdown, ShiftSummary, TaskCard } from "@/lib/types";
+import type { ScoreBreakdown, ShiftSummary, TaskCard, UnclosedShiftInfo } from "@/lib/types";
 
 interface ShiftHeadDTO {
   id: string;
@@ -32,9 +32,17 @@ interface TaskCardDTO {
   has_attachment: boolean;
 }
 
+interface UnclosedShiftDTO {
+  id: string;
+  template_name: string;
+  progress_done: number;
+  progress_total: number;
+}
+
 interface CurrentShiftDTO {
   shift: ShiftHeadDTO;
   tasks: TaskCardDTO[];
+  unclosed_shift: UnclosedShiftDTO | null;
 }
 
 interface ScoreBreakdownDTO {
@@ -64,6 +72,14 @@ function breakdownFromDto(dto: ScoreBreakdownDTO): ScoreBreakdown {
 }
 
 function fromCurrentShift(dto: CurrentShiftDTO): ShiftSummary {
+  const unclosedShift: UnclosedShiftInfo | null = dto.unclosed_shift
+    ? {
+        id: dto.unclosed_shift.id,
+        templateName: dto.unclosed_shift.template_name,
+        progressDone: dto.unclosed_shift.progress_done,
+        progressTotal: dto.unclosed_shift.progress_total,
+      }
+    : null;
   return {
     id: dto.shift.id,
     templateName: dto.shift.template_name,
@@ -80,6 +96,7 @@ function fromCurrentShift(dto: CurrentShiftDTO): ShiftSummary {
     operatorFullName: dto.shift.operator_full_name,
     slotIndex: dto.shift.slot_index,
     stationLabel: dto.shift.station_label,
+    unclosedShift,
     tasks: dto.tasks.map((t) => ({
       id: t.id,
       title: t.title,
@@ -97,6 +114,15 @@ function fromCurrentShift(dto: CurrentShiftDTO): ShiftSummary {
 
 export async function fetchMyShift(): Promise<ApiResult<ShiftSummary | null>> {
   const result = await api.get<CurrentShiftDTO>("/v1/shifts/me");
+  if (!result.ok) {
+    if (result.status === 404) return { ok: true, status: 404, data: null };
+    return result;
+  }
+  return { ok: true, status: result.status, data: fromCurrentShift(result.data) };
+}
+
+export async function fetchShiftById(shiftId: string): Promise<ApiResult<ShiftSummary | null>> {
+  const result = await api.get<CurrentShiftDTO>(`/v1/shifts/${shiftId}`);
   if (!result.ok) {
     if (result.status === 404) return { ok: true, status: 404, data: null };
     return result;
